@@ -144,7 +144,7 @@ export default function App() {
   // Quote Calculator fields
   const [quoteOrigin, setQuoteOrigin] = useState('Guatemala');
   const [quoteDestination, setQuoteDestination] = useState('Quetzaltenango');
-  const [quoteService, setQuoteService] = useState<'Express' | 'Estándar'>('Express');
+  const [quoteService, setQuoteService] = useState<'Express' | 'Estándar' | 'Laredo' | 'Mexico' | 'Shein'>('Express');
   const [quoteWeight, setQuoteWeight] = useState(1);
   const [calculatedQuote, setCalculatedQuote] = useState<{
     base: number;
@@ -198,6 +198,7 @@ export default function App() {
   const [warehouseWeightInput, setWarehouseWeightInput] = useState(2.0);
   const [warehouseNotes, setWarehouseNotes] = useState('');
   const [warehouseBodega, setWarehouseBodega] = useState<'Laredo' | 'Mexico'>('Laredo');
+  const [isSheinPackage, setIsSheinPackage] = useState(false);
   const [expandedWarehouseGroup, setExpandedWarehouseGroup] = useState<string | null>(null);
   const [expandedConsolidadoGuide, setExpandedConsolidadoGuide] = useState<string | null>(null);
   const [masterGuideSearch, setMasterGuideSearch] = useState('');
@@ -227,13 +228,40 @@ export default function App() {
   const [expenseDescription, setExpenseDescription] = useState('');
   const [expenseAmount, setExpenseAmount] = useState(150.00);
 
+  interface RatesSettings {
+    baseEstandar: number;
+    baseExpress: number;
+    pesoEstandar: number;
+    pesoExpress: number;
+    laredoRate: number;
+    mexicoRate: number;
+    sheinRate: number;
+  }
+
   // System Rates
-  const [ratesSettings, setRatesSettings] = useState({
-    baseEstandar: 20,
-    baseExpress: 35,
-    pesoEstandar: 4,
-    pesoExpress: 7
+  const [ratesSettings, setRatesSettings] = useState<RatesSettings>(() => {
+    const saved = localStorage.getItem('ratesSettings');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        // ignore
+      }
+    }
+    return {
+      baseEstandar: 20,
+      baseExpress: 35,
+      pesoEstandar: 4,
+      pesoExpress: 7,
+      laredoRate: 60,
+      mexicoRate: 30,
+      sheinRate: 30
+    };
   });
+
+  useEffect(() => {
+    localStorage.setItem('ratesSettings', JSON.stringify(ratesSettings));
+  }, [ratesSettings]);
 
   // Branches
   const [branchesList, setBranchesList] = useState<any[]>([]);
@@ -257,7 +285,7 @@ export default function App() {
   const [newShipmentModal, setNewShipmentModal] = useState(false);
   const [newShipmentModalMode, setNewShipmentModalMode] = useState<'individual' | 'bulk'>('bulk');
   const [bulkRows, setBulkRows] = useState<any[]>([
-    { id: 'row-1', bodega: 'Laredo', trackingNumber: '', lockerId: '', weight: 0.00, pieces: 1, saved: false }
+    { id: 'row-1', bodega: 'Laredo', trackingNumber: '', lockerId: '', weight: 0.00, pieces: 1, isShein: false, saved: false }
   ]);
   const [bulkAutoSave, setBulkAutoSave] = useState(false);
   const [activeAutocompleteRow, setActiveAutocompleteRow] = useState<string | null>(null);
@@ -431,11 +459,32 @@ export default function App() {
     e.preventDefault();
     
     // Pricing formulas
-    const base = quoteService === 'Express' ? ratesSettings.baseExpress : ratesSettings.baseEstandar;
-    const weightCost = quoteWeight * (quoteService === 'Express' ? ratesSettings.pesoExpress : ratesSettings.pesoEstandar);
+    let base = 0;
+    let weightCost = 0;
+    let days = '48 a 72 Horas';
+
+    if (quoteService === 'Express') {
+      base = ratesSettings.baseExpress;
+      weightCost = quoteWeight * ratesSettings.pesoExpress;
+      days = '24 Horas';
+    } else if (quoteService === 'Estándar') {
+      base = ratesSettings.baseEstandar;
+      weightCost = quoteWeight * ratesSettings.pesoEstandar;
+      days = '48 a 72 Horas';
+    } else if (quoteService === 'Laredo') {
+      base = 0;
+      weightCost = quoteWeight * ratesSettings.laredoRate;
+      days = '3 a 5 Días Hábiles';
+    } else if (quoteService === 'Mexico') {
+      base = 0;
+      weightCost = quoteWeight * ratesSettings.mexicoRate;
+      days = '2 a 4 Días Hábiles';
+    } else if (quoteService === 'Shein') {
+      base = ratesSettings.sheinRate;
+      weightCost = 0;
+      days = '4 a 6 Días Hábiles';
+    }
     const total = base + weightCost;
-    
-    const days = quoteService === 'Express' ? '24 Horas' : '48 a 72 Horas';
     
     // Route guidelines
     let route = 'Conexión vial primaria Hub Central';
@@ -728,7 +777,7 @@ export default function App() {
         const newId = 'row-' + Math.random().toString(36).substring(2, 9);
         setBulkRows(prev => [
           ...prev,
-          { id: newId, bodega: prev[prev.length - 1]?.bodega || 'Laredo', trackingNumber: '', lockerId: '', weight: 0.00, pieces: 1, saved: false }
+          { id: newId, bodega: prev[prev.length - 1]?.bodega || 'Laredo', trackingNumber: '', lockerId: '', weight: 0.00, pieces: 1, isShein: false, saved: false }
         ]);
         
         setTimeout(() => {
@@ -746,13 +795,13 @@ export default function App() {
     const newId = 'row-' + Math.random().toString(36).substring(2, 9);
     setBulkRows(prev => [
       ...prev,
-      { id: newId, bodega: prev[prev.length - 1]?.bodega || 'Laredo', trackingNumber: '', lockerId: '', weight: 0.00, pieces: 1, saved: false }
+      { id: newId, bodega: prev[prev.length - 1]?.bodega || 'Laredo', trackingNumber: '', lockerId: '', weight: 0.00, pieces: 1, isShein: false, saved: false }
     ]);
   };
 
   const deleteBulkRow = (rowId: string) => {
     if (bulkRows.length <= 1) {
-      setBulkRows([{ id: 'row-1', bodega: 'Laredo', trackingNumber: '', lockerId: '', weight: 0.00, pieces: 1, saved: false }]);
+      setBulkRows([{ id: 'row-1', bodega: 'Laredo', trackingNumber: '', lockerId: '', weight: 0.00, pieces: 1, isShein: false, saved: false }]);
       return;
     }
     setBulkRows(prev => prev.filter(r => r.id !== rowId));
@@ -794,11 +843,11 @@ export default function App() {
     // Use weight directly in Lbs
     const weightLbs = row.weight;
 
-    // Calculate flete based on service and weight
-    const serviceType = 'Express'; // default service for bulk scans
-    const baseVal = serviceType === 'Express' ? ratesSettings.baseExpress : ratesSettings.baseEstandar;
-    const weightVal = weightLbs * (serviceType === 'Express' ? ratesSettings.pesoExpress : ratesSettings.pesoEstandar);
-    const fleteTotal = Number((baseVal + weightVal).toFixed(2));
+    // Calculate flete based on warehouse and Shein package classification
+    const isShein = !!row.isShein || row.trackingNumber.toLowerCase().includes('shein');
+    const fleteTotal = isShein
+      ? ratesSettings.sheinRate
+      : Number((row.bodega === 'Laredo' ? weightLbs * ratesSettings.laredoRate : weightLbs * ratesSettings.mexicoRate).toFixed(2));
 
     const newShip: Shipment = {
       id: newId,
@@ -808,7 +857,7 @@ export default function App() {
       origin: row.bodega,
       destination: matchedClient.address || "Ciudad de Guatemala, GT",
       status: 'En Sucursal', // checked-in at branch
-      serviceType: serviceType,
+      serviceType: 'Express',
       weight: weightLbs,
       dimensions: "N/A (Carga Consolidada)",
       lastUpdated: `${currentDate} ${currentTime}`,
@@ -821,7 +870,7 @@ export default function App() {
           details: `Paquete recibido físicamente en bodega de ${row.bodega}. Peso registrado: ${row.weight} Lbs.`
         }
       ],
-      notes: `Ingreso secuencial rápido. Tracking original: ${row.trackingNumber}.`
+      notes: isShein ? `Ingreso rápido Shein. Tracking original: ${row.trackingNumber}.` : `Ingreso secuencial rápido. Tracking original: ${row.trackingNumber}.`
     };
 
     // Auto-create invoice
@@ -830,7 +879,9 @@ export default function App() {
       id: invoiceId,
       lockerId: matchedClient.lockerId,
       date: currentDate,
-      concept: `Flete ${serviceType} ${newId} (${row.weight} Lbs)`,
+      concept: isShein
+        ? `Flete Especial Bolsa Shein ${newId}`
+        : `Flete Bodega ${row.bodega} ${newId} (${row.weight} Lbs)`,
       amount: fleteTotal,
       paymentStatus: 'Pendiente'
     };
@@ -882,10 +933,10 @@ export default function App() {
       const newId = generatePackageId();
       const weightLbs = row.weight;
       
-      const serviceType = 'Express';
-      const baseVal = serviceType === 'Express' ? ratesSettings.baseExpress : ratesSettings.baseEstandar;
-      const weightVal = weightLbs * (serviceType === 'Express' ? ratesSettings.pesoExpress : ratesSettings.pesoEstandar);
-      const fleteTotal = Number((baseVal + weightVal).toFixed(2));
+      const isShein = !!row.isShein || row.trackingNumber.toLowerCase().includes('shein');
+      const fleteTotal = isShein
+        ? ratesSettings.sheinRate
+        : Number((row.bodega === 'Laredo' ? weightLbs * ratesSettings.laredoRate : weightLbs * ratesSettings.mexicoRate).toFixed(2));
 
       const newShip: Shipment = {
         id: newId,
@@ -895,7 +946,7 @@ export default function App() {
         origin: row.bodega,
         destination: matchedClient.address || "Ciudad de Guatemala, GT",
         status: 'En Sucursal',
-        serviceType: serviceType,
+        serviceType: 'Express',
         weight: weightLbs,
         dimensions: "N/A (Carga Consolidada)",
         lastUpdated: `${currentDate} ${currentTime}`,
@@ -908,7 +959,7 @@ export default function App() {
             details: `Paquete recibido físicamente en bodega de ${row.bodega}. Peso registrado: ${row.weight} Lbs.`
           }
         ],
-        notes: `Ingreso rápido por lote. Tracking original: ${row.trackingNumber}.`
+        notes: isShein ? `Ingreso rápido Shein por lote. Tracking original: ${row.trackingNumber}.` : `Ingreso rápido por lote. Tracking original: ${row.trackingNumber}.`
       };
 
       invoiceCounter++;
@@ -917,7 +968,9 @@ export default function App() {
         id: invoiceId,
         lockerId: matchedClient.lockerId,
         date: currentDate,
-        concept: `Flete ${serviceType} ${newId} (${row.weight} Lbs)`,
+        concept: isShein
+          ? `Flete Especial Bolsa Shein ${newId}`
+          : `Flete Bodega ${row.bodega} ${newId} (${row.weight} Lbs)`,
         amount: fleteTotal,
         paymentStatus: 'Pendiente'
       };
@@ -1542,8 +1595,11 @@ Para proporcionarle información específica, puede solicitar:
                               onChange={(e) => setQuoteService(e.target.value as any)}
                               className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-brand-orange"
                             >
-                              <option value="Express">Express (24h)</option>
-                              <option value="Estándar">Estándar (48-72h)</option>
+                              <option value="Express">Express Local (24h)</option>
+                              <option value="Estándar">Estándar Local (48-72h)</option>
+                              <option value="Laredo">Importación Laredo 🇺🇸 (Q{ratesSettings.laredoRate}/Lb)</option>
+                              <option value="Mexico">Importación México 🇲🇽 (Q{ratesSettings.mexicoRate}/Lb)</option>
+                              <option value="Shein">Especial Bolsa Shein 🛍️ (Q{ratesSettings.sheinRate})</option>
                             </select>
                           </div>
 
@@ -2146,8 +2202,11 @@ Para proporcionarle información específica, puede solicitar:
                           onChange={(e) => setQuoteService(e.target.value as any)}
                           className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-brand-orange"
                         >
-                          <option value="Express">Express (24h)</option>
-                          <option value="Estándar">Estándar (48-72h)</option>
+                          <option value="Express">Express Local (24h)</option>
+                          <option value="Estándar">Estándar Local (48-72h)</option>
+                          <option value="Laredo">Importación Laredo 🇺🇸 (Q{ratesSettings.laredoRate}/Lb)</option>
+                          <option value="Mexico">Importación México 🇲🇽 (Q{ratesSettings.mexicoRate}/Lb)</option>
+                          <option value="Shein">Especial Bolsa Shein 🛍️ (Q{ratesSettings.sheinRate})</option>
                         </select>
                       </div>
 
@@ -3010,10 +3069,11 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                             const currentDate = new Date().toISOString().split('T')[0];
                                             const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
 
-                                            // Calculate standard rate
-                                            const base = ratesSettings.baseExpress;
-                                            const weight = pa.weightEst * ratesSettings.pesoExpress;
-                                            const flete = base + weight;
+                                            // Calculate Laredo / Shein rate
+                                            const isShein = pa.description.toLowerCase().includes('shein');
+                                            const flete = isShein
+                                              ? ratesSettings.sheinRate
+                                              : pa.weightEst * ratesSettings.laredoRate;
 
                                             const newShip: Shipment = {
                                               id: generatedId,
@@ -3033,7 +3093,9 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                                   time: currentTime,
                                                   status: 'En Sucursal',
                                                   location: 'Bodega Laredo',
-                                                  details: 'Carga pre-alertada recibida físicamente en bodega de Laredo.'
+                                                  details: isShein
+                                                    ? `Carga pre-alertada (Bolsa Shein) recibida físicamente en bodega de Laredo.`
+                                                    : `Carga pre-alertada recibida físicamente en bodega de Laredo. Peso registrado: ${pa.weightEst} Lbs.`
                                                 }
                                               ],
                                               notes: pa.description
@@ -3044,7 +3106,9 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                               id: invoiceId,
                                               lockerId: pa.lockerId,
                                               date: currentDate,
-                                              concept: `Flete Pre-alerta Laredo ${generatedId} (${pa.weightEst} Lbs)`,
+                                              concept: isShein
+                                                ? `Flete Especial Bolsa Shein ${generatedId}`
+                                                : `Cargo Flete Almacén Laredo ${generatedId} (${pa.weightEst} Lbs)`,
                                               amount: flete,
                                               paymentStatus: 'Pendiente'
                                             };
@@ -3080,10 +3144,11 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                             const currentDate = new Date().toISOString().split('T')[0];
                                             const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
 
-                                            // Calculate standard rate
-                                            const base = ratesSettings.baseExpress;
-                                            const weight = pa.weightEst * ratesSettings.pesoExpress;
-                                            const flete = base + weight;
+                                            // Calculate Mexico / Shein rate
+                                            const isShein = pa.description.toLowerCase().includes('shein');
+                                            const flete = isShein
+                                              ? ratesSettings.sheinRate
+                                              : pa.weightEst * ratesSettings.mexicoRate;
 
                                             const newShip: Shipment = {
                                               id: generatedId,
@@ -3103,7 +3168,9 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                                   time: currentTime,
                                                   status: 'En Sucursal',
                                                   location: 'Bodega México',
-                                                  details: 'Carga pre-alertada recibida físicamente en bodega de México.'
+                                                  details: isShein
+                                                    ? `Carga pre-alertada (Bolsa Shein) recibida físicamente en bodega de México.`
+                                                    : `Carga pre-alertada recibida físicamente en bodega de México. Peso registrado: ${pa.weightEst} Lbs.`
                                                 }
                                               ],
                                               notes: pa.description
@@ -3114,7 +3181,9 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                               id: invoiceId,
                                               lockerId: pa.lockerId,
                                               date: currentDate,
-                                              concept: `Flete Pre-alerta México ${generatedId} (${pa.weightEst} Lbs)`,
+                                              concept: isShein
+                                                ? `Flete Especial Bolsa Shein ${generatedId}`
+                                                : `Cargo Flete Almacén México ${generatedId} (${pa.weightEst} Lbs)`,
                                               amount: flete,
                                               paymentStatus: 'Pendiente'
                                             };
@@ -3265,12 +3334,15 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                         const currentDate = new Date().toISOString().split('T')[0];
                         const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
 
-                        // Calculate live flete fijos en Q
+                        // Calculate live flete based on warehouse and Shein package classification
                         const matchingUser = users.find(u => u.lockerId === warehouseLocker);
                         const clientName = matchingUser ? matchingUser.name : 'Cliente';
-                        const fleteBase = ratesSettings.baseEstandar;
-                        const weightVal = warehouseWeightInput * ratesSettings.pesoEstandar;
-                        const fleteTotal = fleteBase + weightVal;
+                        const isShein = isSheinPackage || warehouseNotes.toLowerCase().includes('shein');
+                        const fleteTotal = isShein
+                          ? ratesSettings.sheinRate
+                          : (warehouseBodega === 'Laredo'
+                            ? warehouseWeightInput * ratesSettings.laredoRate
+                            : warehouseWeightInput * ratesSettings.mexicoRate);
 
                         const newShip: Shipment = {
                           id: generatedId,
@@ -3290,7 +3362,9 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                               time: currentTime,
                               status: 'En Sucursal',
                               location: `Bodega ${warehouseBodega}`,
-                              details: `Ingreso físico a bodega de ${warehouseBodega}.`
+                              details: isShein 
+                                ? `Ingreso físico de Bolsa Shein a bodega de ${warehouseBodega}.`
+                                : `Ingreso físico a bodega de ${warehouseBodega}. Peso registrado: ${warehouseWeightInput} Lbs.`
                             }
                           ],
                           notes: warehouseNotes
@@ -3307,7 +3381,9 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                           id: newFacId,
                           lockerId: warehouseLocker,
                           date: currentDate,
-                          concept: `Cargo Flete Almacén ${warehouseBodega} ${generatedId} (${warehouseWeightInput} Lbs)`,
+                          concept: isShein
+                            ? `Flete Especial Bolsa Shein ${generatedId}`
+                            : `Cargo Flete Almacén ${warehouseBodega} ${generatedId} (${warehouseWeightInput} Lbs)`,
                           amount: fleteTotal,
                           paymentStatus: 'Pendiente'
                         };
@@ -3319,8 +3395,18 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
 
                         alert(`¡Paquete ingresado formalmente en Bodega de ${warehouseBodega}! ID de guía asignado: ${generatedId}. Se ha emitido la factura ${newFacId} por Q ${fleteTotal.toFixed(2)}.`);
                         
+                        // Reset Shein package checkbox
+                        setIsSheinPackage(false);
+                        
                         // We do not reset to keep the printed sticker on screen for the admin to see!
                       };
+
+                      const isSheinActive = isSheinPackage || warehouseNotes.toLowerCase().includes('shein');
+                      const stickerFlete = isSheinActive
+                        ? ratesSettings.sheinRate
+                        : (warehouseBodega === 'Laredo'
+                          ? warehouseWeightInput * ratesSettings.laredoRate
+                          : warehouseWeightInput * ratesSettings.mexicoRate);
 
                       return (
                         <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs space-y-6">
@@ -3387,6 +3473,24 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                 </div>
                               </div>
 
+                              {/* Shein package classification checkbox */}
+                              <div className="flex items-center space-x-2 bg-gray-50 border border-gray-200 p-2.5 rounded hover:border-brand-orange transition select-none">
+                                <input
+                                  id="isSheinPackageCheckbox"
+                                  type="checkbox"
+                                  checked={isSheinPackage}
+                                  onChange={(e) => setIsSheinPackage(e.target.checked)}
+                                  className="w-4 h-4 accent-brand-orange rounded cursor-pointer"
+                                />
+                                <label 
+                                  htmlFor="isSheinPackageCheckbox"
+                                  className="text-4xs font-bold text-brand-gray-dark uppercase cursor-pointer select-none flex items-center space-x-1"
+                                >
+                                  <span>🎀 ¿Es Paquete/Bolsa Shein?</span>
+                                  <span className="text-brand-orange font-extrabold font-mono">(Tarifa Especial Plana Q {ratesSettings.sheinRate})</span>
+                                </label>
+                              </div>
+
                               <button
                                 type="submit"
                                 className="w-full bg-brand-orange hover:bg-brand-orange-hover text-white text-3xs font-extrabold py-2.5 rounded uppercase tracking-wider transition cursor-pointer"
@@ -3404,6 +3508,11 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                 <div className="text-center font-black border-b border-brand-gray-dark pb-2">
                                   <div className="text-xs tracking-widest uppercase">SHIPFAST GT</div>
                                   <div className="text-4xs text-gray-500 uppercase">BODEGA: {warehouseBodega.toUpperCase()}</div>
+                                  {isSheinActive && (
+                                    <div className="text-[7px] bg-brand-orange text-white px-1.5 py-0.5 rounded font-black inline-block uppercase mt-1 animate-pulse">
+                                      🎀 BOLSA SHEIN TARIFA FIJA
+                                    </div>
+                                  )}
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-2 text-4xs">
@@ -3424,7 +3533,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                   </div>
                                   <div className="text-right">
                                     <span className="block text-gray-400 uppercase font-black">Flete Est.:</span>
-                                    <strong className="text-xs font-bold block">Q {(ratesSettings.baseEstandar + (warehouseWeightInput * ratesSettings.pesoEstandar)).toFixed(2)}</strong>
+                                    <strong className="text-xs font-bold block">Q {stickerFlete.toFixed(2)}</strong>
                                   </div>
                                 </div>
 
@@ -3576,7 +3685,18 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                               </button>
                                               <button
                                                 type="button"
-                                                onClick={() => handleAutoDispatch(g.lockerId, g.bodega as 'Laredo' | 'Mexico', g.shipments, g.totalWeight, 20 + g.totalWeight * 4)}
+                                                onClick={() => {
+                                                  const estimatedFlete = g.shipments.reduce((acc, s) => {
+                                                    const isShein = (s.notes || '').toLowerCase().includes('shein');
+                                                    const sFlete = isShein
+                                                      ? ratesSettings.sheinRate
+                                                      : (g.bodega === 'Laredo'
+                                                        ? s.weight * ratesSettings.laredoRate
+                                                        : s.weight * ratesSettings.mexicoRate);
+                                                    return acc + sFlete;
+                                                  }, 0);
+                                                  handleAutoDispatch(g.lockerId, g.bodega as 'Laredo' | 'Mexico', g.shipments, g.totalWeight, estimatedFlete);
+                                                }}
                                                 className="bg-brand-orange hover:bg-brand-orange-hover text-white text-[9px] font-extrabold px-2.5 py-1 rounded uppercase tracking-wider transition cursor-pointer"
                                               >
                                                 Despachar
@@ -4820,26 +4940,113 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                 className="w-full accent-brand-orange cursor-pointer"
                               />
                             </div>
+
+                            {/* Laredo Hub Tariff */}
+                            <div className="space-y-2 border-t border-gray-200 pt-4">
+                              <div className="flex justify-between text-3xs font-bold text-brand-gray-dark">
+                                <span>TARIFA IMPORTACIÓN LAREDO (USA)</span>
+                                <span className="text-brand-orange font-mono">Q {ratesSettings.laredoRate} / Lb</span>
+                              </div>
+                              <input
+                                type="range"
+                                min="10"
+                                max="150"
+                                step="5"
+                                value={ratesSettings.laredoRate}
+                                onChange={(e) => setRatesSettings(prev => ({ ...prev, laredoRate: Number(e.target.value) }))}
+                                className="w-full accent-brand-orange cursor-pointer"
+                              />
+                            </div>
+
+                            {/* Mexico Hub Tariff */}
+                            <div className="space-y-2">
+                              <div className="flex justify-between text-3xs font-bold text-brand-gray-dark">
+                                <span>TARIFA IMPORTACIÓN MÉXICO (MX)</span>
+                                <span className="text-brand-orange font-mono">Q {ratesSettings.mexicoRate} / Lb</span>
+                              </div>
+                              <input
+                                type="range"
+                                min="5"
+                                max="100"
+                                step="5"
+                                value={ratesSettings.mexicoRate}
+                                onChange={(e) => setRatesSettings(prev => ({ ...prev, mexicoRate: Number(e.target.value) }))}
+                                className="w-full accent-brand-orange cursor-pointer"
+                              />
+                            </div>
+
+                            {/* Shein Packages Tariff */}
+                            <div className="space-y-2">
+                              <div className="flex justify-between text-3xs font-bold text-brand-gray-dark">
+                                <span>TARIFA BOLSA SHEIN (TARIFA PLANA)</span>
+                                <span className="text-brand-orange font-mono">Q {ratesSettings.sheinRate} / Bolsa</span>
+                              </div>
+                              <input
+                                type="range"
+                                min="5"
+                                max="100"
+                                step="5"
+                                value={ratesSettings.sheinRate}
+                                onChange={(e) => setRatesSettings(prev => ({ ...prev, sheinRate: Number(e.target.value) }))}
+                                className="w-full accent-brand-orange cursor-pointer"
+                              />
+                            </div>
                           </div>
 
                           {/* Quick interactive calculator preview - RIGHT */}
                           <div className="bg-gray-50 border border-gray-200 p-6 rounded-lg space-y-4">
-                            <span className="text-4xs font-bold text-gray-400 uppercase tracking-widest block border-b border-gray-200 pb-2">SIMULADOR CON TARIFAS LIVE</span>
+                            <span className="text-4xs font-bold text-gray-400 uppercase tracking-widest block border-b border-gray-200 pb-2">🎯 SIMULADOR CON TARIFAS LIVE</span>
                             
-                            <div className="space-y-3 text-3xs text-gray-600">
-                              <p>El flete estimado para un paquete promedio de **5 Lbs** en servicio **Express** sería de:</p>
+                            <div className="space-y-4 text-3xs text-gray-600">
+                              <p className="font-semibold text-gray-600">Fletes estimados calculados dinámicamente en tiempo real:</p>
                               
-                              <div className="bg-white border border-gray-200 rounded p-4 text-center space-y-2 font-mono active-accent-border">
-                                <div className="text-[10px] text-gray-400 uppercase">Total Estimado Consolidado</div>
-                                <div className="text-lg font-black text-brand-orange">
-                                  Q {(ratesSettings.baseExpress + (5 * ratesSettings.pesoExpress)).toFixed(2)}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {/* Card 1: Laredo USA */}
+                                <div className="bg-white border border-gray-200 rounded-lg p-3 text-center space-y-1 font-mono hover:shadow-xs transition active-accent-border">
+                                  <div className="text-[9px] text-gray-400 uppercase font-black">Laredo USA (5 Lbs)</div>
+                                  <div className="text-sm font-black text-brand-orange">
+                                    Q {(5 * ratesSettings.laredoRate).toFixed(2)}
+                                  </div>
+                                  <div className="text-[8px] text-gray-500 font-semibold font-sans leading-none">
+                                    5 Lbs x Q {ratesSettings.laredoRate}
+                                  </div>
                                 </div>
-                                <div className="text-[9px] text-gray-500 font-semibold font-sans">
-                                  (Base Express Q {ratesSettings.baseExpress} + Cargo Peso 5 Lbs x Q {ratesSettings.pesoExpress})
+
+                                {/* Card 2: México */}
+                                <div className="bg-white border border-gray-200 rounded-lg p-3 text-center space-y-1 font-mono hover:shadow-xs transition active-accent-border">
+                                  <div className="text-[9px] text-gray-400 uppercase font-black">México (5 Lbs)</div>
+                                  <div className="text-sm font-black text-brand-orange">
+                                    Q {(5 * ratesSettings.mexicoRate).toFixed(2)}
+                                  </div>
+                                  <div className="text-[8px] text-gray-500 font-semibold font-sans leading-none">
+                                    5 Lbs x Q {ratesSettings.mexicoRate}
+                                  </div>
+                                </div>
+
+                                {/* Card 3: Bolsa Shein */}
+                                <div className="bg-white border border-gray-200 rounded-lg p-3 text-center space-y-1 font-mono hover:shadow-xs transition active-accent-border">
+                                  <div className="text-[9px] text-gray-400 uppercase font-black">Bolsa Shein (1 Bolsa)</div>
+                                  <div className="text-sm font-black text-brand-orange">
+                                    Q {ratesSettings.sheinRate.toFixed(2)}
+                                  </div>
+                                  <div className="text-[8px] text-gray-500 font-semibold font-sans leading-none">
+                                    Tarifa Fija Q {ratesSettings.sheinRate}
+                                  </div>
+                                </div>
+
+                                {/* Card 4: Local Express */}
+                                <div className="bg-white border border-gray-200 rounded-lg p-3 text-center space-y-1 font-mono hover:shadow-xs transition active-accent-border">
+                                  <div className="text-[9px] text-gray-400 uppercase font-black">Local Express (5 Lbs)</div>
+                                  <div className="text-sm font-black text-brand-orange">
+                                    Q {(ratesSettings.baseExpress + (5 * ratesSettings.pesoExpress)).toFixed(2)}
+                                  </div>
+                                  <div className="text-[8px] text-gray-500 font-semibold font-sans leading-none">
+                                    Base Q{ratesSettings.baseExpress} + 5 Lbs x Q{ratesSettings.pesoExpress}
+                                  </div>
                                 </div>
                               </div>
 
-                              <p className="text-4xs italic text-gray-400 leading-normal pt-2">
+                              <p className="text-4xs italic text-gray-400 leading-normal pt-2 border-t border-gray-200">
                                 *Nota Comercial: Al cambiar los parámetros comerciales con los sliders de la izquierda, la landing page y el cotizador de casilleros de los clientes se reprogramarán instantáneamente en tiempo real.
                               </p>
                             </div>
@@ -5169,6 +5376,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                     <th className="py-2.5 px-2 w-64">CLIENTE / LOCKER *</th>
                                     <th className="py-2.5 px-2 w-28 text-right">PESO (LBS)</th>
                                     <th className="py-2.5 px-2 w-20 text-center">PZAS</th>
+                                    <th className="py-2.5 px-2 w-20 text-center">SHEIN?</th>
                                     <th className="py-2.5 px-3 w-44 text-center">ACCIONES</th>
                                   </tr>
                                 </thead>
@@ -5299,7 +5507,18 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                           />
                                         </td>
 
-                                        {/* 7. Acciones */}
+                                        {/* 7. Shein Checkbox */}
+                                        <td className="py-2 px-2 text-center">
+                                          <input
+                                            type="checkbox"
+                                            checked={!!row.isShein}
+                                            disabled={row.saved}
+                                            onChange={(e) => updateBulkRow(row.id, 'isShein', e.target.checked)}
+                                            className="h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500 border-gray-300 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed mx-auto"
+                                          />
+                                        </td>
+
+                                        {/* 8. Acciones */}
                                         <td className="py-2 px-3 text-center flex items-center justify-center gap-1">
                                           {row.saved ? (
                                             <span className="bg-green-100 text-green-800 text-[9px] font-extrabold px-2.5 py-0.5 rounded flex items-center gap-1 select-none border border-green-200">
