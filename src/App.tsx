@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
+import { db } from './supabaseClient';
+import {
   Package, 
   Truck, 
   Shield, 
@@ -287,6 +288,61 @@ export default function App() {
   const [aiInput, setAiInput] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
 
+  // Load data from Supabase on mount
+  useEffect(() => {
+    async function loadData() {
+      // 1. Load profiles
+      const profilesList = await db.getProfiles();
+      if (profilesList.length > 0) {
+        setUsers(profilesList);
+      }
+      
+      // 2. Load shipments
+      const dbShipments = await db.getShipments();
+      if (dbShipments.length > 0) {
+        setShipments(dbShipments);
+      }
+      
+      // 3. Load pre-alerts
+      const dbPreAlerts = await db.getPreAlerts();
+      if (dbPreAlerts.length > 0) {
+        setPreAlerts(dbPreAlerts);
+      }
+      
+      // 4. Load consolidated guides
+      const dbConsolidated = await db.getConsolidatedGuides();
+      if (dbConsolidated.length > 0) {
+        setConsolidatedGuides(dbConsolidated);
+      }
+      
+      // 5. Load invoices
+      const dbInvoices = await db.getInvoices();
+      if (dbInvoices.length > 0) {
+        setInvoices(dbInvoices);
+      }
+      
+      // 6. Load payments log
+      const dbPayments = await db.getPayments();
+      if (dbPayments.length > 0) {
+        setPaymentsLog(dbPayments);
+      }
+      
+      // 7. Load expenses log
+      const dbExpenses = await db.getExpenses();
+      if (dbExpenses.length > 0) {
+        setExpensesLog(dbExpenses);
+      }
+      
+      // 8. Load branches list
+      const dbBranches = await db.getBranches();
+      if (dbBranches.length > 0) {
+        setBranchesList(dbBranches);
+      }
+    }
+    
+    loadData();
+  }, []);
+
   // Set initial default tab when user changes
   useEffect(() => {
     if (currentUser) {
@@ -355,6 +411,9 @@ export default function App() {
       role: 'client',
       password: signupPassword
     };
+
+    // Save to Supabase
+    db.upsertProfile(newProfile);
 
     setUsers([...users, newProfile]);
     setSignupSuccessLocker(generatedLockerId);
@@ -460,6 +519,9 @@ export default function App() {
       notes: pickupNotes
     };
 
+    // Save to Supabase
+    db.upsertShipment(newShip);
+
     setShipments([newShip, ...shipments]);
     setPickupSuccessMsg(`¡Solicitud generada con éxito! Su código de rastreo asignado es: ${newId}`);
     
@@ -493,15 +555,21 @@ export default function App() {
       return;
     }
 
-    const newPreAlert: PreAlert = {
+    const newPreAlert: PreAlert & { declaredValue?: number; insurance?: string; invoiceFileName?: string } = {
       id: clientPreAlertTracking.trim().toUpperCase(),
       lockerId: currentUser.lockerId,
       sender: 'Compra Online',
       description: `Origen: ${clientPreAlertBodega} | Valor: $${declaredVal.toFixed(2)} | Seguro: ${clientPreAlertInsurance}${clientPreAlertFileName ? ` | Factura: ${clientPreAlertFileName}` : ''}`,
       weightEst: 1.0,
       status: 'Pendiente',
-      dateCreated: new Date().toISOString().split('T')[0]
+      dateCreated: new Date().toISOString().split('T')[0],
+      declaredValue: declaredVal,
+      insurance: clientPreAlertInsurance,
+      invoiceFileName: clientPreAlertFileName
     };
+
+    // Save to Supabase
+    db.upsertPreAlert(newPreAlert);
 
     setPreAlerts(prev => [newPreAlert, ...prev]);
 
@@ -589,6 +657,28 @@ export default function App() {
 
     const currentDate = new Date().toISOString().split('T')[0];
     const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
+
+    const targetShipment = shipments.find(s => s.id === activeDriverTaskId);
+    if (targetShipment) {
+      const updatedShipment = {
+        ...targetShipment,
+        status: 'Entregado' as const,
+        lastUpdated: `${currentDate} ${currentTime}`,
+        signeeName: signeeName,
+        signatureUrl: "MOCK_SIGNATURE_CAPTURED",
+        history: [
+          {
+            date: currentDate,
+            time: currentTime,
+            status: 'Entregado' as const,
+            location: targetShipment.destination.split(',')[0],
+            details: `Entregado al destinatario final y firmado digitalmente por: ${signeeName}.`
+          },
+          ...targetShipment.history
+        ]
+      };
+      db.upsertShipment(updatedShipment);
+    }
 
     setShipments(prev => prev.map(s => {
       if (s.id === activeDriverTaskId) {
@@ -745,6 +835,10 @@ export default function App() {
       paymentStatus: 'Pendiente'
     };
 
+    // Save to Supabase
+    db.upsertShipment(newShip);
+    db.upsertInvoice(newInvoice);
+
     setShipments(prev => [newShip, ...prev]);
     setInvoices(prev => [...prev, newInvoice]);
 
@@ -834,6 +928,14 @@ export default function App() {
       return { ...row, saved: true };
     });
 
+    // Save to Supabase
+    if (newShipmentsList.length > 0) {
+      db.upsertShipments(newShipmentsList);
+      for (const inv of newInvoicesList) {
+        db.upsertInvoice(inv);
+      }
+    }
+
     setShipments(prev => [...newShipmentsList, ...prev]);
     setInvoices(prev => [...prev, ...newInvoicesList]);
     setBulkRows(updatedRows);
@@ -919,6 +1021,9 @@ export default function App() {
       notes: adminNotes
     };
 
+    // Save to Supabase
+    db.upsertShipment(newShip);
+
     setShipments([newShip, ...shipments]);
     alert(`Envío corporativo ${newId} creado correctamente.`);
     setNewShipmentModal(false);
@@ -963,6 +1068,7 @@ export default function App() {
           lastUpdated: `${currentDate} ${currentTime}`,
           history: [newHistoryEvent, ...s.history]
         };
+        db.upsertShipment(updatedShip);
         setSelectedAdminShipment(updatedShip);
         return updatedShip;
       }
@@ -2813,6 +2919,12 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                 });
 
                                 if (newShipmentsList.length > 0) {
+                                  // Save to Supabase
+                                  db.upsertShipments(newShipmentsList);
+                                  for (const inv of newInvoices) {
+                                    db.upsertInvoice(inv);
+                                  }
+
                                   setShipments(prev => [...newShipmentsList, ...prev]);
                                   setInvoices(prev => [...prev, ...newInvoices]);
                                   alert(`Se procesaron y cargaron exitosamente ${addedCount} envíos y se crearon sus facturas correspondientes bajo el casillero ${bulkLocker}.`);
@@ -2927,18 +3039,26 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                               notes: pa.description
                                             };
 
+                                            const invoiceId = `FAC-${1000 + invoices.length + 1}`;
+                                            const newInvoice = {
+                                              id: invoiceId,
+                                              lockerId: pa.lockerId,
+                                              date: currentDate,
+                                              concept: `Flete Pre-alerta Laredo ${generatedId} (${pa.weightEst} Lbs)`,
+                                              amount: flete,
+                                              paymentStatus: 'Pendiente'
+                                            };
+
+                                            // Save to Supabase
+                                            db.upsertPreAlert({ ...pa, status: 'Recibido' });
+                                            db.upsertShipment(newShip);
+                                            db.upsertInvoice(newInvoice);
+
                                             setShipments([newShip, ...shipments]);
 
                                             // Generate invoice
                                             setInvoices(prev => [
-                                              {
-                                                id: `FAC-${1000 + invoices.length + 1}`,
-                                                lockerId: pa.lockerId,
-                                                date: currentDate,
-                                                concept: `Flete Pre-alerta Laredo ${generatedId} (${pa.weightEst} Lbs)`,
-                                                amount: flete,
-                                                paymentStatus: 'Pendiente'
-                                              },
+                                              newInvoice,
                                               ...prev
                                             ]);
 
@@ -2989,18 +3109,26 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                               notes: pa.description
                                             };
 
+                                            const invoiceId = `FAC-${1000 + invoices.length + 1}`;
+                                            const newInvoice = {
+                                              id: invoiceId,
+                                              lockerId: pa.lockerId,
+                                              date: currentDate,
+                                              concept: `Flete Pre-alerta México ${generatedId} (${pa.weightEst} Lbs)`,
+                                              amount: flete,
+                                              paymentStatus: 'Pendiente'
+                                            };
+
+                                            // Save to Supabase
+                                            db.upsertPreAlert({ ...pa, status: 'Recibido' });
+                                            db.upsertShipment(newShip);
+                                            db.upsertInvoice(newInvoice);
+
                                             setShipments([newShip, ...shipments]);
 
                                             // Generate invoice
                                             setInvoices(prev => [
-                                              {
-                                                id: `FAC-${1000 + invoices.length + 1}`,
-                                                lockerId: pa.lockerId,
-                                                date: currentDate,
-                                                concept: `Flete Pre-alerta México ${generatedId} (${pa.weightEst} Lbs)`,
-                                                amount: flete,
-                                                paymentStatus: 'Pendiente'
-                                              },
+                                              newInvoice,
                                               ...prev
                                             ]);
 
@@ -3051,6 +3179,52 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                         
                         // 1. Transition all grouped packages to 'En Tránsito'
                         const shipmentIds = groupShipments.map(s => s.id);
+                        const updatedShipments = groupShipments.map(s => {
+                          return {
+                            ...s,
+                            status: 'En Tránsito' as const,
+                            lastUpdated: `${currentDate} ${currentTime}`,
+                            history: [
+                              {
+                                date: currentDate,
+                                time: currentTime,
+                                status: 'En Tránsito' as const,
+                                location: `Ruta Troncal desde Bodega ${origin}`,
+                                details: `Despachado en lote automático. Consolidado bajo Guía Madre ${masterWaybillId}.`
+                              },
+                              ...s.history
+                            ]
+                          };
+                        });
+
+                        // 2. Append Master Guide to consolidatedGuides state
+                        const newGuide = {
+                          id: masterWaybillId,
+                          date: currentDate,
+                          origin: origin,
+                          destination: 'Guatemala Central',
+                          status: 'En Tránsito',
+                          itemsCount: groupShipments.length,
+                          totalWeight: totalWeight,
+                          notes: `Consolidación Automática del cliente ${lockerId} desde Bodega ${origin}.`
+                        };
+
+                        // 3. Issue a consolidated billing invoice (flete) in Quetzales to invoices state
+                        const invoiceId = `FAC-${Math.floor(1000 + Math.random() * 9000)}`;
+                        const newInvoice = {
+                          id: invoiceId,
+                          lockerId: lockerId,
+                          date: currentDate,
+                          concept: `Flete Consolidado - ${groupShipments.length} Paquetes desde Bodega ${origin}`,
+                          amount: estimatedFlete,
+                          paymentStatus: 'Pendiente'
+                        };
+
+                        // Save to Supabase
+                        db.upsertShipments(updatedShipments);
+                        db.upsertConsolidatedGuide(newGuide);
+                        db.upsertInvoice(newInvoice);
+
                         setShipments(prev => prev.map(s => {
                           if (shipmentIds.includes(s.id)) {
                             return {
@@ -3072,29 +3246,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                           return s;
                         }));
 
-                        // 2. Append Master Guide to consolidatedGuides state
-                        const newGuide = {
-                          id: masterWaybillId,
-                          date: currentDate,
-                          origin: origin,
-                          destination: 'Guatemala Central',
-                          status: 'En Tránsito',
-                          itemsCount: groupShipments.length,
-                          totalWeight: totalWeight,
-                          notes: `Consolidación Automática del cliente ${lockerId} desde Bodega ${origin}.`
-                        };
                         setConsolidatedGuides(prev => [newGuide, ...prev]);
-
-                        // 3. Issue a consolidated billing invoice (flete) in Quetzales to invoices state
-                        const invoiceId = `FAC-${Math.floor(1000 + Math.random() * 9000)}`;
-                        const newInvoice = {
-                          id: invoiceId,
-                          lockerId: lockerId,
-                          date: currentDate,
-                          concept: `Flete Consolidado - ${groupShipments.length} Paquetes desde Bodega ${origin}`,
-                          amount: estimatedFlete,
-                          paymentStatus: 'Pendiente'
-                        };
                         setInvoices(prev => [newInvoice, ...prev]);
 
                         alert(`¡Consolidado despachado exitosamente!\n\n- Guía Madre: ${masterWaybillId}\n- Cliente: ${lockerId}\n- Paquetes: ${groupShipments.length}\n- Peso total: ${totalWeight.toFixed(1)} Lbs\n- Factura flete emitida: ${invoiceId} por Q ${estimatedFlete.toFixed(2)}`);
@@ -3144,21 +3296,26 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                           notes: warehouseNotes
                         };
 
+                        // Save to Supabase
+                        db.upsertShipment(newShip);
+
                         setShipments([newShip, ...shipments]);
 
                         // Generate invoice
                         const newFacId = `FAC-${1000 + invoices.length + 1}`;
-                        setInvoices(prev => [
-                          {
-                            id: newFacId,
-                            lockerId: warehouseLocker,
-                            date: currentDate,
-                            concept: `Cargo Flete Almacén ${warehouseBodega} ${generatedId} (${warehouseWeightInput} Lbs)`,
-                            amount: fleteTotal,
-                            paymentStatus: 'Pendiente'
-                          },
-                          ...prev
-                        ]);
+                        const newInvoice = {
+                          id: newFacId,
+                          lockerId: warehouseLocker,
+                          date: currentDate,
+                          concept: `Cargo Flete Almacén ${warehouseBodega} ${generatedId} (${warehouseWeightInput} Lbs)`,
+                          amount: fleteTotal,
+                          paymentStatus: 'Pendiente'
+                        };
+
+                        // Save Invoice to Supabase
+                        db.upsertInvoice(newInvoice);
+
+                        setInvoices(prev => [newInvoice, ...prev]);
 
                         alert(`¡Paquete ingresado formalmente en Bodega de ${warehouseBodega}! ID de guía asignado: ${generatedId}. Se ha emitido la factura ${newFacId} por Q ${fleteTotal.toFixed(2)}.`);
                         
@@ -3484,6 +3641,11 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                     {adminSubTab === 'consolidado' && (() => {
                       const handleUpdateStatus = (guideId: string, newStatus: string) => {
                         // 1. Update the Master Guide status in consolidatedGuides
+                        const targetGuide = consolidatedGuides.find(g => g.id === guideId);
+                        if (targetGuide) {
+                          db.upsertConsolidatedGuide({ ...targetGuide, status: newStatus });
+                        }
+
                         setConsolidatedGuides(prev => prev.map(g => {
                           if (g.id === guideId) {
                             return { ...g, status: newStatus };
@@ -3495,7 +3657,8 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                         const currentDate = new Date().toISOString().split('T')[0];
                         const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
 
-                        setShipments(prev => prev.map(s => {
+                        const updatedShipmentsList: any[] = [];
+                        const nextShipments = shipments.map(s => {
                           const hasGuideRef = s.history.some(h => h.details && h.details.includes(guideId));
                           if (hasGuideRef) {
                             let packageStatus: "Creado" | "En Tránsito" | "En Sucursal" | "En Ruta" | "Entregado" | "Retrasado" = 'En Tránsito';
@@ -3516,7 +3679,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                               locationText = 'Hub Central Guatemala';
                             }
 
-                            return {
+                            const updatedShip = {
                               ...s,
                               status: packageStatus,
                               lastUpdated: `${currentDate} ${currentTime}`,
@@ -3531,9 +3694,17 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                 ...s.history
                               ]
                             };
+                            updatedShipmentsList.push(updatedShip);
+                            return updatedShip;
                           }
                           return s;
-                        }));
+                        });
+
+                        if (updatedShipmentsList.length > 0) {
+                          db.upsertShipments(updatedShipmentsList);
+                        }
+
+                        setShipments(nextShipments);
 
                         alert(`¡Guía Madre ${guideId} actualizada a: ${newStatus}!\nSe ha propagado el estado a todos sus paquetes individuales.`);
                       };
@@ -3861,16 +4032,20 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
 
                                 const currentDate = new Date().toISOString().split('T')[0];
                                 const invoiceId = `FAC-${1000 + invoices.length + 1}`;
+                                const newInvoice = {
+                                  id: invoiceId,
+                                  lockerId: invoiceLocker,
+                                  date: currentDate,
+                                  concept: invoiceConcept,
+                                  amount: invoiceAmount,
+                                  paymentStatus: 'Pendiente'
+                                };
+
+                                // Save to Supabase
+                                db.upsertInvoice(newInvoice);
 
                                 setInvoices(prev => [
-                                  {
-                                    id: invoiceId,
-                                    lockerId: invoiceLocker,
-                                    date: currentDate,
-                                    concept: invoiceConcept,
-                                    amount: invoiceAmount,
-                                    paymentStatus: 'Pendiente'
-                                  },
+                                  newInvoice,
                                   ...prev
                                 ]);
 
@@ -3990,21 +4165,27 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
 
                                 const currentDate = new Date().toISOString().split('T')[0];
                                 const receiptId = `PAG-${500 + paymentsLog.length + 1}`;
+                                const updatedInvoice = { ...selectedInvoice, paymentStatus: 'Pagado' };
+                                const newPayment = {
+                                  id: receiptId,
+                                  lockerId: paymentLocker,
+                                  date: currentDate,
+                                  method: paymentMethod,
+                                  invoiceId: paymentInvoice,
+                                  amount: paymentAmount,
+                                  notes: paymentNotes || 'Auditado en ventanilla'
+                                };
+
+                                // Save to Supabase
+                                db.upsertInvoice(updatedInvoice);
+                                db.upsertPayment(newPayment);
 
                                 // Update invoice status
-                                setInvoices(prev => prev.map(inv => inv.id === paymentInvoice ? { ...inv, paymentStatus: 'Pagado' } : inv));
+                                setInvoices(prev => prev.map(inv => inv.id === paymentInvoice ? updatedInvoice : inv));
 
                                 // Append transaction receipt
                                 setPaymentsLog(prev => [
-                                  {
-                                    id: receiptId,
-                                    lockerId: paymentLocker,
-                                    date: currentDate,
-                                    method: paymentMethod,
-                                    invoiceId: paymentInvoice,
-                                    amount: paymentAmount,
-                                    notes: paymentNotes || 'Auditado en ventanilla'
-                                  },
+                                  newPayment,
                                   ...prev
                                 ]);
 
@@ -4136,16 +4317,20 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
 
                                 const currentDate = new Date().toISOString().split('T')[0];
                                 const expId = `GTO-${800 + expensesLog.length + 1}`;
+                                const newExpense = {
+                                  id: expId,
+                                  date: currentDate,
+                                  category: expenseCategory,
+                                  description: expenseDescription,
+                                  amount: expenseAmount,
+                                  cashier: 'Auditor Central'
+                                };
+
+                                // Save to Supabase
+                                db.upsertExpense(newExpense);
 
                                 setExpensesLog(prev => [
-                                  {
-                                    id: expId,
-                                    date: currentDate,
-                                    category: expenseCategory,
-                                    description: expenseDescription,
-                                    amount: expenseAmount,
-                                    cashier: 'Auditor Central'
-                                  },
+                                  newExpense,
                                   ...prev
                                 ]);
 
@@ -4320,17 +4505,21 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                 }
 
                                 const brId = `SUC-0${branchesList.length + 1}`;
+                                const newBranch = {
+                                  id: brId,
+                                  name: newBranchName,
+                                  region: newBranchRegion,
+                                  manager: newBranchManager,
+                                  staffCount: 4,
+                                  activeVehicles: 2
+                                };
+
+                                // Save to Supabase
+                                db.upsertBranch(newBranch);
 
                                 setBranchesList(prev => [
                                   ...prev,
-                                  {
-                                    id: brId,
-                                    name: newBranchName,
-                                    region: newBranchRegion,
-                                    manager: newBranchManager,
-                                    staffCount: 4,
-                                    activeVehicles: 2
-                                  }
+                                  newBranch
                                 ]);
 
                                 alert(`Nueva sucursal regional ${newBranchName} registrada exitosamente bajo el código ${brId}.`);
@@ -4421,6 +4610,9 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                           role: userRole,
                           password: '1234'
                         };
+
+                        // Save to Supabase
+                        db.upsertProfile(newStaff);
 
                         setUsers([...users, newStaff]);
                         alert(`Operador/Repartidor ${userName} agregado exitosamente con el prefijo +502 en su teléfono.`);
@@ -5271,23 +5463,28 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                   const currentDate = new Date().toISOString().split('T')[0];
                                   const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
 
+                                  const updatedShip = {
+                                    ...s,
+                                    status: 'En Ruta' as const,
+                                    lastUpdated: `${currentDate} ${currentTime}`,
+                                    history: [
+                                      {
+                                        date: currentDate,
+                                        time: currentTime,
+                                        status: 'En Ruta' as const,
+                                        location: s.destination.split(',')[0],
+                                        details: 'Unidad de reparto local iniciada en la zona asignada.'
+                                      },
+                                      ...s.history
+                                    ]
+                                  };
+
+                                  // Save to Supabase
+                                  db.upsertShipment(updatedShip);
+
                                   setShipments(prev => prev.map(ship => {
                                     if (ship.id === s.id) {
-                                      return {
-                                        ...ship,
-                                        status: 'En Ruta',
-                                        lastUpdated: `${currentDate} ${currentTime}`,
-                                        history: [
-                                          {
-                                            date: currentDate,
-                                            time: currentTime,
-                                            status: 'En Ruta',
-                                            location: s.destination.split(',')[0],
-                                            details: 'Unidad de reparto local iniciada en la zona asignada.'
-                                          },
-                                          ...ship.history
-                                        ]
-                                      };
+                                      return updatedShip;
                                     }
                                     return ship;
                                   }));
