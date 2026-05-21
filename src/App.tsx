@@ -306,12 +306,12 @@ export default function App() {
   const [warehouseWeightInput, setWarehouseWeightInput] = useState(2.0);
   const [warehouseBinInput, setWarehouseBinInput] = useState('Rack A-12');
   const [warehouseNotes, setWarehouseNotes] = useState('');
-  const [warehouseBodega, setWarehouseBodega] = useState<'Texas' | 'Tapachula'>('Texas');
+  const [warehouseBodega, setWarehouseBodega] = useState<'Laredo' | 'Mexico'>('Laredo');
 
   // Consolidation States
   const [selectedInventoryItems, setSelectedInventoryItems] = useState<string[]>([]);
   const [consolidatedGuides, setConsolidatedGuides] = useState<any[]>([
-    { id: "SF-CONS-901-GT", date: "2026-05-20", origin: "Texas", destination: "Guatemala Central", status: "Despachado", itemsCount: 15, totalWeight: 145.0, notes: "Vuelo consolidado AA-902" }
+    { id: "SF-CONS-901-GT", date: "2026-05-20", origin: "Laredo", destination: "Guatemala Central", status: "Despachado", itemsCount: 15, totalWeight: 145.0, notes: "Vuelo consolidado AA-902" }
   ]);
 
   // Finance & Invoices
@@ -378,7 +378,7 @@ export default function App() {
   const [newShipmentModal, setNewShipmentModal] = useState(false);
   const [newShipmentModalMode, setNewShipmentModalMode] = useState<'individual' | 'bulk'>('bulk');
   const [bulkRows, setBulkRows] = useState<any[]>([
-    { id: 'row-1', bodega: 'Texas', trackingNumber: '', lockerId: '', weight: 0.00, pieces: 1, saved: false }
+    { id: 'row-1', bodega: 'Laredo', trackingNumber: '', lockerId: '', weight: 0.00, pieces: 1, saved: false }
   ]);
   const [bulkAutoSave, setBulkAutoSave] = useState(false);
   const [activeAutocompleteRow, setActiveAutocompleteRow] = useState<string | null>(null);
@@ -722,7 +722,7 @@ export default function App() {
         const newId = 'row-' + Math.random().toString(36).substring(2, 9);
         setBulkRows(prev => [
           ...prev,
-          { id: newId, bodega: prev[prev.length - 1]?.bodega || 'Texas', trackingNumber: '', lockerId: '', weight: 0.00, pieces: 1, saved: false }
+          { id: newId, bodega: prev[prev.length - 1]?.bodega || 'Laredo', trackingNumber: '', lockerId: '', weight: 0.00, pieces: 1, saved: false }
         ]);
         
         setTimeout(() => {
@@ -740,13 +740,13 @@ export default function App() {
     const newId = 'row-' + Math.random().toString(36).substring(2, 9);
     setBulkRows(prev => [
       ...prev,
-      { id: newId, bodega: prev[prev.length - 1]?.bodega || 'Texas', trackingNumber: '', lockerId: '', weight: 0.00, pieces: 1, saved: false }
+      { id: newId, bodega: prev[prev.length - 1]?.bodega || 'Laredo', trackingNumber: '', lockerId: '', weight: 0.00, pieces: 1, saved: false }
     ]);
   };
 
   const deleteBulkRow = (rowId: string) => {
     if (bulkRows.length <= 1) {
-      setBulkRows([{ id: 'row-1', bodega: 'Texas', trackingNumber: '', lockerId: '', weight: 0.00, pieces: 1, saved: false }]);
+      setBulkRows([{ id: 'row-1', bodega: 'Laredo', trackingNumber: '', lockerId: '', weight: 0.00, pieces: 1, saved: false }]);
       return;
     }
     setBulkRows(prev => prev.filter(r => r.id !== rowId));
@@ -2883,7 +2883,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                       <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs space-y-4">
                         <div>
                           <h3 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display mb-1">🕒 Pre-alertas Declaradas por Clientes</h3>
-                          <p className="text-4xs text-gray-500">Buzón de recepción internacional. Cuando el cliente compra en tiendas online, declara su paquete antes de que llegue a nuestras bodegas en Texas (USA) o Tapachula (México).</p>
+                          <p className="text-4xs text-gray-500">Buzón de recepción internacional. Cuando el cliente compra en tiendas online, declara su paquete antes de que llegue a nuestras bodegas en Laredo (USA) o México.</p>
                         </div>
 
                         <div className="overflow-x-auto">
@@ -2943,9 +2943,9 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                               lockerId: pa.lockerId,
                                               sender: pa.sender,
                                               receiver: clientName,
-                                              origin: 'Texas',
+                                              origin: 'Laredo',
                                               destination: matchingUser ? matchingUser.address : 'Guatemala',
-                                              status: 'En Sucursal', // checked-in at Texas warehouse
+                                              status: 'En Sucursal', // checked-in at Laredo warehouse
                                               serviceType: 'Express',
                                               weight: pa.weightEst,
                                               dimensions: '20x20x15 cm',
@@ -2955,8 +2955,8 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                                   date: currentDate,
                                                   time: currentTime,
                                                   status: 'En Sucursal',
-                                                  location: 'Bodega Texas',
-                                                  details: 'Carga pre-alertada recibida físicamente en bodega de Texas.'
+                                                  location: 'Bodega Laredo',
+                                                  details: 'Carga pre-alertada recibida físicamente en bodega de Laredo.'
                                                 }
                                               ],
                                               notes: pa.description
@@ -2970,18 +2970,18 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                                 id: `FAC-${1000 + invoices.length + 1}`,
                                                 lockerId: pa.lockerId,
                                                 date: currentDate,
-                                                concept: `Flete Pre-alerta Texas ${generatedId} (${pa.weightEst} Lbs)`,
+                                                concept: `Flete Pre-alerta Laredo ${generatedId} (${pa.weightEst} Lbs)`,
                                                 amount: flete,
                                                 paymentStatus: 'Pendiente'
                                               },
                                               ...prev
                                             ]);
 
-                                            alert(`Paquete pre-alertado registrado como recibido en Bodega Texas. Se ha asignado la guía: ${generatedId} y se ha creado una factura de flete por Q ${flete.toFixed(2)}.`);
+                                            alert(`Paquete pre-alertado registrado como recibido en Bodega Laredo. Se ha asignado la guía: ${generatedId} y se ha creado una factura de flete por Q ${flete.toFixed(2)}.`);
                                           }}
                                           className="bg-brand-orange hover:bg-brand-orange-hover text-white px-2 py-0.5 rounded text-4xs font-black uppercase transition cursor-pointer shadow-3xs flex items-center gap-0.5"
                                         >
-                                          Texas 🇺🇸
+                                          Laredo 🇺🇸
                                         </button>
                                         <button
                                           onClick={() => {
@@ -3005,9 +3005,9 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                               lockerId: pa.lockerId,
                                               sender: pa.sender,
                                               receiver: clientName,
-                                              origin: 'Tapachula',
+                                              origin: 'Mexico',
                                               destination: matchingUser ? matchingUser.address : 'Guatemala',
-                                              status: 'En Sucursal', // checked-in at Tapachula warehouse
+                                              status: 'En Sucursal', // checked-in at Mexico warehouse
                                               serviceType: 'Express',
                                               weight: pa.weightEst,
                                               dimensions: '20x20x15 cm',
@@ -3017,8 +3017,8 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                                   date: currentDate,
                                                   time: currentTime,
                                                   status: 'En Sucursal',
-                                                  location: 'Bodega Tapachula',
-                                                  details: 'Carga pre-alertada recibida físicamente en bodega de Tapachula.'
+                                                  location: 'Bodega México',
+                                                  details: 'Carga pre-alertada recibida físicamente en bodega de México.'
                                                 }
                                               ],
                                               notes: pa.description
@@ -3032,18 +3032,18 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                                 id: `FAC-${1000 + invoices.length + 1}`,
                                                 lockerId: pa.lockerId,
                                                 date: currentDate,
-                                                concept: `Flete Pre-alerta Tapachula ${generatedId} (${pa.weightEst} Lbs)`,
+                                                concept: `Flete Pre-alerta México ${generatedId} (${pa.weightEst} Lbs)`,
                                                 amount: flete,
                                                 paymentStatus: 'Pendiente'
                                               },
                                               ...prev
                                             ]);
 
-                                            alert(`Paquete pre-alertado registrado como recibido en Bodega Tapachula. Se ha asignado la guía: ${generatedId} y se ha creado una factura de flete por Q ${flete.toFixed(2)}.`);
+                                            alert(`Paquete pre-alertado registrado como recibido en Bodega México. Se ha asignado la guía: ${generatedId} y se ha creado una factura de flete por Q ${flete.toFixed(2)}.`);
                                           }}
                                           className="bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-0.5 rounded text-4xs font-black uppercase transition cursor-pointer shadow-3xs flex items-center gap-0.5"
                                         >
-                                          Tapa 🇲🇽
+                                          México 🇲🇽
                                         </button>
                                       </div>
                                     ) : (
@@ -3168,11 +3168,11 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                   <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Bodega de Ingreso *</label>
                                   <select
                                     value={warehouseBodega}
-                                    onChange={(e) => setWarehouseBodega(e.target.value as 'Texas' | 'Tapachula')}
+                                    onChange={(e) => setWarehouseBodega(e.target.value as 'Laredo' | 'Mexico')}
                                     className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white font-semibold font-mono"
                                   >
-                                    <option value="Texas">Texas 🇺🇸</option>
-                                    <option value="Tapachula">Tapachula 🇲🇽</option>
+                                    <option value="Laredo">Laredo 🇺🇸</option>
+                                    <option value="Mexico">México 🇲🇽</option>
                                   </select>
                                 </div>
 
@@ -3474,14 +3474,14 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                         });
                       };
 
-                      const texasGroups = getConsolidatedGroups('Texas');
-                      const tapachulaGroups = getConsolidatedGroups('Tapachula');
+                      const laredoGroups = getConsolidatedGroups('Laredo');
+                      const mexicoGroups = getConsolidatedGroups('Mexico');
 
-                      const handleAutoDispatch = (lockerId: string, origin: 'Texas' | 'Tapachula', groupShipments: Shipment[], totalWeight: number, estimatedFlete: number) => {
+                      const handleAutoDispatch = (lockerId: string, origin: 'Laredo' | 'Mexico', groupShipments: Shipment[], totalWeight: number, estimatedFlete: number) => {
                         const currentDate = new Date().toISOString().split('T')[0];
                         const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
                         
-                        const shortcode = origin === 'Texas' ? 'TX' : 'TAP';
+                        const shortcode = origin === 'Laredo' ? 'LRD' : 'MEX';
                         const randomNum = Math.floor(100 + Math.random() * 900);
                         const masterWaybillId = `SF-CONS-${lockerId}-${shortcode}-${randomNum}`;
                         
@@ -3546,22 +3546,22 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                 📦 Consolidación de Carga Automática por Cliente
                               </h3>
                               <p className="text-4xs text-gray-500">
-                                Los paquetes en estado <span className="font-semibold text-brand-orange">En Sucursal</span> son agrupados automáticamente en tiempo real por casillero de cliente para Texas y Tapachula.
+                                Los paquetes en estado <span className="font-semibold text-brand-orange">En Sucursal</span> son agrupados automáticamente en tiempo real por casillero de cliente para Laredo y México.
                               </p>
                             </div>
                             
                             {/* Summary Stats */}
                             <div className="flex gap-4 mt-3 md:mt-0">
                               <div className="bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg text-4xs">
-                                <span className="text-gray-400 block uppercase font-bold tracking-wider">Pendientes Texas</span>
+                                <span className="text-gray-400 block uppercase font-bold tracking-wider">Pendientes Laredo</span>
                                 <strong className="text-brand-gray-dark text-xs font-bold font-mono">
-                                  {texasGroups.reduce((acc, g) => acc + g.shipments.length, 0)} Pqts / {texasGroups.reduce((acc, g) => acc + g.totalWeight, 0).toFixed(1)} Lbs
+                                  {laredoGroups.reduce((acc, g) => acc + g.shipments.length, 0)} Pqts / {laredoGroups.reduce((acc, g) => acc + g.totalWeight, 0).toFixed(1)} Lbs
                                 </strong>
                               </div>
                               <div className="bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg text-4xs">
-                                <span className="text-gray-400 block uppercase font-bold tracking-wider">Pendientes Tapachula</span>
+                                <span className="text-gray-400 block uppercase font-bold tracking-wider">Pendientes México</span>
                                 <strong className="text-brand-gray-dark text-xs font-bold font-mono">
-                                  {tapachulaGroups.reduce((acc, g) => acc + g.shipments.length, 0)} Pqts / {tapachulaGroups.reduce((acc, g) => acc + g.totalWeight, 0).toFixed(1)} Lbs
+                                  {mexicoGroups.reduce((acc, g) => acc + g.shipments.length, 0)} Pqts / {mexicoGroups.reduce((acc, g) => acc + g.totalWeight, 0).toFixed(1)} Lbs
                                 </strong>
                               </div>
                             </div>
@@ -3570,20 +3570,20 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                           {/* Dual Columns Grid */}
                           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                             
-                            {/* Texas Warehouse Column */}
+                            {/* Laredo Warehouse Column */}
                             <div className="space-y-4">
                               <div className="flex items-center justify-between border-b border-gray-100 pb-2">
                                 <span className="text-3xs font-extrabold text-brand-gray-dark uppercase tracking-wider flex items-center gap-1.5 animate-pulse">
-                                  🇺🇸 BODEGA TEXAS (USA)
+                                  🇺🇸 BODEGA LAREDO (USA)
                                   <span className="bg-blue-50 text-blue-700 text-5xs px-1.5 py-0.5 rounded font-black font-mono">
-                                    {texasGroups.length} CLIENTES
+                                    {laredoGroups.length} CLIENTES
                                   </span>
                                 </span>
                               </div>
 
                               <div className="space-y-4 max-h-[500px] overflow-y-auto pr-1">
-                                {texasGroups.length > 0 ? (
-                                  texasGroups.map(group => (
+                                {laredoGroups.length > 0 ? (
+                                  laredoGroups.map(group => (
                                     <div key={group.lockerId} className="bg-white border border-gray-200 hover:border-brand-orange rounded-xl p-4 shadow-3xs hover:shadow-2xs transition-all duration-300 space-y-4 relative overflow-hidden group">
                                       {/* Colored side indicator */}
                                       <div className="absolute left-0 top-0 bottom-0 w-1 bg-brand-orange"></div>
@@ -3637,11 +3637,11 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                       {/* Dispatch Button */}
                                       <button
                                         type="button"
-                                        onClick={() => handleAutoDispatch(group.lockerId, 'Texas', group.shipments, group.totalWeight, group.estimatedFlete)}
+                                        onClick={() => handleAutoDispatch(group.lockerId, 'Laredo', group.shipments, group.totalWeight, group.estimatedFlete)}
                                         className="w-full flex items-center justify-center gap-1.5 bg-brand-gray-dark hover:bg-brand-orange text-white text-4xs font-extrabold py-2 rounded uppercase tracking-wider transition-all duration-300 shadow-3xs cursor-pointer active:scale-98"
                                       >
                                         <Send className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
-                                        Despachar Consolidado Texas
+                                        Despachar Consolidado Laredo
                                       </button>
                                     </div>
                                   ))
@@ -3650,27 +3650,27 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                     <div className="p-3 bg-brand-orange/5 rounded-full text-brand-orange mb-3">
                                       <Layers className="w-6 h-6 animate-pulse" />
                                     </div>
-                                    <h5 className="text-3xs font-bold text-brand-gray-dark uppercase tracking-wider">Sin paquetes en Texas</h5>
-                                    <p className="text-4xs text-gray-400 mt-1 max-w-[200px]">Todos los paquetes recibidos en Texas han sido consolidados y despachados.</p>
+                                    <h5 className="text-3xs font-bold text-brand-gray-dark uppercase tracking-wider">Sin paquetes en Laredo</h5>
+                                    <p className="text-4xs text-gray-400 mt-1 max-w-[200px]">Todos los paquetes recibidos en Laredo han sido consolidados y despachados.</p>
                                   </div>
                                 )}
                               </div>
                             </div>
 
-                            {/* Tapachula Warehouse Column */}
+                            {/* Mexico Warehouse Column */}
                             <div className="space-y-4">
                               <div className="flex items-center justify-between border-b border-gray-100 pb-2">
                                 <span className="text-3xs font-extrabold text-brand-gray-dark uppercase tracking-wider flex items-center gap-1.5 animate-pulse">
-                                  🇲🇽 BODEGA TAPACHULA (MEX)
+                                  🇲🇽 BODEGA MÉXICO (MEX)
                                   <span className="bg-emerald-50 text-emerald-700 text-5xs px-1.5 py-0.5 rounded font-black font-mono">
-                                    {tapachulaGroups.length} CLIENTES
+                                    {mexicoGroups.length} CLIENTES
                                   </span>
                                 </span>
                               </div>
 
                               <div className="space-y-4 max-h-[500px] overflow-y-auto pr-1">
-                                {tapachulaGroups.length > 0 ? (
-                                  tapachulaGroups.map(group => (
+                                {mexicoGroups.length > 0 ? (
+                                  mexicoGroups.map(group => (
                                     <div key={group.lockerId} className="bg-white border border-gray-200 hover:border-emerald-600 rounded-xl p-4 shadow-3xs hover:shadow-2xs transition-all duration-300 space-y-4 relative overflow-hidden group">
                                       {/* Colored side indicator */}
                                       <div className="absolute left-0 top-0 bottom-0 w-1 bg-emerald-600"></div>
@@ -3724,11 +3724,11 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                       {/* Dispatch Button */}
                                       <button
                                         type="button"
-                                        onClick={() => handleAutoDispatch(group.lockerId, 'Tapachula', group.shipments, group.totalWeight, group.estimatedFlete)}
+                                        onClick={() => handleAutoDispatch(group.lockerId, 'Mexico', group.shipments, group.totalWeight, group.estimatedFlete)}
                                         className="w-full flex items-center justify-center gap-1.5 bg-brand-gray-dark hover:bg-emerald-600 text-white text-4xs font-extrabold py-2 rounded uppercase tracking-wider transition-all duration-300 shadow-3xs cursor-pointer active:scale-98"
                                       >
                                         <Send className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
-                                        Despachar Consolidado Tapachula
+                                        Despachar Consolidado México
                                       </button>
                                     </div>
                                   ))
@@ -3737,8 +3737,8 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                     <div className="p-3 bg-emerald-50 rounded-full text-emerald-600 mb-3">
                                       <Layers className="w-6 h-6 animate-pulse" />
                                     </div>
-                                    <h5 className="text-3xs font-bold text-brand-gray-dark uppercase tracking-wider">Sin paquetes en Tapachula</h5>
-                                    <p className="text-4xs text-gray-400 mt-1 max-w-[200px]">Todos los paquetes recibidos en Tapachula han sido consolidados y despachados.</p>
+                                    <h5 className="text-3xs font-bold text-brand-gray-dark uppercase tracking-wider">Sin paquetes en México</h5>
+                                    <p className="text-4xs text-gray-400 mt-1 max-w-[200px]">Todos los paquetes recibidos en México han sido consolidados y despachados.</p>
                                   </div>
                                 )}
                               </div>
@@ -4960,13 +4960,13 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                     <th className="py-2.5 px-3 w-44 text-center">ACCIONES</th>
                                   </tr>
                                 </thead>
-                                <tbody className="divide-y divide-gray-200 text-3xs font-semibold text-brand-gray-dark bg-white">
+                                <tbody className="divide-y divide-gray-100 bg-white">
                                   {bulkRows.map((row, index) => {
-                                    const searchVal = row.lockerId || '';
+                                    const searchVal = row.lockerId;
                                     const matchingClients = users.filter(u => 
                                       u.role === 'client' && 
-                                      (u.name.toLowerCase().includes(searchVal.toLowerCase()) || 
-                                       u.lockerId.toLowerCase().includes(searchVal.toLowerCase()))
+                                      (u.lockerId.toLowerCase().includes(searchVal.toLowerCase()) || 
+                                       u.name.toLowerCase().includes(searchVal.toLowerCase()))
                                     );
 
                                     return (
@@ -4985,11 +4985,8 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                             onChange={(e) => updateBulkRow(row.id, 'bodega', e.target.value)}
                                             className="w-full px-2 py-1 text-3xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white font-semibold cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                                           >
-                                            <option value="Greensboro">Greensboro</option>
-                                            <option value="Miami Hub">Miami Hub</option>
-                                            {branchesList.map(b => (
-                                              <option key={b.id} value={b.name}>{b.name}</option>
-                                            ))}
+                                            <option value="Laredo">Laredo 🇺🇸</option>
+                                            <option value="Mexico">México 🇲🇽</option>
                                           </select>
                                         </td>
 
