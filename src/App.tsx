@@ -28,7 +28,6 @@ import {
   Database,
   Wallet,
   Check,
-  Grid,
   FileSpreadsheet,
   X
 } from 'lucide-react';
@@ -304,13 +303,15 @@ export default function App() {
   // Warehouse Receipt States
   const [warehouseLocker, setWarehouseLocker] = useState('SFG0');
   const [warehouseWeightInput, setWarehouseWeightInput] = useState(2.0);
-  const [warehouseBinInput, setWarehouseBinInput] = useState('Rack A-12');
   const [warehouseNotes, setWarehouseNotes] = useState('');
   const [warehouseBodega, setWarehouseBodega] = useState<'Laredo' | 'Mexico'>('Laredo');
   const [expandedWarehouseGroup, setExpandedWarehouseGroup] = useState<string | null>(null);
+  const [expandedConsolidadoGuide, setExpandedConsolidadoGuide] = useState<string | null>(null);
+  const [masterGuideSearch, setMasterGuideSearch] = useState('');
+  const [consolidadoStatusFilter, setConsolidadoStatusFilter] = useState('Todos');
+  const [consolidadoOriginFilter, setConsolidadoOriginFilter] = useState('Todos');
 
   // Consolidation States
-  const [selectedInventoryItems, setSelectedInventoryItems] = useState<string[]>([]);
   const [consolidatedGuides, setConsolidatedGuides] = useState<any[]>([
     { id: "SF-CONS-901-GT", date: "2026-05-20", origin: "Laredo", destination: "Guatemala Central", status: "Despachado", itemsCount: 15, totalWeight: 145.0, notes: "Vuelo consolidado AA-902" }
   ]);
@@ -2225,7 +2226,7 @@ Para proporcionarle información específica, puede solicitar:
               const getCategoryOfSubTab = (subTab: string) => {
                 if (['portal'].includes(subTab)) return 'resumen';
                 if (['registro-paquetes', 'cliente-mayor', 'pre-alertas'].includes(subTab)) return 'logistica';
-                if (['warehouse', 'inventario', 'consolidado'].includes(subTab)) return 'almacen';
+                if (['warehouse', 'consolidado'].includes(subTab)) return 'almacen';
                 if (['facturacion', 'pagos', 'gastos'].includes(subTab)) return 'finanzas';
                 if (['reportes', 'sucursales', 'usuarios', 'tarifas', 'ajustes'].includes(subTab)) return 'sistema';
                 return 'resumen';
@@ -2253,9 +2254,8 @@ Para proporcionarle información específica, puede solicitar:
                   { id: 'pre-alertas', label: 'Pre-alertas Clientes', icon: Clock },
                 ],
                 almacen: [
-                  { id: 'warehouse', label: 'Warehouse / Recepción', icon: Package },
-                  { id: 'inventario', label: 'Inventario Físico', icon: Grid },
-                  { id: 'consolidado', label: 'Consolidados de Carga', icon: Layers },
+                  { id: 'warehouse', label: 'Control de Warehouse', icon: Package },
+                  { id: 'consolidado', label: 'Historial de Consolidados', icon: Layers },
                 ],
                 finanzas: [
                   { id: 'facturacion', label: 'Facturación / Fletes', icon: FileSpreadsheet },
@@ -2481,7 +2481,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                 <span>RECEPCIÓN DE PAQUETE EN WAREHOUSE</span>
                                 <span className="text-gray-400 font-semibold">2026-05-21 08:15</span>
                               </div>
-                              <p className="text-gray-500">Carga ingresada en Rack A-12 de Amazon US para casillero SFG0 con peso de 2.5 Lbs.</p>
+                              <p className="text-gray-500">Carga recepcionada e ingresada en Bodega Laredo para casillero SFG0 con peso de 2.5 Lbs.</p>
                             </div>
                             <div className="border-l-2 border-blue-600 pl-3 text-4xs space-y-1">
                               <div className="flex justify-between font-bold text-brand-gray-dark">
@@ -3077,6 +3077,67 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                         3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5, 8, 9, 7, 9, 3, 2, 3, 8, 4, 6, 2, 6
                       ];
 
+                      const handleAutoDispatch = (lockerId: string, origin: 'Laredo' | 'Mexico', groupShipments: Shipment[], totalWeight: number, estimatedFlete: number) => {
+                        const currentDate = new Date().toISOString().split('T')[0];
+                        const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
+                        
+                        const shortcode = origin === 'Laredo' ? 'LRD' : 'MEX';
+                        const randomNum = Math.floor(100 + Math.random() * 900);
+                        const masterWaybillId = `SF-CONS-${lockerId}-${shortcode}-${randomNum}`;
+                        
+                        // 1. Transition all grouped packages to 'En Tránsito'
+                        const shipmentIds = groupShipments.map(s => s.id);
+                        setShipments(prev => prev.map(s => {
+                          if (shipmentIds.includes(s.id)) {
+                            return {
+                              ...s,
+                              status: 'En Tránsito',
+                              lastUpdated: `${currentDate} ${currentTime}`,
+                              history: [
+                                {
+                                  date: currentDate,
+                                  time: currentTime,
+                                  status: 'En Tránsito',
+                                  location: `Ruta Troncal desde Bodega ${origin}`,
+                                  details: `Despachado en lote automático. Consolidado bajo Guía Madre ${masterWaybillId}.`
+                                },
+                                ...s.history
+                              ]
+                            };
+                          }
+                          return s;
+                        }));
+
+                        // 2. Append Master Guide to consolidatedGuides state
+                        const newGuide = {
+                          id: masterWaybillId,
+                          date: currentDate,
+                          origin: origin,
+                          destination: 'Guatemala Central',
+                          status: 'En Tránsito',
+                          itemsCount: groupShipments.length,
+                          totalWeight: totalWeight,
+                          notes: `Consolidación Automática del cliente ${lockerId} desde Bodega ${origin}.`
+                        };
+                        setConsolidatedGuides(prev => [newGuide, ...prev]);
+
+                        // 3. Issue a consolidated billing invoice (flete) in Quetzales to invoices state
+                        const invoiceId = `FAC-${Math.floor(1000 + Math.random() * 9000)}`;
+                        const newInvoice = {
+                          id: invoiceId,
+                          lockerId: lockerId,
+                          date: currentDate,
+                          concept: `Flete Consolidado - ${groupShipments.length} Paquetes desde Bodega ${origin}`,
+                          amount: estimatedFlete,
+                          paymentStatus: 'Pendiente'
+                        };
+                        setInvoices(prev => [newInvoice, ...prev]);
+
+                        alert(`¡Consolidado despachado exitosamente!\n\n- Guía Madre: ${masterWaybillId}\n- Cliente: ${lockerId}\n- Paquetes: ${groupShipments.length}\n- Peso total: ${totalWeight.toFixed(1)} Lbs\n- Factura flete emitida: ${invoiceId} por Q ${estimatedFlete.toFixed(2)}`);
+                        
+                        setAdminSubTab('consolidado');
+                      };
+
                       const handleWarehouseCheckIn = (e: React.FormEvent) => {
                         e.preventDefault();
                         if (!warehouseNotes.trim()) {
@@ -3113,10 +3174,10 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                               time: currentTime,
                               status: 'En Sucursal',
                               location: `Bodega ${warehouseBodega}`,
-                              details: `Ingreso físico a bodega de ${warehouseBodega}. Ubicación asignada: ${warehouseBinInput}.`
+                              details: `Ingreso físico a bodega de ${warehouseBodega}.`
                             }
                           ],
-                          notes: `${warehouseNotes} [Shelved: ${warehouseBinInput}]`
+                          notes: warehouseNotes
                         };
 
                         setShipments([newShip, ...shipments]);
@@ -3135,7 +3196,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                           ...prev
                         ]);
 
-                        alert(`¡Paquete ingresado formalmente en Bodega de ${warehouseBodega}! ID de guía asignado: ${generatedId}. Código de Estantería: ${warehouseBinInput}. Se ha emitido la factura ${newFacId} por Q ${fleteTotal.toFixed(2)}.`);
+                        alert(`¡Paquete ingresado formalmente en Bodega de ${warehouseBodega}! ID de guía asignado: ${generatedId}. Se ha emitido la factura ${newFacId} por Q ${fleteTotal.toFixed(2)}.`);
                         
                         // We do not reset to keep the printed sticker on screen for the admin to see!
                       };
@@ -3151,7 +3212,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                             
                             {/* Warehouse check-in form - LEFT */}
                             <form onSubmit={handleWarehouseCheckIn} className="lg:col-span-7 space-y-4">
-                              <div className="grid grid-cols-3 gap-4">
+                              <div className="grid grid-cols-2 gap-4">
                                 <div>
                                   <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Casillero Destino *</label>
                                   <select
@@ -3174,25 +3235,6 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                   >
                                     <option value="Laredo">Laredo 🇺🇸</option>
                                     <option value="Mexico">México 🇲🇽</option>
-                                  </select>
-                                </div>
-
-                                <div>
-                                  <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Ubicación Estantería (Rack Bin) *</label>
-                                  <select
-                                    value={warehouseBinInput}
-                                    onChange={(e) => setWarehouseBinInput(e.target.value)}
-                                    className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white font-semibold font-mono"
-                                  >
-                                    <option value="Rack A-01">Rack A-01</option>
-                                    <option value="Rack A-02">Rack A-02</option>
-                                    <option value="Rack A-12">Rack A-12</option>
-                                    <option value="Rack B-04">Rack B-04</option>
-                                    <option value="Rack B-08">Rack B-08</option>
-                                    <option value="Rack C-02">Rack C-02</option>
-                                    <option value="Rack C-09">Rack C-09</option>
-                                    <option value="Rack D-01">Rack D-01</option>
-                                    <option value="Rack D-10">Rack D-10</option>
                                   </select>
                                 </div>
                               </div>
@@ -3249,8 +3291,8 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                     <strong className="text-xs font-black tracking-widest block">{warehouseLocker}</strong>
                                   </div>
                                   <div className="text-right">
-                                    <span className="block text-gray-400 uppercase font-black">Rack Estante:</span>
-                                    <strong className="text-xs font-black block text-brand-orange">{warehouseBinInput}</strong>
+                                    <span className="block text-gray-400 uppercase font-black">Origen Bodega:</span>
+                                    <strong className="text-xs font-black block text-brand-orange">{warehouseBodega.toUpperCase()}</strong>
                                   </div>
                                 </div>
 
@@ -3413,7 +3455,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                               </button>
                                               <button
                                                 type="button"
-                                                onClick={() => setAdminSubTab('consolidado')}
+                                                onClick={() => handleAutoDispatch(g.lockerId, g.bodega as 'Laredo' | 'Mexico', g.shipments, g.totalWeight, 20 + g.totalWeight * 4)}
                                                 className="bg-brand-orange hover:bg-brand-orange-hover text-white text-[9px] font-extrabold px-2.5 py-1 rounded uppercase tracking-wider transition cursor-pointer"
                                               >
                                                 Despachar
@@ -3432,18 +3474,16 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                                   </h5>
                                                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                                     {g.shipments.map(s => {
-                                                      const binMatches = s.notes ? s.notes.match(/Rack [A-D]-[0-9]+/g) : null;
-                                                      const binLoc = binMatches ? binMatches[0] : 'Sin Estante';
                                                       return (
                                                         <div key={s.id} className="bg-white border border-gray-200 p-2.5 rounded shadow-2xs space-y-1.5 font-mono text-[9px] relative overflow-hidden">
                                                           <div className="flex justify-between items-center border-b border-gray-100 pb-1">
                                                             <span className="font-bold text-brand-orange">{s.id}</span>
-                                                            <span className="bg-orange-50 text-brand-orange px-1 rounded text-[8px] font-bold">{binLoc}</span>
+                                                            <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-[8px] font-bold">En Almacén</span>
                                                           </div>
                                                           <div className="flex justify-between text-gray-500">
                                                             <span>Contenido:</span>
                                                             <span className="text-brand-gray-dark font-semibold truncate max-w-[120px]" title={s.notes}>
-                                                              {s.notes?.split(' [Shelved:')[0] || 'Sin descripción'}
+                                                              {s.notes || 'Sin descripción'}
                                                             </span>
                                                           </div>
                                                           <div className="flex justify-between text-gray-500">
@@ -3474,207 +3514,55 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                       );
                     })()}
 
-                    {/* ==================== 6. INVENTARIO FÍSICO DE RACKS (`inventario`) ==================== */}
-                    {adminSubTab === 'inventario' && (() => {
-                      const activeInBodega = shipments.filter(s => s.status === 'En Sucursal');
-                      
-                      // We construct a physical rack visual representation
-                      const racksListVisual = ['A', 'B', 'C', 'D'];
-                      const binsListVisual = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10'];
 
-                      return (
-                        <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs space-y-6">
-                          <div>
-                            <h3 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display mb-1">🏢 Inventario Físico y Mapeo de Estanterías</h3>
-                            <p className="text-4xs text-gray-500">Esquema visual interactivo de los Racks A-D del Hub de Distribución. Seleccione y agrupe paquetes para su posterior consolidación en vuelos nacionales.</p>
-                          </div>
 
-                          {/* Visual Racks Grid */}
-                          <div className="bg-gray-50 border border-gray-200 p-5 rounded-lg space-y-4">
-                            <span className="text-4xs font-bold text-gray-400 uppercase tracking-widest block">Mapeo del Almacén en Tiempo Real</span>
-                            
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                              {racksListVisual.map(rack => (
-                                <div key={rack} className="bg-white border border-gray-200 rounded-lg p-4 space-y-2.5">
-                                  <h4 className="text-2xs font-extrabold text-brand-gray-dark uppercase tracking-widest font-mono border-b border-gray-100 pb-1.5 flex justify-between">
-                                    <span>RACK {rack} (Almacenamiento)</span>
-                                    <span className="text-gray-400 font-semibold font-sans">10 Bins Estándar</span>
-                                  </h4>
-                                  
-                                  {/* Grid of Bins */}
-                                  <div className="grid grid-cols-5 gap-2">
-                                    {binsListVisual.map(bin => {
-                                      const coord = `Rack ${rack}-${bin}`;
-                                      const occupant = activeInBodega.find(s => s.notes && s.notes.includes(coord));
-                                      
-                                      return (
-                                        <button
-                                          key={bin}
-                                          onClick={() => {
-                                            if (occupant) {
-                                              alert(`Bin ocupado por: ${occupant.id}\nCasillero: ${occupant.lockerId}\nPeso: ${occupant.weight} Lbs\nContenido: ${occupant.notes}`);
-                                            } else {
-                                              alert(`Bin ${coord} disponible para ingreso de carga.`);
-                                            }
-                                          }}
-                                          className={`py-2 px-1 text-4xs font-mono font-bold rounded text-center border uppercase transition-all duration-200 ${
-                                            occupant 
-                                              ? 'bg-orange-50 border-brand-orange text-brand-orange hover:bg-orange-100' 
-                                              : 'bg-green-50 border-green-200 text-green-700 hover:bg-green-100'
-                                          }`}
-                                        >
-                                          <div>{rack}-{bin}</div>
-                                          <div className="text-[7px] font-semibold tracking-tight mt-0.5 truncate max-w-[45px]">
-                                            {occupant ? occupant.lockerId : 'VACÍO'}
-                                          </div>
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-
-                          {/* Inventory Table Selector for Consolidation */}
-                          <div className="space-y-3">
-                            <div className="flex justify-between items-center">
-                              <h4 className="text-3xs font-extrabold text-brand-gray-dark uppercase tracking-wider">Listado General en Bodega para Consolidar</h4>
-                              <span className="bg-brand-orange/15 text-brand-orange text-4xs font-bold px-3 py-1 rounded-full uppercase border border-brand-orange/20">
-                                {selectedInventoryItems.length} seleccionados
-                              </span>
-                            </div>
-
-                            <div className="overflow-x-auto border border-gray-200 rounded-lg">
-                              <table className="w-full text-left border-collapse">
-                                <thead>
-                                  <tr className="bg-gray-100 border-b border-gray-200 text-4xs font-extrabold text-gray-500 uppercase tracking-wider">
-                                    <th className="py-2.5 px-4 text-center w-12">Seleccionar</th>
-                                    <th className="py-2.5 px-3">Guía ID</th>
-                                    <th className="py-2.5 px-3">Casillero</th>
-                                    <th className="py-2.5 px-3">Consignatario</th>
-                                    <th className="py-2.5 px-3">Peso Físico</th>
-                                    <th className="py-2.5 px-3">Ubicación Rack</th>
-                                    <th className="py-2.5 px-3">Fecha Recibido</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-100 text-3xs font-semibold text-brand-gray-dark">
-                                  {activeInBodega.map(item => {
-                                    const isChecked = selectedInventoryItems.includes(item.id);
-                                    // Parse rack bin from notes if possible
-                                    const rackMatches = item.notes ? item.notes.match(/Rack [A-D]-[0-9]+/g) : null;
-                                    const rackBin = rackMatches ? rackMatches[0] : 'N/A';
-
-                                    return (
-                                      <tr key={item.id} className="hover:bg-gray-50/50">
-                                        <td className="py-2.5 px-4 text-center">
-                                          <input
-                                            type="checkbox"
-                                            checked={isChecked}
-                                            onChange={() => {
-                                              if (isChecked) {
-                                                setSelectedInventoryItems(prev => prev.filter(id => id !== item.id));
-                                              } else {
-                                                setSelectedInventoryItems(prev => [...prev, item.id]);
-                                              }
-                                            }}
-                                            className="rounded border-gray-300 text-brand-orange focus:ring-brand-orange cursor-pointer h-3.5 w-3.5"
-                                          />
-                                        </td>
-                                        <td className="py-2.5 px-3 font-bold text-brand-orange uppercase">{item.id}</td>
-                                        <td className="py-2.5 px-3 font-mono text-gray-500">{item.lockerId}</td>
-                                        <td className="py-2.5 px-3 font-bold">{item.receiver}</td>
-                                        <td className="py-2.5 px-3 font-mono">{item.weight} Lbs</td>
-                                        <td className="py-2.5 px-3 font-mono text-brand-orange font-bold">{rackBin}</td>
-                                        <td className="py-2.5 px-3 text-gray-400 font-mono">{item.lastUpdated}</td>
-                                      </tr>
-                                    );
-                                  })}
-
-                                  {activeInBodega.length === 0 && (
-                                    <tr>
-                                      <td colSpan={7} className="text-center py-10 text-gray-400 font-medium">
-                                        No hay paquetes disponibles en bodega central en este momento.
-                                      </td>
-                                    </tr>
-                                  )}
-                                </tbody>
-                              </table>
-                            </div>
-
-                            {selectedInventoryItems.length > 0 && (
-                              <div className="pt-2 flex justify-end">
-                                <button
-                                  type="button"
-                                  onClick={() => setAdminSubTab('consolidado')}
-                                  className="bg-brand-orange hover:bg-brand-orange-hover text-white text-3xs font-extrabold px-5 py-2 rounded uppercase tracking-wider transition cursor-pointer flex items-center gap-1.5"
-                                >
-                                  <Layers className="h-3.5 w-3.5" />
-                                  Proceder a Consolidar Lote
-                                </button>
-                              </div>
-                            )}
-                          </div>
-
-                        </div>
-                      );
-                    })()}
-
-                    {/* ==================== 7. CONSOLIDADOS DE CARGA (`consolidado`) ==================== */}
+                    {/* ==================== 7. HISTORIAL DE CONSOLIDADOS (`consolidado`) ==================== */}
                     {adminSubTab === 'consolidado' && (() => {
-                      // Helper to group received packages ('En Sucursal') by client locker
-                      const getConsolidatedGroups = (originName: string) => {
-                        const warehouseShipments = shipments.filter(s => s.status === 'En Sucursal' && s.origin === originName);
-                        const groups: { [lockerId: string]: { lockerId: string; clientName: string; shipments: Shipment[]; totalWeight: number; estimatedFlete: number } } = {};
-                        
-                        warehouseShipments.forEach(s => {
-                          if (!groups[s.lockerId]) {
-                            const user = users.find(u => u.lockerId === s.lockerId);
-                            groups[s.lockerId] = {
-                              lockerId: s.lockerId,
-                              clientName: user ? user.name : s.receiver || 'Cliente ShipFast',
-                              shipments: [],
-                              totalWeight: 0,
-                              estimatedFlete: 0
-                            };
+                      const handleUpdateStatus = (guideId: string, newStatus: string) => {
+                        // 1. Update the Master Guide status in consolidatedGuides
+                        setConsolidatedGuides(prev => prev.map(g => {
+                          if (g.id === guideId) {
+                            return { ...g, status: newStatus };
                           }
-                          groups[s.lockerId].shipments.push(s);
-                          groups[s.lockerId].totalWeight += s.weight;
-                        });
-
-                        return Object.values(groups).map(g => {
-                          // Q 20 base + Q 4 per Lb
-                          g.estimatedFlete = 20 + g.totalWeight * 4;
                           return g;
-                        });
-                      };
+                        }));
 
-                      const laredoGroups = getConsolidatedGroups('Laredo');
-                      const mexicoGroups = getConsolidatedGroups('Mexico');
-
-                      const handleAutoDispatch = (lockerId: string, origin: 'Laredo' | 'Mexico', groupShipments: Shipment[], totalWeight: number, estimatedFlete: number) => {
+                        // 2. Propagate the status change to all individual shipments in the consolidated guide
                         const currentDate = new Date().toISOString().split('T')[0];
                         const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
-                        
-                        const shortcode = origin === 'Laredo' ? 'LRD' : 'MEX';
-                        const randomNum = Math.floor(100 + Math.random() * 900);
-                        const masterWaybillId = `SF-CONS-${lockerId}-${shortcode}-${randomNum}`;
-                        
-                        // 1. Transition all grouped packages to 'En Tránsito'
-                        const shipmentIds = groupShipments.map(s => s.id);
+
                         setShipments(prev => prev.map(s => {
-                          if (shipmentIds.includes(s.id)) {
+                          const hasGuideRef = s.history.some(h => h.details && h.details.includes(guideId));
+                          if (hasGuideRef) {
+                            let packageStatus: "Creado" | "En Tránsito" | "En Sucursal" | "En Ruta" | "Entregado" | "Retrasado" = 'En Tránsito';
+                            let detailsText = `Estado de Guía Madre ${guideId} actualizado a: ${newStatus}.`;
+                            let locationText = 'Ruta Troncal / Aduanas';
+
+                            if (newStatus === 'Entregado') {
+                              packageStatus = 'Entregado';
+                              detailsText = `Paquete entregado formalmente al cliente (Guía Madre ${guideId} - Entregado).`;
+                              locationText = 'Sucursal Destino Guatemala';
+                            } else if (newStatus === 'Listo para Entrega') {
+                              packageStatus = 'En Sucursal';
+                              detailsText = `Paquete listo para entrega en oficina central (Guía Madre ${guideId} - Arribado).`;
+                              locationText = 'Sede Central Guatemala';
+                            } else if (newStatus === 'Recibido en Hub') {
+                              packageStatus = 'En Sucursal';
+                              detailsText = `Carga ingresada y desconsolidada en Hub Central (Guía Madre ${guideId}).`;
+                              locationText = 'Hub Central Guatemala';
+                            }
+
                             return {
                               ...s,
-                              status: 'En Tránsito',
+                              status: packageStatus,
                               lastUpdated: `${currentDate} ${currentTime}`,
                               history: [
                                 {
                                   date: currentDate,
                                   time: currentTime,
-                                  status: 'En Tránsito',
-                                  location: `Ruta Troncal desde Bodega ${origin}`,
-                                  details: `Despachado en lote automático. Consolidado bajo Guía Madre ${masterWaybillId}.`
+                                  status: packageStatus,
+                                  location: locationText,
+                                  details: detailsText
                                 },
                                 ...s.history
                               ]
@@ -3683,269 +3571,262 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                           return s;
                         }));
 
-                        // 2. Append Master Guide to consolidatedGuides state
-                        const newGuide = {
-                          id: masterWaybillId,
-                          date: currentDate,
-                          origin: origin,
-                          destination: 'Guatemala Central',
-                          status: 'En Tránsito',
-                          itemsCount: groupShipments.length,
-                          totalWeight: totalWeight,
-                          notes: `Consolidación Automática del cliente ${lockerId} desde Bodega ${origin}.`
-                        };
-                        setConsolidatedGuides(prev => [newGuide, ...prev]);
-
-                        // 3. Issue a consolidated billing invoice (flete) in Quetzales to invoices state
-                        const invoiceId = `FAC-${Math.floor(1000 + Math.random() * 9000)}`;
-                        const newInvoice = {
-                          id: invoiceId,
-                          lockerId: lockerId,
-                          date: currentDate,
-                          concept: `Flete Consolidado - ${groupShipments.length} Paquetes desde Bodega ${origin}`,
-                          amount: estimatedFlete,
-                          paymentStatus: 'Pendiente'
-                        };
-                        setInvoices(prev => [newInvoice, ...prev]);
-
-                        alert(`¡Consolidado despachado exitosamente!\n\n- Guía Madre: ${masterWaybillId}\n- Cliente: ${lockerId}\n- Paquetes: ${groupShipments.length}\n- Peso total: ${totalWeight.toFixed(1)} Lbs\n- Factura flete emitida: ${invoiceId} por Q ${estimatedFlete.toFixed(2)}`);
+                        alert(`¡Guía Madre ${guideId} actualizada a: ${newStatus}!\nSe ha propagado el estado a todos sus paquetes individuales.`);
                       };
+
+                      // Filter Master Guides list
+                      const filteredGuides = consolidatedGuides.filter(guide => {
+                        const query = masterGuideSearch.toLowerCase().trim();
+                        const matchesSearch = !query || 
+                          guide.id.toLowerCase().includes(query) ||
+                          (guide.notes && guide.notes.toLowerCase().includes(query)) ||
+                          guide.origin.toLowerCase().includes(query) ||
+                          guide.destination.toLowerCase().includes(query) ||
+                          guide.status.toLowerCase().includes(query) ||
+                          guide.date.includes(query);
+
+                        const matchesOrigin = consolidadoOriginFilter === 'Todos' || guide.origin === consolidadoOriginFilter;
+                        const matchesStatus = consolidadoStatusFilter === 'Todos' || guide.status === consolidadoStatusFilter;
+
+                        return matchesSearch && matchesOrigin && matchesStatus;
+                      });
 
                       return (
                         <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs space-y-6">
                           {/* Header */}
-                          <div className="flex flex-col md:flex-row md:justify-between md:items-center border-b border-gray-100 pb-4">
-                            <div>
-                              <h3 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display mb-1 flex items-center gap-2">
-                                <Layers className="w-4 h-4 text-brand-orange" />
-                                📦 Consolidación de Carga Automática por Cliente
-                              </h3>
-                              <p className="text-4xs text-gray-500">
-                                Los paquetes en estado <span className="font-semibold text-brand-orange">En Sucursal</span> son agrupados automáticamente en tiempo real por casillero de cliente para Laredo y México.
-                              </p>
-                            </div>
-                            
-                            {/* Summary Stats */}
-                            <div className="flex gap-4 mt-3 md:mt-0">
-                              <div className="bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg text-4xs">
-                                <span className="text-gray-400 block uppercase font-bold tracking-wider">Pendientes Laredo</span>
-                                <strong className="text-brand-gray-dark text-xs font-bold font-mono">
-                                  {laredoGroups.reduce((acc, g) => acc + g.shipments.length, 0)} Pqts / {laredoGroups.reduce((acc, g) => acc + g.totalWeight, 0).toFixed(1)} Lbs
-                                </strong>
-                              </div>
-                              <div className="bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg text-4xs">
-                                <span className="text-gray-400 block uppercase font-bold tracking-wider">Pendientes México</span>
-                                <strong className="text-brand-gray-dark text-xs font-bold font-mono">
-                                  {mexicoGroups.reduce((acc, g) => acc + g.shipments.length, 0)} Pqts / {mexicoGroups.reduce((acc, g) => acc + g.totalWeight, 0).toFixed(1)} Lbs
-                                </strong>
-                              </div>
-                            </div>
+                          <div>
+                            <h3 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display mb-1 flex items-center gap-2">
+                              <Layers className="w-4 h-4 text-brand-orange" />
+                              📦 Historial de Guías Madre y Consolidados
+                            </h3>
+                            <p className="text-4xs text-gray-500">
+                              Consulte el registro de todas las Guías Madre emitidas. Administre el estado de tránsito de los lotes internacionales y actualice el flujo logístico de los paquetes vinculados.
+                            </p>
                           </div>
 
-                          {/* Dual Columns Grid */}
-                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                          {/* Filters and Search Bar */}
+                          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 bg-gray-50 p-4 rounded-lg border border-gray-200">
                             
-                            {/* Laredo Warehouse Column */}
-                            <div className="space-y-4">
-                              <div className="flex items-center justify-between border-b border-gray-100 pb-2">
-                                <span className="text-3xs font-extrabold text-brand-gray-dark uppercase tracking-wider flex items-center gap-1.5 animate-pulse">
-                                  🇺🇸 BODEGA LAREDO (USA)
-                                  <span className="bg-blue-50 text-blue-700 text-5xs px-1.5 py-0.5 rounded font-black font-mono">
-                                    {laredoGroups.length} CLIENTES
-                                  </span>
+                            {/* Search bar */}
+                            <div className="md:col-span-6 relative">
+                              <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Buscar Guía Madre</label>
+                              <div className="relative">
+                                <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-gray-400">
+                                  <Search className="h-3.5 w-3.5" />
                                 </span>
-                              </div>
-
-                              <div className="space-y-4 max-h-[500px] overflow-y-auto pr-1">
-                                {laredoGroups.length > 0 ? (
-                                  laredoGroups.map(group => (
-                                    <div key={group.lockerId} className="bg-white border border-gray-200 hover:border-brand-orange rounded-xl p-4 shadow-3xs hover:shadow-2xs transition-all duration-300 space-y-4 relative overflow-hidden group">
-                                      {/* Colored side indicator */}
-                                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-brand-orange"></div>
-                                      
-                                      <div className="flex justify-between items-start">
-                                        <div>
-                                          <div className="flex items-center gap-2">
-                                            <span className="bg-brand-orange text-white text-5xs font-black font-mono px-2 py-0.5 rounded">
-                                              {group.lockerId}
-                                            </span>
-                                            <h4 className="text-3xs font-extrabold text-brand-gray-dark group-hover:text-brand-orange transition-colors">
-                                              {group.clientName}
-                                            </h4>
-                                          </div>
-                                          <p className="text-5xs text-gray-400 mt-1">Estimación de cobro flete en Quetzales.</p>
-                                        </div>
-                                        <div className="text-right">
-                                          <div className="text-5xs text-gray-400 font-bold uppercase tracking-wider mb-0.5">FLETE ESTIMADO</div>
-                                          <strong className="text-2xs font-mono font-black text-brand-orange block">Q {group.estimatedFlete.toFixed(2)}</strong>
-                                        </div>
-                                      </div>
-
-                                      {/* Quick statistics row */}
-                                      <div className="grid grid-cols-2 gap-3 bg-gray-50 p-2.5 rounded-lg border border-gray-100 text-4xs">
-                                        <div>
-                                          <span className="text-gray-400 block font-semibold mb-0.5">Paquetes Totales</span>
-                                          <strong className="text-brand-gray-dark font-mono text-3xs font-extrabold">{group.shipments.length} Bultos</strong>
-                                        </div>
-                                        <div>
-                                          <span className="text-gray-400 block font-semibold mb-0.5">Peso Acumulado</span>
-                                          <strong className="text-brand-gray-dark font-mono text-3xs font-extrabold">{group.totalWeight.toFixed(1)} Lbs</strong>
-                                        </div>
-                                      </div>
-
-                                      {/* Scrolling shipments list */}
-                                      <div className="space-y-1">
-                                        <span className="text-5xs font-bold text-gray-400 uppercase tracking-widest block mb-1">Guías a Despachar:</span>
-                                        <div className="max-h-[120px] overflow-y-auto pr-1 space-y-1.5">
-                                          {group.shipments.map(ship => (
-                                            <div key={ship.id} className="flex justify-between items-center bg-gray-50/50 hover:bg-white p-2 rounded border border-gray-100 text-4xs font-mono">
-                                              <div>
-                                                <span className="font-bold text-brand-gray-dark block">{ship.id}</span>
-                                                <span className="text-gray-400 text-5xs font-sans line-clamp-1">{ship.notes || 'Detalles de paquete'}</span>
-                                              </div>
-                                              <strong className="text-brand-gray-dark font-bold whitespace-nowrap">{ship.weight} Lbs</strong>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      </div>
-
-                                      {/* Dispatch Button */}
-                                      <button
-                                        type="button"
-                                        onClick={() => handleAutoDispatch(group.lockerId, 'Laredo', group.shipments, group.totalWeight, group.estimatedFlete)}
-                                        className="w-full flex items-center justify-center gap-1.5 bg-brand-gray-dark hover:bg-brand-orange text-white text-4xs font-extrabold py-2 rounded uppercase tracking-wider transition-all duration-300 shadow-3xs cursor-pointer active:scale-98"
-                                      >
-                                        <Send className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
-                                        Despachar Consolidado Laredo
-                                      </button>
-                                    </div>
-                                  ))
-                                ) : (
-                                  <div className="flex flex-col items-center justify-center py-12 px-4 border border-dashed border-gray-200 rounded-xl bg-gray-50/50 text-center">
-                                    <div className="p-3 bg-brand-orange/5 rounded-full text-brand-orange mb-3">
-                                      <Layers className="w-6 h-6 animate-pulse" />
-                                    </div>
-                                    <h5 className="text-3xs font-bold text-brand-gray-dark uppercase tracking-wider">Sin paquetes en Laredo</h5>
-                                    <p className="text-4xs text-gray-400 mt-1 max-w-[200px]">Todos los paquetes recibidos en Laredo han sido consolidados y despachados.</p>
-                                  </div>
-                                )}
+                                <input
+                                  type="text"
+                                  placeholder="Ej: SF-CONS-SFG0-LRD-123..."
+                                  value={masterGuideSearch}
+                                  onChange={(e) => setMasterGuideSearch(e.target.value)}
+                                  className="w-full pl-8 pr-3 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white font-mono"
+                                />
                               </div>
                             </div>
 
-                            {/* Mexico Warehouse Column */}
-                            <div className="space-y-4">
-                              <div className="flex items-center justify-between border-b border-gray-100 pb-2">
-                                <span className="text-3xs font-extrabold text-brand-gray-dark uppercase tracking-wider flex items-center gap-1.5 animate-pulse">
-                                  🇲🇽 BODEGA MÉXICO (MEX)
-                                  <span className="bg-emerald-50 text-emerald-700 text-5xs px-1.5 py-0.5 rounded font-black font-mono">
-                                    {mexicoGroups.length} CLIENTES
-                                  </span>
-                                </span>
-                              </div>
+                            {/* Origin Filter */}
+                            <div className="md:col-span-3">
+                              <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Bodega de Origen</label>
+                              <select
+                                value={consolidadoOriginFilter}
+                                onChange={(e) => setConsolidadoOriginFilter(e.target.value)}
+                                className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white font-semibold"
+                              >
+                                <option value="Todos">Todas las Bodegas</option>
+                                <option value="Laredo">Bodega Laredo 🇺🇸</option>
+                                <option value="Mexico">Bodega México 🇲🇽</option>
+                              </select>
+                            </div>
 
-                              <div className="space-y-4 max-h-[500px] overflow-y-auto pr-1">
-                                {mexicoGroups.length > 0 ? (
-                                  mexicoGroups.map(group => (
-                                    <div key={group.lockerId} className="bg-white border border-gray-200 hover:border-emerald-600 rounded-xl p-4 shadow-3xs hover:shadow-2xs transition-all duration-300 space-y-4 relative overflow-hidden group">
-                                      {/* Colored side indicator */}
-                                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-emerald-600"></div>
-                                      
-                                      <div className="flex justify-between items-start">
-                                        <div>
-                                          <div className="flex items-center gap-2">
-                                            <span className="bg-emerald-600 text-white text-5xs font-black font-mono px-2 py-0.5 rounded">
-                                              {group.lockerId}
-                                            </span>
-                                            <h4 className="text-3xs font-extrabold text-brand-gray-dark group-hover:text-emerald-600 transition-colors">
-                                              {group.clientName}
-                                            </h4>
-                                          </div>
-                                          <p className="text-5xs text-gray-400 mt-1">Estimación de cobro flete en Quetzales.</p>
-                                        </div>
-                                        <div className="text-right">
-                                          <div className="text-5xs text-gray-400 font-bold uppercase tracking-wider mb-0.5">FLETE ESTIMADO</div>
-                                          <strong className="text-2xs font-mono font-black text-emerald-600 block">Q {group.estimatedFlete.toFixed(2)}</strong>
-                                        </div>
-                                      </div>
-
-                                      {/* Quick statistics row */}
-                                      <div className="grid grid-cols-2 gap-3 bg-gray-50 p-2.5 rounded-lg border border-gray-100 text-4xs">
-                                        <div>
-                                          <span className="text-gray-400 block font-semibold mb-0.5">Paquetes Totales</span>
-                                          <strong className="text-brand-gray-dark font-mono text-3xs font-extrabold">{group.shipments.length} Bultos</strong>
-                                        </div>
-                                        <div>
-                                          <span className="text-gray-400 block font-semibold mb-0.5">Peso Acumulado</span>
-                                          <strong className="text-brand-gray-dark font-mono text-3xs font-extrabold">{group.totalWeight.toFixed(1)} Lbs</strong>
-                                        </div>
-                                      </div>
-
-                                      {/* Scrolling shipments list */}
-                                      <div className="space-y-1">
-                                        <span className="text-5xs font-bold text-gray-400 uppercase tracking-widest block mb-1">Guías a Despachar:</span>
-                                        <div className="max-h-[120px] overflow-y-auto pr-1 space-y-1.5">
-                                          {group.shipments.map(ship => (
-                                            <div key={ship.id} className="flex justify-between items-center bg-gray-50/50 hover:bg-white p-2 rounded border border-gray-100 text-4xs font-mono">
-                                              <div>
-                                                <span className="font-bold text-brand-gray-dark block">{ship.id}</span>
-                                                <span className="text-gray-400 text-5xs font-sans line-clamp-1">{ship.notes || 'Detalles de paquete'}</span>
-                                              </div>
-                                              <strong className="text-brand-gray-dark font-bold whitespace-nowrap">{ship.weight} Lbs</strong>
-                                            </div>
-                                          ))}
-                                        </div>
-                                      </div>
-
-                                      {/* Dispatch Button */}
-                                      <button
-                                        type="button"
-                                        onClick={() => handleAutoDispatch(group.lockerId, 'Mexico', group.shipments, group.totalWeight, group.estimatedFlete)}
-                                        className="w-full flex items-center justify-center gap-1.5 bg-brand-gray-dark hover:bg-emerald-600 text-white text-4xs font-extrabold py-2 rounded uppercase tracking-wider transition-all duration-300 shadow-3xs cursor-pointer active:scale-98"
-                                      >
-                                        <Send className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
-                                        Despachar Consolidado México
-                                      </button>
-                                    </div>
-                                  ))
-                                ) : (
-                                  <div className="flex flex-col items-center justify-center py-12 px-4 border border-dashed border-gray-200 rounded-xl bg-gray-50/50 text-center">
-                                    <div className="p-3 bg-emerald-50 rounded-full text-emerald-600 mb-3">
-                                      <Layers className="w-6 h-6 animate-pulse" />
-                                    </div>
-                                    <h5 className="text-3xs font-bold text-brand-gray-dark uppercase tracking-wider">Sin paquetes en México</h5>
-                                    <p className="text-4xs text-gray-400 mt-1 max-w-[200px]">Todos los paquetes recibidos en México han sido consolidados y despachados.</p>
-                                  </div>
-                                )}
-                              </div>
+                            {/* Status Filter */}
+                            <div className="md:col-span-3">
+                              <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Estado del Consolidado</label>
+                              <select
+                                value={consolidadoStatusFilter}
+                                onChange={(e) => setConsolidadoStatusFilter(e.target.value)}
+                                className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white font-semibold"
+                              >
+                                <option value="Todos">Todos los Estados</option>
+                                <option value="Despachado">Despachado / Enviado</option>
+                                <option value="En Tránsito">En Tránsito</option>
+                                <option value="Recibido en Hub">Recibido en Hub</option>
+                                <option value="Listo para Entrega">Listo para Entrega</option>
+                                <option value="Entregado">Entregado</option>
+                              </select>
                             </div>
 
                           </div>
 
-                          {/* Historical Master Waybills List - Bottom Section */}
-                          <div className="border-t border-gray-100 pt-6 space-y-4">
-                            <span className="text-4xs font-black text-gray-400 uppercase tracking-widest block">Historial de Guías Madre Emitidas</span>
-                            
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[300px] overflow-y-auto pr-1">
-                              {consolidatedGuides.map(guide => (
-                                <div key={guide.id} className="bg-white border border-gray-200 rounded-lg p-3.5 shadow-3xs space-y-2.5 font-mono text-3xs text-brand-gray-dark border-t-2 border-t-brand-orange">
-                                  <div className="flex justify-between items-center border-b border-gray-100 pb-1.5">
-                                    <strong className="text-brand-orange font-black text-3xs">{guide.id}</strong>
-                                    <span className="bg-blue-50 border border-blue-100 text-blue-800 text-5xs font-bold px-2 py-0.5 rounded-full">{guide.status}</span>
-                                  </div>
-                                  
-                                  <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-5xs font-medium">
-                                    <div>&bull; Fecha: <strong className="font-bold">{guide.date}</strong></div>
-                                    <div>&bull; Bultos: <strong className="font-bold">{guide.itemsCount}</strong></div>
-                                    <div>&bull; Bodega: <strong className="font-bold">{guide.origin}</strong></div>
-                                    <div>&bull; Peso: <strong className="font-bold">{guide.totalWeight.toFixed(1)} Lbs</strong></div>
-                                  </div>
+                          {/* History High-Density Table */}
+                          <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                            <table className="w-full text-left border-collapse">
+                              <thead>
+                                <tr className="bg-gray-100 border-b border-gray-200 text-4xs font-extrabold text-gray-500 uppercase tracking-wider">
+                                  <th className="py-2.5 px-3">Fecha</th>
+                                  <th className="py-2.5 px-3">Guía Madre ID</th>
+                                  <th className="py-2.5 px-3">Bodega Origen</th>
+                                  <th className="py-2.5 px-3">Destino final</th>
+                                  <th className="py-2.5 px-3 text-center">Bultos</th>
+                                  <th className="py-2.5 px-3 text-right">Peso Total</th>
+                                  <th className="py-2.5 px-3 text-center">Estado Tránsito</th>
+                                  <th className="py-2.5 px-3 text-center">Actualizar Estado</th>
+                                  <th className="py-2.5 px-3 text-center">Detalles</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-100 text-3xs font-semibold text-brand-gray-dark">
+                                {filteredGuides.length > 0 ? (
+                                  filteredGuides.map(guide => {
+                                    const guideKey = guide.id;
+                                    const isExpanded = expandedConsolidadoGuide === guideKey;
 
-                                  <div className="text-5xs text-gray-500 leading-relaxed border-t border-gray-50 pt-2 font-sans italic">
-                                    <strong>Notas:</strong> {guide.notes}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
+                                    // Filter child packages dynamically
+                                    const childShipments = shipments.filter(s => 
+                                      s.history.some(h => h.details && h.details.includes(guide.id)) ||
+                                      (s.notes && s.notes.includes(guide.id))
+                                    );
+
+                                    return (
+                                      <React.Fragment key={guide.id}>
+                                        <tr className={`hover:bg-gray-50/50 transition-colors ${isExpanded ? 'bg-orange-50/10' : ''}`}>
+                                          <td className="py-3 px-3 font-mono text-gray-400">
+                                            {guide.date}
+                                          </td>
+                                          <td className="py-3 px-3 font-bold font-mono text-brand-orange tracking-wide uppercase">
+                                            {guide.id}
+                                          </td>
+                                          <td className="py-3 px-3">
+                                            {guide.origin === 'Laredo' ? (
+                                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-4xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                                🇺🇸 Laredo US
+                                              </span>
+                                            ) : (
+                                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-4xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                🇲🇽 México MX
+                                              </span>
+                                            )}
+                                          </td>
+                                          <td className="py-3 px-3 text-gray-500">
+                                            {guide.destination}
+                                          </td>
+                                          <td className="py-3 px-3 text-center">
+                                            <span className="bg-slate-100 text-slate-800 text-4xs font-extrabold px-2 py-0.5 rounded">
+                                              {guide.itemsCount} bultos
+                                            </span>
+                                          </td>
+                                          <td className="py-3 px-3 text-right font-mono text-gray-600 font-bold">
+                                            {Number(guide.totalWeight).toFixed(1)} Lbs
+                                          </td>
+                                          <td className="py-3 px-3 text-center">
+                                            <span className={`px-2.5 py-0.5 rounded-full text-4xs font-extrabold uppercase border ${
+                                              guide.status === 'Entregado' ? 'bg-green-50 border-green-200 text-green-700' :
+                                              guide.status === 'Listo para Entrega' ? 'bg-amber-50 border-amber-200 text-amber-700 font-extrabold' :
+                                              guide.status === 'Recibido en Hub' ? 'bg-purple-50 border-purple-200 text-purple-700' :
+                                              guide.status === 'En Tránsito' ? 'bg-blue-50 border-blue-200 text-blue-700 font-extrabold animate-pulse' :
+                                              'bg-gray-50 border-gray-200 text-gray-600'
+                                            }`}>
+                                              {guide.status}
+                                            </span>
+                                          </td>
+                                          <td className="py-3 px-3 text-center">
+                                            <select
+                                              value={guide.status}
+                                              onChange={(e) => handleUpdateStatus(guide.id, e.target.value)}
+                                              className="px-2 py-1 text-4xs font-bold border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white font-mono text-brand-gray-dark"
+                                            >
+                                              <option value="Despachado">Despachado</option>
+                                              <option value="En Tránsito">En Tránsito</option>
+                                              <option value="Recibido en Hub">Recibido en Hub</option>
+                                              <option value="Listo para Entrega">Listo para Entrega</option>
+                                              <option value="Entregado">Entregado</option>
+                                            </select>
+                                          </td>
+                                          <td className="py-3 px-3 text-center">
+                                            <button
+                                              type="button"
+                                              onClick={() => setExpandedConsolidadoGuide(isExpanded ? null : guideKey)}
+                                              className="text-brand-orange hover:text-brand-orange-hover text-4xs font-black uppercase tracking-wider underline cursor-pointer"
+                                            >
+                                              {isExpanded ? 'Ocultar' : 'Ver Detalle'}
+                                            </button>
+                                          </td>
+                                        </tr>
+
+                                        {/* Expanded Details Row */}
+                                        {isExpanded && (
+                                          <tr className="bg-gray-50/50">
+                                            <td colSpan={9} className="px-6 py-4 border-t border-b border-gray-200">
+                                              <div className="space-y-4">
+                                                
+                                                {/* Header Details */}
+                                                <div className="flex flex-col sm:flex-row justify-between items-start gap-4 border-b border-gray-200 pb-3">
+                                                  <div>
+                                                    <h5 className="text-[10px] font-black text-brand-gray-dark uppercase tracking-widest flex items-center gap-1.5">
+                                                      <ClipboardList className="h-4 w-4 text-brand-orange" />
+                                                      Especificaciones del Consolidado {guide.id}
+                                                    </h5>
+                                                    <p className="text-4xs text-gray-500 font-sans mt-0.5 italic">
+                                                      <strong>Bitácora:</strong> {guide.notes || 'Sin observaciones registradas.'}
+                                                    </p>
+                                                  </div>
+                                                  <div className="text-right">
+                                                    <span className="text-5xs text-gray-400 block font-bold uppercase tracking-wider">Destinatario General</span>
+                                                    <strong className="text-3xs font-extrabold text-brand-gray-dark uppercase tracking-wide">ShipFast GT Hub Central</strong>
+                                                  </div>
+                                                </div>
+
+                                                {/* Child Shipments List */}
+                                                <div className="space-y-2">
+                                                  <span className="text-[9px] font-extrabold text-gray-400 uppercase tracking-widest block">Paquetes Consolidados en este Lote ({childShipments.length}):</span>
+                                                  
+                                                  {childShipments.length > 0 ? (
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                                      {childShipments.map(ship => (
+                                                        <div key={ship.id} className="bg-white border border-gray-200 rounded p-3 shadow-3xs space-y-1.5 text-[9px] font-mono relative overflow-hidden">
+                                                          <div className="absolute left-0 top-0 bottom-0 w-1 bg-brand-orange"></div>
+                                                          
+                                                          <div className="flex justify-between items-center border-b border-gray-100 pb-1">
+                                                            <strong className="text-brand-orange font-black">{ship.id}</strong>
+                                                            <span className={`px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase ${
+                                                              ship.status === 'Entregado' ? 'bg-green-100 text-green-800' :
+                                                              ship.status === 'En Sucursal' ? 'bg-amber-100 text-amber-800' :
+                                                              'bg-blue-100 text-blue-800'
+                                                            }`}>
+                                                              {ship.status}
+                                                            </span>
+                                                          </div>
+
+                                                          <div className="grid grid-cols-2 gap-y-1 gap-x-2 text-gray-500 font-medium">
+                                                            <div>&bull; Casillero: <strong className="text-brand-gray-dark">{ship.lockerId}</strong></div>
+                                                            <div>&bull; Peso: <strong className="text-brand-gray-dark">{ship.weight.toFixed(1)} Lbs</strong></div>
+                                                            <div className="col-span-2 truncate">&bull; Destino: <strong className="text-brand-gray-dark font-sans">{ship.receiver}</strong></div>
+                                                            <div className="col-span-2 truncate">&bull; Contenido: <strong className="text-brand-gray-dark font-sans">{ship.notes || 'Sin descripción'}</strong></div>
+                                                          </div>
+                                                        </div>
+                                                      ))}
+                                                    </div>
+                                                  ) : (
+                                                    <p className="text-4xs text-gray-400 italic">
+                                                      No se encontraron paquetes individuales vinculados activamente a esta Guía Madre en la base de datos simulada.
+                                                    </p>
+                                                  )}
+                                                </div>
+
+                                              </div>
+                                            </td>
+                                          </tr>
+                                        )}
+                                      </React.Fragment>
+                                    );
+                                  })
+                                ) : (
+                                  <tr>
+                                    <td colSpan={9} className="text-center py-12 text-gray-400 font-medium">
+                                      No se encontraron Guías Madre que coincidan con los criterios de búsqueda.
+                                    </td>
+                                  </tr>
+                                )}
+                              </tbody>
+                            </table>
                           </div>
 
                         </div>
