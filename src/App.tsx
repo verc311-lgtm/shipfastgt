@@ -98,24 +98,6 @@ const generatePackageId = () => {
 // Default system users
 const DEFAULT_USERS: UserProfile[] = [
   {
-    lockerId: "SFG0",
-    name: "Juan Carlos Gómez",
-    email: "juan@shipfast.gt",
-    phone: "+502 5555-1234",
-    address: "Ciudad de Guatemala, Guatemala",
-    role: "client",
-    password: "1234"
-  },
-  {
-    lockerId: "SFG1",
-    name: "María René Asturias",
-    email: "maria@shipfast.gt",
-    phone: "+502 4444-5678",
-    address: "La Antigua Guatemala, Sacatepéquez",
-    role: "client",
-    password: "1234"
-  },
-  {
     lockerId: "ADMIN-01",
     name: "Administrador Central",
     email: "admin@shipfast.gt",
@@ -126,111 +108,10 @@ const DEFAULT_USERS: UserProfile[] = [
   }
 ];
 
-const INITIAL_PRE_ALERTS: PreAlert[] = [
-  { id: "PA-101-GT", lockerId: "SFG0", sender: "Amazon US", description: "Repuestos de laptop", weightEst: 2.5, status: "Pendiente", dateCreated: "2026-05-20" },
-  { id: "PA-102-GT", lockerId: "SFG1", sender: "eBay", description: "Calzado deportivo", weightEst: 1.8, status: "Pendiente", dateCreated: "2026-05-21" },
-];
+const INITIAL_PRE_ALERTS: PreAlert[] = [];
 
 // Initial state data
-const INITIAL_SHIPMENTS: Shipment[] = [
-  {
-    id: "SF-8219-GT",
-    lockerId: "SFG0",
-    sender: "Distribuidora Industrial S.A.",
-    receiver: "Juan Carlos Gómez",
-    origin: "Ciudad de Guatemala, Guatemala",
-    destination: "Quetzaltenango, Quetzaltenango",
-    status: "Entregado",
-    serviceType: "Express",
-    weight: 12.5,
-    dimensions: "40x30x30 cm",
-    lastUpdated: "2026-05-20 16:45",
-    history: [
-      { date: "2026-05-20", time: "16:45", status: "Entregado", location: "Quetzaltenango - Oficina Central", details: "Entregado y firmado por Ing. Mario Juárez." },
-      { date: "2026-05-20", time: "09:30", status: "En Ruta", location: "Quetzaltenango", details: "Unidad asignada en reparto local." },
-      { date: "2026-05-19", time: "22:15", status: "En Sucursal", location: "Sucursal Quetzaltenango", details: "Clasificación y recepción en almacén regional." },
-      { date: "2026-05-19", time: "14:00", status: "En Tránsito", location: "Ruta Interamericana KM 84", details: "Transporte troncal principal en tránsito hacia Occidente." },
-      { date: "2026-05-19", time: "09:00", status: "Creado", location: "Guatemala - Hub Central", details: "Paquete recolectado y documentado en oficina central." }
-    ],
-    signeeName: "Ing. Mario Juárez",
-    notes: "Entregar en garita de seguridad de ser necesario."
-  },
-  {
-    id: "SF-9843-GT",
-    lockerId: "SFG1",
-    sender: "Droguería Médica Familiar",
-    receiver: "María René Asturias",
-    origin: "Ciudad de Guatemala, Guatemala",
-    destination: "La Antigua Guatemala, Sacatepéquez",
-    status: "En Ruta",
-    serviceType: "Express",
-    weight: 3.2,
-    dimensions: "25x20x15 cm",
-    lastUpdated: "2026-05-21 08:00",
-    history: [
-      { date: "2026-05-21", time: "08:00", status: "En Ruta", location: "Antigua Guatemala", details: "Asignado a mensajero motorizado para entrega el día de hoy." },
-      { date: "2026-05-20", time: "18:00", status: "En Sucursal", location: "Sucursal Antigua Guatemala", details: "Ingreso a oficina regional para clasificación final." },
-      { date: "2026-05-20", time: "11:30", status: "En Tránsito", location: "Ruta Nacional 10 KM 28", details: "Unidad ligera en ruta de transferencia." },
-      { date: "2026-05-20", time: "08:30", status: "Creado", location: "Guatemala - Hub Central", details: "Envío recibido en ventanilla de oficina central." }
-    ],
-    notes: "Medicamentos de cadena de frío parcial. Mantener en sombra."
-  },
-  {
-    id: "SF-4912-GT",
-    lockerId: "SFG0",
-    sender: "Zapatos El Quetzal",
-    receiver: "Juan Carlos Gómez",
-    origin: "Huehuetenango, Huehuetenango",
-    destination: "Ciudad de Guatemala, Guatemala",
-    status: "En Tránsito",
-    serviceType: "Estándar",
-    weight: 22.0,
-    dimensions: "60x40x45 cm",
-    lastUpdated: "2026-05-20 23:45",
-    history: [
-      { date: "2026-05-20", time: "23:45", status: "En Tránsito", location: "San Cristóbal Totonicapán", details: "Unidad consolidada de carga pesada en movimiento." },
-      { date: "2026-05-20", time: "14:15", status: "En Sucursal", location: "Sucursal Huehuetenango", details: "Carga consolidada y paletizada en andén de salida." },
-      { date: "2026-05-20", time: "10:00", status: "Creado", location: "Sucursal Huehuetenango", details: "Registro del cliente en sucursal del altiplano." }
-    ]
-  },
-  {
-    id: "SF-5011-GT",
-    lockerId: "SFG1",
-    sender: "Corporación Agrícola Las Verapaces",
-    receiver: "María René Asturias",
-    origin: "Cobán, Alta Verapaz",
-    destination: "Escuintla, Escuintla",
-    status: "Creado",
-    serviceType: "Estándar",
-    weight: 45.0,
-    dimensions: "80x50x50 cm",
-    lastUpdated: "2026-05-21 07:15",
-    history: [
-      { date: "2026-05-21", time: "07:15", status: "Creado", location: "Sucursal Cobán", details: "Programación de recolección en planta agroindustrial confirmada." }
-    ],
-    notes: "Producto empacado en sacos reforzados. Requiere estibado cuidadoso."
-  },
-  {
-    id: "SF-7422-GT",
-    lockerId: "SFG0",
-    sender: "Importadora Tecnológica S.A.",
-    receiver: "Juan Carlos Gómez",
-    origin: "Chimaltenango, Chimaltenango",
-    destination: "Zacapa, Zacapa",
-    status: "Retrasado",
-    serviceType: "Express",
-    weight: 1.8,
-    dimensions: "20x15x10 cm",
-    lastUpdated: "2026-05-20 15:30",
-    history: [
-      { date: "2026-05-20", time: "15:30", status: "Retrasado", location: "Ruta al Atlántico KM 42", details: "Retraso debido a bloqueo temporal de carretera por accidente vial." },
-      { date: "2026-05-20", time: "10:00", status: "En Tránsito", location: "Guatemala - Hub Central", details: "Despacho de andén de transferencia con destino a Oriente." },
-      { date: "2026-05-19", time: "17:00", status: "En Sucursal", location: "Sucursal Chimaltenango", details: "Paquete recibido y preparado para transferencia." },
-      { date: "2026-05-19", time: "12:00", status: "Creado", location: "Sucursal Chimaltenango", details: "Ingreso formal de envío express." }
-    ],
-    notes: "Componentes electrónicos delicados."
-  }
-];
+const INITIAL_SHIPMENTS: Shipment[] = [];
 
 export default function App() {
   // Session Authentication state
@@ -309,10 +190,10 @@ export default function App() {
   // Bulk Upload Mayor States
   const [bulkFileText, setBulkFileText] = useState('');
   const [bulkSender, setBulkSender] = useState('Distribuidora El Quetzal S.A.');
-  const [bulkLocker, setBulkLocker] = useState('SFG0');
+  const [bulkLocker, setBulkLocker] = useState('');
 
   // Warehouse Receipt States
-  const [warehouseLocker, setWarehouseLocker] = useState('SFG0');
+  const [warehouseLocker, setWarehouseLocker] = useState('');
   const [warehouseWeightInput, setWarehouseWeightInput] = useState(2.0);
   const [warehouseNotes, setWarehouseNotes] = useState('');
   const [warehouseBodega, setWarehouseBodega] = useState<'Laredo' | 'Mexico'>('Laredo');
@@ -323,34 +204,24 @@ export default function App() {
   const [consolidadoOriginFilter, setConsolidadoOriginFilter] = useState('Todos');
 
   // Consolidation States
-  const [consolidatedGuides, setConsolidatedGuides] = useState<any[]>([
-    { id: "SF-CONS-901-GT", date: "2026-05-20", origin: "Laredo", destination: "Guatemala Central", status: "Despachado", itemsCount: 15, totalWeight: 145.0, notes: "Vuelo consolidado AA-902" }
-  ]);
+  const [consolidatedGuides, setConsolidatedGuides] = useState<any[]>([]);
 
   // Finance & Invoices
-  const [invoices, setInvoices] = useState<any[]>([
-    { id: "FAC-1001", lockerId: "SFG0", date: "2026-05-20", concept: "Flete Express SF-8219-GT", amount: 122.50, paymentStatus: "Pagado" },
-    { id: "FAC-1002", lockerId: "SFG1", date: "2026-05-21", concept: "Flete Express SF-9843-GT", amount: 57.40, paymentStatus: "Pendiente" }
-  ]);
-  const [invoiceLocker, setInvoiceLocker] = useState('SFG0');
+  const [invoices, setInvoices] = useState<any[]>([]);
+  const [invoiceLocker, setInvoiceLocker] = useState('');
   const [invoiceConcept, setInvoiceConcept] = useState('');
   const [invoiceAmount, setInvoiceAmount] = useState(120.00);
 
   // Payments
-  const [paymentsLog, setPaymentsLog] = useState<any[]>([
-    { id: "PAG-501", lockerId: "SFG0", date: "2026-05-20", method: "Transferencia Bancaria", invoiceId: "FAC-1001", amount: 122.50, notes: "Ref Banrural #98431" }
-  ]);
-  const [paymentLocker, setPaymentLocker] = useState('SFG0');
-  const [paymentInvoice, setPaymentInvoice] = useState('FAC-1002');
+  const [paymentsLog, setPaymentsLog] = useState<any[]>([]);
+  const [paymentLocker, setPaymentLocker] = useState('');
+  const [paymentInvoice, setPaymentInvoice] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('Transferencia Bancaria');
   const [paymentAmount, setPaymentAmount] = useState(57.40);
   const [paymentNotes, setPaymentNotes] = useState('');
 
   // Expenses
-  const [expensesLog, setExpensesLog] = useState<any[]>([
-    { id: "GTO-801", date: "2026-05-20", category: "Combustible", description: "Diésel camión ruta Occidente", amount: 450.00, cashier: "Operador Sur" },
-    { id: "GTO-802", date: "2026-05-21", category: "Mantenimiento", description: "Repuesto neumático moto repartidor 3", amount: 220.00, cashier: "Admin Central" }
-  ]);
+  const [expensesLog, setExpensesLog] = useState<any[]>([]);
   const [expenseCategory, setExpenseCategory] = useState('Combustible');
   const [expenseDescription, setExpenseDescription] = useState('');
   const [expenseAmount, setExpenseAmount] = useState(150.00);
@@ -364,13 +235,7 @@ export default function App() {
   });
 
   // Branches
-  const [branchesList, setBranchesList] = useState<any[]>([
-    { id: "SUC-01", name: "Guatemala Hub Central", region: "Metropolitana", manager: "Carlos Lemus", staffCount: 18, activeVehicles: 6 },
-    { id: "SUC-02", name: "Antigua Guatemala", region: "Central", manager: "Sofía Méndez", staffCount: 4, activeVehicles: 2 },
-    { id: "SUC-03", name: "Quetzaltenango Regional", region: "Occidente", manager: "Pedro Asturias", staffCount: 9, activeVehicles: 3 },
-    { id: "SUC-04", name: "Cobán Norte", region: "Verapaces", manager: "Lucía Torres", staffCount: 3, activeVehicles: 1 },
-    { id: "SUC-05", name: "Escuintla Sur", region: "Pacífico", manager: "Roberto Gómez", staffCount: 5, activeVehicles: 2 }
-  ]);
+  const [branchesList, setBranchesList] = useState<any[]>([]);
   const [newBranchName, setNewBranchName] = useState('');
   const [newBranchRegion, setNewBranchRegion] = useState('Metropolitana');
   const [newBranchManager, setNewBranchManager] = useState('');
@@ -407,7 +272,7 @@ export default function App() {
   // New Shipment Creation fields (Admin)
   const [adminSender, setAdminSender] = useState('');
   const [adminReceiver, setAdminReceiver] = useState('');
-  const [adminLockerLink, setAdminLockerLink] = useState('SFG0');
+  const [adminLockerLink, setAdminLockerLink] = useState('');
   const [adminOrigin, setAdminOrigin] = useState('');
   const [adminDestination, setAdminDestination] = useState('');
   const [adminService, setAdminService] = useState<'Express' | 'Estándar'>('Express');
@@ -1061,7 +926,7 @@ export default function App() {
     // Reset
     setAdminSender('');
     setAdminReceiver('');
-    setAdminLockerLink('SFG0');
+    setAdminLockerLink('');
     setAdminOrigin('');
     setAdminDestination('');
     setAdminWeight(1);
