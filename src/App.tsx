@@ -307,6 +307,7 @@ export default function App() {
   const [warehouseBinInput, setWarehouseBinInput] = useState('Rack A-12');
   const [warehouseNotes, setWarehouseNotes] = useState('');
   const [warehouseBodega, setWarehouseBodega] = useState<'Laredo' | 'Mexico'>('Laredo');
+  const [expandedWarehouseGroup, setExpandedWarehouseGroup] = useState<string | null>(null);
 
   // Consolidation States
   const [selectedInventoryItems, setSelectedInventoryItems] = useState<string[]>([]);
@@ -3294,6 +3295,180 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                               </div>
                             </div>
 
+                          </div>
+
+                          {/* Consolidated Packages list by Client and Bodega */}
+                          <div className="border-t border-gray-200 pt-6">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                              <div>
+                                <h4 className="text-2xs font-extrabold text-brand-gray-dark uppercase tracking-wider font-display flex items-center gap-2">
+                                  <Layers className="w-4 h-4 text-brand-orange" />
+                                  📦 Resumen de Paquetes Consolidados en Almacén
+                                </h4>
+                                <p className="text-4xs text-gray-500 mt-0.5">Control en tiempo real de paquetes recepcionados (En Sucursal) agrupados por cliente y su bodega de origen.</p>
+                              </div>
+                              
+                              {/* Quick stats badges */}
+                              <div className="flex gap-2">
+                                <span className="bg-blue-50 text-blue-700 text-[10px] font-bold px-2.5 py-1 rounded border border-blue-100 flex items-center gap-1 font-mono">
+                                  🇺🇸 Laredo: {shipments.filter(s => s.status === 'En Sucursal' && s.origin === 'Laredo').length} paq.
+                                </span>
+                                <span className="bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2.5 py-1 rounded border border-emerald-100 flex items-center gap-1 font-mono">
+                                  🇲🇽 México: {shipments.filter(s => s.status === 'En Sucursal' && s.origin === 'Mexico').length} paq.
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Real-time consolidated table */}
+                            <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                              <table className="w-full text-left border-collapse">
+                                <thead>
+                                  <tr className="bg-gray-100 border-b border-gray-200 text-4xs font-extrabold text-gray-500 uppercase tracking-wider">
+                                    <th className="py-2.5 px-3 text-center w-10">Estado</th>
+                                    <th className="py-2.5 px-3">Casillero</th>
+                                    <th className="py-2.5 px-3">Cliente</th>
+                                    <th className="py-2.5 px-3">Bodega Origen</th>
+                                    <th className="py-2.5 px-3 text-center">Cant. Paquetes</th>
+                                    <th className="py-2.5 px-3 text-right">Peso Acumulado</th>
+                                    <th className="py-2.5 px-3 text-center">Acción</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100 text-3xs font-semibold text-brand-gray-dark">
+                                  {(() => {
+                                    const inWarehouse = shipments.filter(s => s.status === 'En Sucursal');
+                                    const groups: { [key: string]: { lockerId: string; clientName: string; bodega: string; count: number; totalWeight: number; shipments: Shipment[] } } = {};
+                                    
+                                    inWarehouse.forEach(s => {
+                                      const key = `${s.lockerId}-${s.origin}`;
+                                      if (!groups[key]) {
+                                        const user = users.find(u => u.lockerId === s.lockerId);
+                                        groups[key] = {
+                                          lockerId: s.lockerId,
+                                          clientName: user ? user.name : s.receiver || 'Cliente',
+                                          bodega: s.origin,
+                                          count: 0,
+                                          totalWeight: 0,
+                                          shipments: []
+                                        };
+                                      }
+                                      groups[key].count += 1;
+                                      groups[key].totalWeight += s.weight;
+                                      groups[key].shipments.push(s);
+                                    });
+                                    
+                                    const groupList = Object.values(groups);
+                                    
+                                    if (groupList.length === 0) {
+                                      return (
+                                        <tr>
+                                          <td colSpan={7} className="text-center py-8 text-gray-400 font-medium">
+                                            No hay paquetes consolidados en sucursal en este momento.
+                                          </td>
+                                        </tr>
+                                      );
+                                    }
+                                    
+                                    return groupList.map((g) => {
+                                      const groupKey = `${g.lockerId}-${g.bodega}`;
+                                      const isExpanded = expandedWarehouseGroup === groupKey;
+                                      
+                                      return (
+                                        <React.Fragment key={groupKey}>
+                                          <tr className={`hover:bg-gray-50/50 transition-colors ${isExpanded ? 'bg-orange-50/20' : ''}`}>
+                                            <td className="py-3 px-3 text-center">
+                                              <span className="h-2 w-2 rounded-full bg-orange-500 inline-block animate-pulse" title="En Almacén" />
+                                            </td>
+                                            <td className="py-3 px-3 font-bold font-mono text-brand-orange">
+                                              {g.lockerId}
+                                            </td>
+                                            <td className="py-3 px-3 text-brand-gray-dark font-bold">
+                                              {g.clientName}
+                                            </td>
+                                            <td className="py-3 px-3">
+                                              {g.bodega === 'Laredo' ? (
+                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-4xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                                                  🇺🇸 Laredo US
+                                                </span>
+                                              ) : (
+                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-4xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                                  🇲🇽 México MX
+                                                </span>
+                                              )}
+                                            </td>
+                                            <td className="py-3 px-3 text-center font-extrabold">
+                                              <span className="bg-brand-orange/15 text-brand-orange text-3xs font-extrabold px-2.5 py-0.5 rounded-full">
+                                                {g.count} {g.count === 1 ? 'paquete' : 'paquetes'}
+                                              </span>
+                                            </td>
+                                            <td className="py-3 px-3 text-right font-mono text-gray-600 font-bold">
+                                              {g.totalWeight.toFixed(1)} Lbs
+                                            </td>
+                                            <td className="py-3 px-3 text-center space-x-2">
+                                              <button
+                                                type="button"
+                                                onClick={() => setExpandedWarehouseGroup(isExpanded ? null : groupKey)}
+                                                className="text-brand-orange hover:text-brand-orange-hover text-4xs font-black uppercase tracking-wider underline cursor-pointer"
+                                              >
+                                                {isExpanded ? 'Ocultar Detalle' : 'Ver Detalle'}
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => setAdminSubTab('consolidado')}
+                                                className="bg-brand-orange hover:bg-brand-orange-hover text-white text-[9px] font-extrabold px-2.5 py-1 rounded uppercase tracking-wider transition cursor-pointer"
+                                              >
+                                                Despachar
+                                              </button>
+                                            </td>
+                                          </tr>
+                                          
+                                          {/* Expanded Detail Panel */}
+                                          {isExpanded && (
+                                            <tr className="bg-gray-50/50">
+                                              <td colSpan={7} className="px-6 py-4 border-t border-b border-gray-200">
+                                                <div className="space-y-2">
+                                                  <h5 className="text-[10px] font-extrabold text-brand-gray-dark uppercase tracking-wider flex items-center gap-1">
+                                                    <ClipboardList className="h-3.5 w-3.5 text-brand-orange" />
+                                                    Guías individuales de {g.clientName} ({g.lockerId}) en Bodega {g.bodega}
+                                                  </h5>
+                                                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                                    {g.shipments.map(s => {
+                                                      const binMatches = s.notes ? s.notes.match(/Rack [A-D]-[0-9]+/g) : null;
+                                                      const binLoc = binMatches ? binMatches[0] : 'Sin Estante';
+                                                      return (
+                                                        <div key={s.id} className="bg-white border border-gray-200 p-2.5 rounded shadow-2xs space-y-1.5 font-mono text-[9px] relative overflow-hidden">
+                                                          <div className="flex justify-between items-center border-b border-gray-100 pb-1">
+                                                            <span className="font-bold text-brand-orange">{s.id}</span>
+                                                            <span className="bg-orange-50 text-brand-orange px-1 rounded text-[8px] font-bold">{binLoc}</span>
+                                                          </div>
+                                                          <div className="flex justify-between text-gray-500">
+                                                            <span>Contenido:</span>
+                                                            <span className="text-brand-gray-dark font-semibold truncate max-w-[120px]" title={s.notes}>
+                                                              {s.notes?.split(' [Shelved:')[0] || 'Sin descripción'}
+                                                            </span>
+                                                          </div>
+                                                          <div className="flex justify-between text-gray-500">
+                                                            <span>Peso:</span>
+                                                            <strong className="text-brand-gray-dark">{s.weight.toFixed(1)} Lbs</strong>
+                                                          </div>
+                                                          <div className="flex justify-between text-gray-500">
+                                                            <span>Fecha ingreso:</span>
+                                                            <span className="text-gray-400">{s.lastUpdated}</span>
+                                                          </div>
+                                                        </div>
+                                                      );
+                                                    })}
+                                                  </div>
+                                                </div>
+                                              </td>
+                                            </tr>
+                                          )}
+                                        </React.Fragment>
+                                      );
+                                    });
+                                  })()}
+                                </tbody>
+                              </table>
+                            </div>
                           </div>
                         </div>
                       );
