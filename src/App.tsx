@@ -23,12 +23,14 @@ import {
   FileText,
   Users,
   Printer,
+  Trash2,
   Layers,
   Database,
   Wallet,
   Check,
   Grid,
-  FileSpreadsheet
+  FileSpreadsheet,
+  X
 } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 
@@ -374,6 +376,17 @@ export default function App() {
   const [adminServiceFilter, setAdminServiceFilter] = useState<string>('todos');
   const [selectedAdminShipment, setSelectedAdminShipment] = useState<Shipment | null>(null);
   const [newShipmentModal, setNewShipmentModal] = useState(false);
+  const [newShipmentModalMode, setNewShipmentModalMode] = useState<'individual' | 'bulk'>('bulk');
+  const [bulkRows, setBulkRows] = useState<any[]>([
+    { id: 'row-1', bodega: 'Miami Hub', trackingNumber: '', lockerId: '', weight: 0.00, pieces: 1, saved: false }
+  ]);
+  const [bulkAutoSave, setBulkAutoSave] = useState(false);
+  const [activeAutocompleteRow, setActiveAutocompleteRow] = useState<string | null>(null);
+  const [bulkPrintSticker, setBulkPrintSticker] = useState<any | null>(null);
+  const [isPrinting, setIsPrinting] = useState(false);
+  const [printProgress, setPrintProgress] = useState(0);
+  const [printStatusText, setPrintStatusText] = useState('');
+  const [printSuccess, setPrintSuccess] = useState(false);
   const [updateStatusVal, setUpdateStatusVal] = useState<'Creado' | 'En Tránsito' | 'En Sucursal' | 'En Ruta' | 'Entregado' | 'Retrasado'>('Creado');
   const [updateLocationVal, setUpdateLocationVal] = useState('');
   const [updateDetailsVal, setUpdateDetailsVal] = useState('');
@@ -688,6 +701,270 @@ export default function App() {
     setActiveDriverTaskId(null);
     setSigneeName('');
     setSignatureDone(false);
+  };
+
+  // Bulk Multi-Entry spreadsheet operations
+  const handleKeyDownOnRow = (e: React.KeyboardEvent, index: number, rowId: string) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      
+      const row = bulkRows[index];
+      
+      // Auto save if enabled and row is not already saved
+      if (bulkAutoSave && row && !row.saved) {
+        if (row.trackingNumber.trim() && row.lockerId.trim()) {
+          saveBulkRow(rowId);
+        }
+      }
+      
+      // Focus transition or row addition
+      if (index === bulkRows.length - 1) {
+        const newId = 'row-' + Math.random().toString(36).substring(2, 9);
+        setBulkRows(prev => [
+          ...prev,
+          { id: newId, bodega: prev[prev.length - 1]?.bodega || 'Miami Hub', trackingNumber: '', lockerId: '', weight: 0.00, pieces: 1, saved: false }
+        ]);
+        
+        setTimeout(() => {
+          const nextInput = document.getElementById(`bulk-tracking-${index + 1}`);
+          if (nextInput) nextInput.focus();
+        }, 50);
+      } else {
+        const nextInput = document.getElementById(`bulk-tracking-${index + 1}`);
+        if (nextInput) nextInput.focus();
+      }
+    }
+  };
+
+  const addBulkRow = () => {
+    const newId = 'row-' + Math.random().toString(36).substring(2, 9);
+    setBulkRows(prev => [
+      ...prev,
+      { id: newId, bodega: prev[prev.length - 1]?.bodega || 'Miami Hub', trackingNumber: '', lockerId: '', weight: 0.00, pieces: 1, saved: false }
+    ]);
+  };
+
+  const deleteBulkRow = (rowId: string) => {
+    if (bulkRows.length <= 1) {
+      setBulkRows([{ id: 'row-1', bodega: 'Miami Hub', trackingNumber: '', lockerId: '', weight: 0.00, pieces: 1, saved: false }]);
+      return;
+    }
+    setBulkRows(prev => prev.filter(r => r.id !== rowId));
+  };
+
+  const updateBulkRow = (rowId: string, field: string, value: any) => {
+    setBulkRows(prev => prev.map(r => {
+      if (r.id !== rowId) return r;
+      return { ...r, [field]: value };
+    }));
+  };
+
+  const saveBulkRow = (rowId: string) => {
+    const row = bulkRows.find(r => r.id === rowId);
+    if (!row) return;
+
+    if (!row.trackingNumber.trim()) {
+      alert('Por favor ingrese el Tracking Number.');
+      return;
+    }
+
+    // Validate locker ID
+    const matchedClient = users.find(u => u.role === 'client' && u.lockerId.toUpperCase() === row.lockerId.toUpperCase().trim());
+    if (!matchedClient) {
+      alert(`El Casillero "${row.lockerId}" no es válido. Busque y seleccione un cliente existente.`);
+      return;
+    }
+
+    if (row.saved) {
+      alert('Esta fila ya ha sido guardada.');
+      return;
+    }
+
+    // Generate package ID and date
+    const newId = generatePackageId();
+    const currentDate = new Date().toISOString().split('T')[0];
+    const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
+
+    // Convert weight in lbs to Kg (Lbs to Kg: Lbs * 0.453592)
+    const weightKg = Number((row.weight * 0.453592).toFixed(2));
+
+    // Calculate flete based on service and weight
+    const serviceType = 'Express'; // default service for bulk scans
+    const baseVal = serviceType === 'Express' ? ratesSettings.baseExpress : ratesSettings.baseEstandar;
+    const weightVal = weightKg * (serviceType === 'Express' ? ratesSettings.pesoExpress : ratesSettings.pesoEstandar);
+    const fleteTotal = Number((baseVal + weightVal).toFixed(2));
+
+    const newShip: Shipment = {
+      id: newId,
+      lockerId: matchedClient.lockerId,
+      sender: "Distribuidor Miami",
+      receiver: matchedClient.name,
+      origin: `${row.bodega}, USA`,
+      destination: matchedClient.address || "Ciudad de Guatemala, GT",
+      status: 'En Sucursal', // checked-in at branch
+      serviceType: serviceType,
+      weight: weightKg,
+      dimensions: "N/A (Carga Consolidada)",
+      lastUpdated: `${currentDate} ${currentTime}`,
+      history: [
+        {
+          date: currentDate,
+          time: currentTime,
+          status: 'En Sucursal',
+          location: row.bodega,
+          details: `Paquete recibido físicamente en bodega de ${row.bodega}. Peso registrado: ${row.weight} Lbs.`
+        }
+      ],
+      notes: `Ingreso secuencial rápido. Tracking original: ${row.trackingNumber}.`
+    };
+
+    // Auto-create invoice
+    const invoiceId = `FAC-${1000 + invoices.length + 1}`;
+    const newInvoice = {
+      id: invoiceId,
+      lockerId: matchedClient.lockerId,
+      date: currentDate,
+      concept: `Flete ${serviceType} ${newId} (${row.weight} Lbs / ${weightKg} Kg)`,
+      amount: fleteTotal,
+      paymentStatus: 'Pendiente'
+    };
+
+    setShipments(prev => [newShip, ...prev]);
+    setInvoices(prev => [...prev, newInvoice]);
+
+    // Mark row as saved
+    setBulkRows(prev => prev.map(r => r.id === rowId ? { ...r, saved: true } : r));
+    alert(`Paquete con Tracking ${row.trackingNumber} guardado correctamente (Guía: ${newId}).`);
+  };
+
+  const saveAllBulkRows = () => {
+    const unsavedRows = bulkRows.filter(r => !r.saved);
+    if (unsavedRows.length === 0) {
+      alert('No hay filas pendientes de guardar.');
+      return;
+    }
+
+    // Validate all unsaved rows first
+    for (const row of unsavedRows) {
+      if (!row.trackingNumber.trim()) {
+        alert(`Fila con índice #${bulkRows.indexOf(row) + 1} no tiene Tracking Number.`);
+        return;
+      }
+      const matchedClient = users.find(u => u.role === 'client' && u.lockerId.toUpperCase() === row.lockerId.toUpperCase().trim());
+      if (!matchedClient) {
+        alert(`Fila con índice #${bulkRows.indexOf(row) + 1} tiene un Casillero inválido (${row.lockerId}).`);
+        return;
+      }
+    }
+
+    // Save each row
+    const currentDate = new Date().toISOString().split('T')[0];
+    const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
+
+    const newShipmentsList: Shipment[] = [];
+    const newInvoicesList: any[] = [];
+    let invoiceCounter = invoices.length;
+
+    const updatedRows = bulkRows.map((row) => {
+      if (row.saved) return row;
+
+      const matchedClient = users.find(u => u.role === 'client' && u.lockerId.toUpperCase() === row.lockerId.toUpperCase().trim())!;
+      const newId = generatePackageId();
+      const weightKg = Number((row.weight * 0.453592).toFixed(2));
+      
+      const serviceType = 'Express';
+      const baseVal = serviceType === 'Express' ? ratesSettings.baseExpress : ratesSettings.baseEstandar;
+      const weightVal = weightKg * (serviceType === 'Express' ? ratesSettings.pesoExpress : ratesSettings.pesoEstandar);
+      const fleteTotal = Number((baseVal + weightVal).toFixed(2));
+
+      const newShip: Shipment = {
+        id: newId,
+        lockerId: matchedClient.lockerId,
+        sender: "Distribuidor Miami",
+        receiver: matchedClient.name,
+        origin: `${row.bodega}, USA`,
+        destination: matchedClient.address || "Ciudad de Guatemala, GT",
+        status: 'En Sucursal',
+        serviceType: serviceType,
+        weight: weightKg,
+        dimensions: "N/A (Carga Consolidada)",
+        lastUpdated: `${currentDate} ${currentTime}`,
+        history: [
+          {
+            date: currentDate,
+            time: currentTime,
+            status: 'En Sucursal',
+            location: row.bodega,
+            details: `Paquete recibido físicamente en bodega de ${row.bodega}. Peso registrado: ${row.weight} Lbs.`
+          }
+        ],
+        notes: `Ingreso rápido por lote. Tracking original: ${row.trackingNumber}.`
+      };
+
+      invoiceCounter++;
+      const invoiceId = `FAC-${1000 + invoiceCounter}`;
+      const newInvoice = {
+        id: invoiceId,
+        lockerId: matchedClient.lockerId,
+        date: currentDate,
+        concept: `Flete ${serviceType} ${newId} (${row.weight} Lbs)`,
+        amount: fleteTotal,
+        paymentStatus: 'Pendiente'
+      };
+
+      newShipmentsList.push(newShip);
+      newInvoicesList.push(newInvoice);
+
+      return { ...row, saved: true };
+    });
+
+    setShipments(prev => [...newShipmentsList, ...prev]);
+    setInvoices(prev => [...prev, ...newInvoicesList]);
+    setBulkRows(updatedRows);
+
+    alert(`¡Ingreso por lote completado! Se guardaron exitosamente ${newShipmentsList.length} paquetes y se generaron sus facturas.`);
+  };
+
+  const handleSimulatePrint = () => {
+    if (!bulkPrintSticker) return;
+    setIsPrinting(true);
+    setPrintSuccess(false);
+    setPrintProgress(5);
+    setPrintStatusText('Estableciendo conexión con Zebra GK420d (USB)...');
+    
+    setTimeout(() => {
+      setPrintProgress(20);
+      setPrintStatusText('Verificando estado de la bobina de etiquetas térmicas...');
+      
+      setTimeout(() => {
+        setPrintProgress(45);
+        setPrintStatusText('Generando código binario ZPL II...');
+        
+        setTimeout(() => {
+          setPrintProgress(75);
+          setPrintStatusText('Enviando ráfaga de datos a la cola de impresión...');
+          
+          setTimeout(() => {
+            setPrintProgress(95);
+            setPrintStatusText('Zebra GK420d: Alimentando papel y quemando píxeles...');
+            
+            setTimeout(() => {
+              setPrintProgress(100);
+              setPrintStatusText('¡Guía impresa correctamente!');
+              setPrintSuccess(true);
+              
+              setTimeout(() => {
+                setIsPrinting(false);
+                setPrintSuccess(false);
+                setPrintProgress(0);
+                setPrintStatusText('');
+                setBulkPrintSticker(null);
+              }, 1200);
+            }, 800);
+          }, 800);
+        }, 800);
+      }, 800);
+    }, 700);
   };
 
   // Admin Create Shipment
@@ -4202,16 +4479,37 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
 
                   </div>
 
-                  {/* ==================== CREATE NEW INDIVIDUAL SHIPMENT MODAL (OVERLAY) ==================== */}
+                  {/* ==================== CREATE NEW SHIPMENT MODAL (OVERLAY DUAL-MODE) ==================== */}
                   {newShipmentModal && (
                     <div className="fixed inset-0 bg-brand-gray-dark/60 backdrop-blur-xs flex justify-center items-center z-40 p-4">
-                      <div className="bg-white w-full max-w-lg rounded-lg border border-gray-200 shadow-2xl overflow-hidden animate-zoom-in">
+                      <div className={`bg-white w-full rounded-lg border border-gray-200 shadow-2xl overflow-hidden animate-zoom-in transition-all duration-300 ${newShipmentModalMode === 'bulk' ? 'max-w-6xl' : 'max-w-lg'}`}>
                         
-                        <div className="bg-brand-gray-dark text-white p-4 flex justify-between items-center border-b border-gray-800">
-                          <h4 className="text-xs font-extrabold uppercase tracking-wider font-display flex items-center gap-2">
+                        {/* Widescreen Professional Dual-Mode Header with Tabs */}
+                        <div className="bg-brand-gray-dark text-white px-4 py-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-gray-800 shrink-0">
+                          <div className="flex items-center gap-2">
                             <Plus className="h-4 w-4 text-brand-orange animate-pulse" />
-                            Ingresar Nuevo Envío Individual
-                          </h4>
+                            <h4 className="text-2xs font-extrabold uppercase tracking-wider font-display">
+                              {newShipmentModalMode === 'bulk' ? 'Ingreso de Despachos por Lote' : 'Ingresar Nuevo Envío Individual'}
+                            </h4>
+                          </div>
+                          
+                          <div className="flex items-center gap-1 bg-gray-900 p-0.5 rounded border border-gray-800">
+                            <button
+                              type="button"
+                              onClick={() => setNewShipmentModalMode('individual')}
+                              className={`px-3 py-1 text-4xs font-bold rounded uppercase tracking-wider transition cursor-pointer ${newShipmentModalMode === 'individual' ? 'bg-brand-orange text-white' : 'text-gray-400 hover:text-white'}`}
+                            >
+                              Individual
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setNewShipmentModalMode('bulk')}
+                              className={`px-3 py-1 text-4xs font-bold rounded uppercase tracking-wider transition cursor-pointer ${newShipmentModalMode === 'bulk' ? 'bg-brand-orange text-white' : 'text-gray-400 hover:text-white'}`}
+                            >
+                              Multi-Entry (Lote Rápido) ⚡
+                            </button>
+                          </div>
+
                           <button 
                             onClick={() => setNewShipmentModal(false)}
                             className="text-gray-400 hover:text-white font-black text-xs cursor-pointer"
@@ -4220,137 +4518,422 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                           </button>
                         </div>
 
-                        <form onSubmit={handleAdminCreateShipment} className="p-6 space-y-4">
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Nombre Remitente *</label>
-                              <input
-                                type="text"
-                                required
-                                value={adminSender}
-                                onChange={(e) => setAdminSender(e.target.value)}
-                                className="w-full px-2.5 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange font-semibold text-brand-gray-dark"
-                                placeholder="Empresa remitente"
-                              />
+                        {/* MODE 1: INDIVIDUAL ENTRY PANEL */}
+                        {newShipmentModalMode === 'individual' && (
+                          <form onSubmit={handleAdminCreateShipment} className="p-6 space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Nombre Remitente *</label>
+                                <input
+                                  type="text"
+                                  required
+                                  value={adminSender}
+                                  onChange={(e) => setAdminSender(e.target.value)}
+                                  className="w-full px-2.5 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange font-semibold text-brand-gray-dark"
+                                  placeholder="Empresa remitente"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Contacto Consignatario *</label>
+                                <input
+                                  type="text"
+                                  required
+                                  value={adminReceiver}
+                                  onChange={(e) => setAdminReceiver(e.target.value)}
+                                  className="w-full px-2.5 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange font-semibold text-brand-gray-dark"
+                                  placeholder="Persona destino"
+                                />
+                              </div>
                             </div>
-                            <div>
-                              <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Contacto Consignatario *</label>
-                              <input
-                                type="text"
-                                required
-                                value={adminReceiver}
-                                onChange={(e) => setAdminReceiver(e.target.value)}
-                                className="w-full px-2.5 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange font-semibold text-brand-gray-dark"
-                                placeholder="Persona destino"
-                              />
-                            </div>
-                          </div>
 
-                          <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Asignar Casillero de Cliente *</label>
+                                <select
+                                  value={adminLockerLink}
+                                  onChange={(e) => setAdminLockerLink(e.target.value)}
+                                  className="w-full px-2 py-1.5 text-3xs border border-gray-300 rounded bg-white font-mono text-brand-orange font-bold focus:ring-1 focus:ring-brand-orange"
+                                >
+                                  {users.filter(u => u.role === 'client').map(u => (
+                                    <option key={u.lockerId} value={u.lockerId}>{u.lockerId} — {u.name}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div>
+                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Dimensiones</label>
+                                <input
+                                  type="text"
+                                  required
+                                  value={adminDimensions}
+                                  onChange={(e) => setAdminDimensions(e.target.value)}
+                                  className="w-full px-2.5 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark"
+                                  placeholder="30x20x20 cm"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Dirección de Origen Principal *</label>
+                                <input
+                                  type="text"
+                                  required
+                                  value={adminOrigin}
+                                  onChange={(e) => setAdminOrigin(e.target.value)}
+                                  className="w-full px-2.5 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark"
+                                  placeholder="Ciudad Origen"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Dirección de Destino Principal *</label>
+                                <input
+                                  type="text"
+                                  required
+                                  value={adminDestination}
+                                  onChange={(e) => setAdminDestination(e.target.value)}
+                                  className="w-full px-2.5 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark"
+                                  placeholder="Ciudad Destino"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Servicio</label>
+                                <select
+                                  value={adminService}
+                                  onChange={(e) => setAdminService(e.target.value as any)}
+                                  className="w-full px-2 py-1.5 text-3xs border border-gray-300 rounded bg-white font-semibold"
+                                >
+                                  <option value="Express">Express</option>
+                                  <option value="Estándar">Estándar</option>
+                                </select>
+                              </div>
+
+                              <div>
+                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Peso Físico (Kg)</label>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  required
+                                  value={adminWeight}
+                                  onChange={(e) => setAdminWeight(Number(e.target.value))}
+                                  className="w-full px-2.5 py-1.5 text-3xs border border-gray-300 rounded font-semibold font-mono"
+                                />
+                              </div>
+                            </div>
+
                             <div>
-                              <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Asignar Casillero de Cliente *</label>
-                              <select
-                                value={adminLockerLink}
-                                onChange={(e) => setAdminLockerLink(e.target.value)}
-                                className="w-full px-2 py-1.5 text-3xs border border-gray-300 rounded bg-white font-mono text-brand-orange font-bold focus:ring-1 focus:ring-brand-orange"
+                              <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Observaciones Especiales</label>
+                              <textarea
+                                value={adminNotes}
+                                onChange={(e) => setAdminNotes(e.target.value)}
+                                rows={2}
+                                className="w-full px-2.5 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark"
+                                placeholder="Frágil, no apilar..."
+                              />
+                            </div>
+
+                            <div className="pt-4 border-t border-gray-100 flex justify-end gap-2 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => setNewShipmentModal(false)}
+                                className="px-4 py-2 text-3xs border border-gray-300 rounded font-bold uppercase hover:bg-gray-100 cursor-pointer"
                               >
-                                {users.filter(u => u.role === 'client').map(u => (
-                                  <option key={u.lockerId} value={u.lockerId}>{u.lockerId} — {u.name}</option>
-                                ))}
-                              </select>
-                            </div>
-                            <div>
-                              <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Dimensiones</label>
-                              <input
-                                type="text"
-                                required
-                                value={adminDimensions}
-                                onChange={(e) => setAdminDimensions(e.target.value)}
-                                className="w-full px-2.5 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark"
-                                placeholder="30x20x20 cm"
-                              />
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Dirección de Origen Principal *</label>
-                              <input
-                                type="text"
-                                required
-                                value={adminOrigin}
-                                onChange={(e) => setAdminOrigin(e.target.value)}
-                                className="w-full px-2.5 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark"
-                                placeholder="Ciudad Origen"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Dirección de Destino Principal *</label>
-                              <input
-                                type="text"
-                                required
-                                value={adminDestination}
-                                onChange={(e) => setAdminDestination(e.target.value)}
-                                className="w-full px-2.5 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark"
-                                placeholder="Ciudad Destino"
-                              />
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-3">
-                            <div>
-                              <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Servicio</label>
-                              <select
-                                value={adminService}
-                                onChange={(e) => setAdminService(e.target.value as any)}
-                                className="w-full px-2 py-1.5 text-3xs border border-gray-300 rounded bg-white font-semibold"
+                                Cancelar
+                              </button>
+                              <button
+                                type="submit"
+                                className="px-5 py-2 text-3xs bg-brand-orange hover:bg-brand-orange-hover text-white rounded font-bold uppercase cursor-pointer"
                               >
-                                <option value="Express">Express</option>
-                                <option value="Estándar">Estándar</option>
-                              </select>
+                                Crear Despacho
+                              </button>
+                            </div>
+                          </form>
+                        )}
+
+                        {/* MODE 2: MULTI-ENTRY (BULK) PANEL */}
+                        {newShipmentModalMode === 'bulk' && (
+                          <div className="p-6 space-y-4 flex flex-col max-h-[80vh]">
+                            
+                            {/* Widescreen Top-Row Title and Toolbelt */}
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 shrink-0">
+                              <div>
+                                <h2 className="text-base font-black text-brand-gray-dark font-display leading-none tracking-tight">Multi-Entry (Bulk)</h2>
+                                <p className="text-4xs text-gray-500 font-bold uppercase mt-1">Ingreso secuencial rápido y tabulado.</p>
+                              </div>
+
+                              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                                {/* Auto-Save Switch toggler */}
+                                <button
+                                  type="button"
+                                  onClick={() => setBulkAutoSave(!bulkAutoSave)}
+                                  className={`px-3 py-1.5 text-4xs font-bold rounded-md border flex items-center gap-1.5 transition cursor-pointer ${
+                                    bulkAutoSave 
+                                      ? 'bg-green-50 border-green-300 text-green-700 font-extrabold shadow-2xs' 
+                                      : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                                  }`}
+                                >
+                                  <FileText className="h-3.5 w-3.5" />
+                                  Auto-Save {bulkAutoSave ? 'ON' : 'OFF'}
+                                </button>
+
+                                {/* Guardar Todos purple button */}
+                                <button
+                                  type="button"
+                                  onClick={saveAllBulkRows}
+                                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-4xs font-bold px-4 py-1.5 rounded-md flex items-center gap-1.5 cursor-pointer transition shadow-xs uppercase tracking-wider font-display"
+                                >
+                                  <FileSpreadsheet className="h-3.5 w-3.5" />
+                                  Guardar Todos
+                                </button>
+
+                                {/* + Añadir Fila white button */}
+                                <button
+                                  type="button"
+                                  onClick={addBulkRow}
+                                  className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 text-4xs font-bold px-4 py-1.5 rounded-md flex items-center gap-1.5 cursor-pointer transition uppercase"
+                                >
+                                  <Plus className="h-3.5 w-3.5 text-gray-500" />
+                                  Añadir Fila
+                                </button>
+                              </div>
                             </div>
 
-                            <div>
-                              <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Peso Físico (Kg)</label>
-                              <input
-                                type="number"
-                                min="1"
-                                required
-                                value={adminWeight}
-                                onChange={(e) => setAdminWeight(Number(e.target.value))}
-                                className="w-full px-2.5 py-1.5 text-3xs border border-gray-300 rounded font-semibold font-mono"
-                              />
+                            {/* Main Spreadsheet Grid Container */}
+                            <div className="flex-1 overflow-y-auto border border-gray-200 rounded-lg shadow-2xs min-h-[250px] bg-gray-50/50">
+                              <table className="w-full text-left border-collapse table-fixed">
+                                <thead>
+                                  <tr className="bg-gray-100 border-b border-gray-200 text-4xs font-extrabold text-gray-500 uppercase tracking-wider sticky top-0 z-10">
+                                    <th className="py-2.5 px-3 w-10 text-center">#</th>
+                                    <th className="py-2.5 px-2 w-36">BODEGA</th>
+                                    <th className="py-2.5 px-2 w-48">TRACKING NUMBER *</th>
+                                    <th className="py-2.5 px-2 w-64">CLIENTE / LOCKER *</th>
+                                    <th className="py-2.5 px-2 w-28 text-right">PESO (LBS)</th>
+                                    <th className="py-2.5 px-2 w-20 text-center">PZAS</th>
+                                    <th className="py-2.5 px-3 w-44 text-center">ACCIONES</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-200 text-3xs font-semibold text-brand-gray-dark bg-white">
+                                  {bulkRows.map((row, index) => {
+                                    const searchVal = row.lockerId || '';
+                                    const matchingClients = users.filter(u => 
+                                      u.role === 'client' && 
+                                      (u.name.toLowerCase().includes(searchVal.toLowerCase()) || 
+                                       u.lockerId.toLowerCase().includes(searchVal.toLowerCase()))
+                                    );
+
+                                    return (
+                                      <tr 
+                                        key={row.id} 
+                                        className={`hover:bg-gray-50/40 transition-all ${row.saved ? 'bg-green-50/30' : ''}`}
+                                      >
+                                        {/* 1. Index */}
+                                        <td className="py-2 px-3 text-center font-bold text-gray-400">{index + 1}</td>
+
+                                        {/* 2. Bodega dropdown */}
+                                        <td className="py-2 px-2">
+                                          <select
+                                            value={row.bodega}
+                                            disabled={row.saved}
+                                            onChange={(e) => updateBulkRow(row.id, 'bodega', e.target.value)}
+                                            className="w-full px-2 py-1 text-3xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white font-semibold cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+                                          >
+                                            <option value="Greensboro">Greensboro</option>
+                                            <option value="Miami Hub">Miami Hub</option>
+                                            {branchesList.map(b => (
+                                              <option key={b.id} value={b.name}>{b.name}</option>
+                                            ))}
+                                          </select>
+                                        </td>
+
+                                        {/* 3. Tracking Number */}
+                                        <td className="py-2 px-2">
+                                          <input
+                                            type="text"
+                                            required
+                                            id={`bulk-tracking-${index}`}
+                                            placeholder="ESCRIBE..."
+                                            value={row.trackingNumber}
+                                            disabled={row.saved}
+                                            onChange={(e) => updateBulkRow(row.id, 'trackingNumber', e.target.value.toUpperCase())}
+                                            onKeyDown={(e) => handleKeyDownOnRow(e, index, row.id)}
+                                            className="w-full px-2.5 py-1 text-3xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold font-mono disabled:opacity-60 disabled:cursor-not-allowed"
+                                          />
+                                        </td>
+
+                                        {/* 4. Locker search autocomplete input */}
+                                        <td className="py-2 px-2 relative">
+                                          <div className="relative">
+                                            <input
+                                              type="text"
+                                              required
+                                              id={`bulk-locker-${index}`}
+                                              placeholder="Buscar por nombre, apellido o SFG..."
+                                              value={row.lockerId}
+                                              disabled={row.saved}
+                                              onFocus={() => setActiveAutocompleteRow(row.id)}
+                                              onChange={(e) => {
+                                                updateBulkRow(row.id, 'lockerId', e.target.value);
+                                                setActiveAutocompleteRow(row.id);
+                                              }}
+                                              onKeyDown={(e) => handleKeyDownOnRow(e, index, row.id)}
+                                              className="w-full pl-6 pr-2 py-1 text-3xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
+                                            />
+                                            <Search className="h-3 w-3 text-gray-400 absolute left-2 top-2" />
+                                          </div>
+
+                                          {/* Floating suggestions dropdown popup */}
+                                          {activeAutocompleteRow === row.id && !row.saved && searchVal.trim() !== '' && (
+                                            <div className="absolute left-2 right-2 top-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-36 overflow-y-auto z-20 divide-y divide-gray-100">
+                                              {matchingClients.map(client => (
+                                                <button
+                                                  key={client.lockerId}
+                                                  type="button"
+                                                  onClick={() => {
+                                                    updateBulkRow(row.id, 'lockerId', client.lockerId);
+                                                    setActiveAutocompleteRow(null);
+                                                  }}
+                                                  className="w-full text-left px-3 py-1.5 hover:bg-indigo-50 font-sans text-3xs transition flex justify-between items-center cursor-pointer"
+                                                >
+                                                  <div>
+                                                    <span className="font-bold text-indigo-600 font-mono">{client.lockerId}</span>
+                                                    <span className="text-brand-gray-dark ml-2">{client.name}</span>
+                                                  </div>
+                                                  <span className="text-gray-400 text-4xs italic">{client.address.split(',')[0]}</span>
+                                                </button>
+                                              ))}
+                                              {matchingClients.length === 0 && (
+                                                <div className="px-3 py-2 text-center text-gray-400 text-4xs font-medium">
+                                                  Sin coincidencias registradas
+                                                </div>
+                                              )}
+                                            </div>
+                                          )}
+                                        </td>
+
+                                        {/* 5. Peso (LBS) */}
+                                        <td className="py-2 px-2">
+                                          <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            required
+                                            id={`bulk-weight-${index}`}
+                                            value={row.weight === 0 ? '' : row.weight}
+                                            disabled={row.saved}
+                                            placeholder="0.00"
+                                            onChange={(e) => updateBulkRow(row.id, 'weight', Number(e.target.value))}
+                                            onKeyDown={(e) => handleKeyDownOnRow(e, index, row.id)}
+                                            className="w-full px-2 py-1 text-3xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold font-mono text-right disabled:opacity-60 disabled:cursor-not-allowed"
+                                          />
+                                        </td>
+
+                                        {/* 6. Piezas */}
+                                        <td className="py-2 px-2">
+                                          <input
+                                            type="number"
+                                            min="1"
+                                            required
+                                            id={`bulk-pieces-${index}`}
+                                            value={row.pieces}
+                                            disabled={row.saved}
+                                            onChange={(e) => updateBulkRow(row.id, 'pieces', Number(e.target.value))}
+                                            onKeyDown={(e) => handleKeyDownOnRow(e, index, row.id)}
+                                            className="w-full px-2 py-1 text-3xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold font-mono text-center disabled:opacity-60 disabled:cursor-not-allowed"
+                                          />
+                                        </td>
+
+                                        {/* 7. Acciones */}
+                                        <td className="py-2 px-3 text-center flex items-center justify-center gap-1">
+                                          {row.saved ? (
+                                            <span className="bg-green-100 text-green-800 text-[9px] font-extrabold px-2.5 py-0.5 rounded flex items-center gap-1 select-none border border-green-200">
+                                              <Check className="h-3 w-3 text-green-600 font-black" />
+                                              Guardado
+                                            </span>
+                                          ) : (
+                                            <button
+                                              type="button"
+                                              onClick={() => saveBulkRow(row.id)}
+                                              className="bg-indigo-600 hover:bg-indigo-700 text-white text-[9px] font-extrabold px-2.5 py-1 rounded flex items-center gap-1 transition cursor-pointer uppercase shadow-3xs"
+                                            >
+                                              <FileText className="h-3 w-3" />
+                                              Guardar
+                                            </button>
+                                          )}
+
+                                          {/* Imprimir simulated thermal sticker button */}
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const matchedClient = users.find(u => u.lockerId.toUpperCase() === row.lockerId.toUpperCase().trim());
+                                              setBulkPrintSticker({
+                                                id: row.saved ? (shipments.find(s => s.notes?.includes(row.trackingNumber))?.id || 'SF-MOCK-GT') : 'SF-PEND-GT',
+                                                trackingNumber: row.trackingNumber || 'PENDIENTE',
+                                                lockerId: row.lockerId.toUpperCase() || 'SFG0',
+                                                receiverName: matchedClient ? matchedClient.name : 'Consignatario General',
+                                                bodega: row.bodega,
+                                                weightLbs: row.weight || 0.0,
+                                                weightKg: Number((row.weight * 0.453592).toFixed(2)),
+                                                pieces: row.pieces || 1,
+                                                destination: matchedClient ? matchedClient.address : 'Guatemala Central'
+                                              });
+                                            }}
+                                            className="border border-gray-300 hover:border-gray-400 hover:bg-gray-100 text-gray-500 p-1 rounded-md transition cursor-pointer"
+                                            title="Imprimir Etiqueta Térmica"
+                                          >
+                                            <Printer className="h-3.5 w-3.5" />
+                                          </button>
+
+                                          {/* Delete row button */}
+                                          <button
+                                            type="button"
+                                            onClick={() => deleteBulkRow(row.id)}
+                                            className="border border-red-200 hover:border-red-300 hover:bg-red-50 text-red-500 p-1 rounded-md transition cursor-pointer"
+                                            title="Eliminar Fila"
+                                          >
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                          </button>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+
+                            {/* Table footer guides matching image 2 */}
+                            <div className="bg-gray-50 border border-gray-200 p-3 rounded-lg flex flex-col sm:flex-row justify-between items-center gap-2 shrink-0 select-none">
+                              <div className="text-3xs font-extrabold text-gray-500">
+                                <span className="font-black text-brand-gray-dark">{bulkRows.length} fila(s)</span> &mdash;{' '}
+                                <span className="font-black text-green-600">{bulkRows.filter(r => r.saved).length} guardado(s)</span>
+                              </div>
+
+                              <div className="flex items-center gap-3 text-[10px] text-gray-400 font-extrabold uppercase tracking-wide">
+                                <div className="flex items-center gap-1">
+                                  <kbd className="bg-white border border-gray-300 text-brand-gray-dark px-1.5 py-0.5 rounded shadow-3xs font-mono font-black text-[9px] uppercase">Tab</kbd>
+                                  <span>navegar naturalmente</span>
+                                </div>
+                                <span>&bull;</span>
+                                <div className="flex items-center gap-1">
+                                  <kbd className="bg-white border border-gray-300 text-brand-gray-dark px-1.5 py-0.5 rounded shadow-3xs font-mono font-black text-[9px] uppercase">Enter</kbd>
+                                  <span>salto rápido (y Auto-Save)</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Modal Close control */}
+                            <div className="pt-2 border-t border-gray-100 flex justify-end gap-2 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => setNewShipmentModal(false)}
+                                className="px-5 py-2 text-3xs border border-gray-300 rounded font-black uppercase hover:bg-gray-100 cursor-pointer text-brand-gray-dark"
+                              >
+                                Cerrar Portal de Lotes
+                              </button>
                             </div>
                           </div>
-
-                          <div>
-                            <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Observaciones Especiales</label>
-                            <textarea
-                              value={adminNotes}
-                              onChange={(e) => setAdminNotes(e.target.value)}
-                              rows={2}
-                              className="w-full px-2.5 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark"
-                              placeholder="Frágil, no apilar..."
-                            />
-                          </div>
-
-                          <div className="pt-4 border-t border-gray-100 flex justify-end gap-2 shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => setNewShipmentModal(false)}
-                              className="px-4 py-2 text-3xs border border-gray-300 rounded font-bold uppercase hover:bg-gray-100 cursor-pointer"
-                            >
-                              Cancelar
-                            </button>
-                            <button
-                              type="submit"
-                              className="px-5 py-2 text-3xs bg-brand-orange hover:bg-brand-orange-hover text-white rounded font-bold uppercase cursor-pointer"
-                            >
-                              Crear Despacho
-                            </button>
-                          </div>
-
-                        </form>
+                        )}
                       </div>
                     </div>
                   )}
@@ -4674,6 +5257,212 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                 </form>
               </div>
             )}
+
+          {/* ==================== ZEBRA GK420d THERMAL PRINTER SIMULATOR ==================== */}
+          {bulkPrintSticker && (
+            <div className="fixed inset-0 bg-brand-gray-dark/85 backdrop-blur-xs flex justify-center items-center z-50 p-4 animate-fade-in">
+              <div className="bg-white rounded-xl shadow-2xl border border-gray-200 max-w-sm w-full p-6 animate-zoom-in flex flex-col gap-4">
+                
+                {/* Simulator Header */}
+                <div className="flex justify-between items-center border-b border-gray-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="relative">
+                      <Printer className="h-5 w-5 text-indigo-600 animate-pulse" />
+                      <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                      </span>
+                    </div>
+                    <div>
+                      <h4 className="text-2xs font-extrabold uppercase tracking-wide text-brand-gray-dark font-sans leading-none">
+                        Zebra GK420d
+                      </h4>
+                      <span className="text-[9px] font-extrabold text-green-600 uppercase tracking-widest">
+                        Online (USB001)
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={isPrinting}
+                    onClick={() => setBulkPrintSticker(null)}
+                    className="text-gray-400 hover:text-gray-600 font-bold text-xs p-1 rounded-full hover:bg-gray-100 transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                {/* The 4x6 Thermal Label Container */}
+                <div className="relative overflow-hidden flex justify-center bg-gray-100 p-4 rounded-lg border border-gray-200 shadow-inner">
+                  
+                  {/* Sticker itself */}
+                  <div className="w-[260px] bg-white border-[3px] border-black p-3.5 font-mono text-black select-none flex flex-col justify-between rounded-none shadow-md aspect-[4/6] relative">
+                    
+                    {/* Zebra physical scan line simulator during printing */}
+                    {isPrinting && !printSuccess && (
+                      <div className="absolute left-0 right-0 h-1 bg-red-500/80 animate-bounce z-10"></div>
+                    )}
+
+                    {/* Logo & Header */}
+                    <div className="flex justify-between items-center border-b-[2px] border-black pb-1.5">
+                      <span className="text-[14px] font-black tracking-widest font-sans uppercase">SHIPFAST GT</span>
+                      <span className="text-[9px] font-black border border-black px-1.5 py-0.5 uppercase">INTL</span>
+                    </div>
+
+                    {/* Route Box */}
+                    <div className="border-b-[2px] border-black py-1.5 flex flex-col">
+                      <span className="text-[9px] font-black text-gray-500 uppercase tracking-wide">ORIGEN: {bulkPrintSticker.bodega?.toUpperCase() || 'MIAMI HUB'}</span>
+                      <span className="text-[12px] font-black uppercase text-center bg-black text-white py-0.5 tracking-wider mt-1 rounded-2xs">
+                        {(() => {
+                          const dest = bulkPrintSticker.destination ? bulkPrintSticker.destination.toLowerCase() : '';
+                          if (dest.includes('xela') || dest.includes('quetzaltenango') || dest.includes('san marcos') || dest.includes('hueh') || dest.includes('solola') || dest.includes('totonicapan')) {
+                            return 'OCCIDENTE - HUB XELA';
+                          }
+                          if (dest.includes('zacapa') || dest.includes('chiquimula') || dest.includes('izabal') || dest.includes('progreso') || dest.includes('oriente') || dest.includes('jutiapa') || dest.includes('jalapa')) {
+                            return 'ORIENTE - HUB CHIQUIMULA';
+                          }
+                          if (dest.includes('coban') || dest.includes('verapaz') || dest.includes('norte') || dest.includes('peten')) {
+                            return 'NORTE - HUB COBÁN';
+                          }
+                          if (dest.includes('escuintla') || dest.includes('suchi') || dest.includes('retalhuleu') || dest.includes('reus') || dest.includes('sur') || dest.includes('santa rosa')) {
+                            return 'SUR - HUB ESCUINTLA';
+                          }
+                          return 'METRO - HUB CENTRAL';
+                        })()}
+                      </span>
+                    </div>
+
+                    {/* Locker & Destination Block */}
+                    <div className="border-b-[2px] border-black py-2 flex flex-col gap-1">
+                      <div className="flex justify-between items-baseline">
+                        <span className="text-[9px] font-bold text-gray-500 uppercase">CASILLERO:</span>
+                        <span className="text-[20px] font-black text-black tracking-widest">{bulkPrintSticker.lockerId}</span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-[9px] font-bold text-gray-500 uppercase">CONSIGNATARIO:</span>
+                        <span className="text-[10px] font-black text-black truncate uppercase leading-tight mt-0.5">{bulkPrintSticker.receiverName}</span>
+                      </div>
+                    </div>
+
+                    {/* Weights & Dimensions Block */}
+                    <div className="border-b-[2px] border-black py-2 grid grid-cols-2 gap-2 text-center">
+                      <div className="border-r border-black flex flex-col justify-center">
+                        <span className="text-[8px] font-bold text-gray-500 uppercase">PESO TOTAL</span>
+                        <span className="text-[13px] font-black text-black mt-0.5 leading-none">
+                          {bulkPrintSticker.weightLbs ? bulkPrintSticker.weightLbs.toFixed(2) : '0.00'} LBS
+                        </span>
+                        <span className="text-[9px] font-medium text-gray-400 mt-0.5">
+                          {bulkPrintSticker.weightKg ? bulkPrintSticker.weightKg.toFixed(2) : '0.00'} KG
+                        </span>
+                      </div>
+                      <div className="flex flex-col justify-center">
+                        <span className="text-[8px] font-bold text-gray-500 uppercase">BULTOS / PZAS</span>
+                        <span className="text-[15px] font-black text-black mt-0.5 leading-none">
+                          {bulkPrintSticker.pieces || 1} / 1
+                        </span>
+                        <span className="text-[8px] font-bold text-gray-400 mt-1 uppercase">EXPRESS</span>
+                      </div>
+                    </div>
+
+                    {/* Barcode Block */}
+                    <div className="py-2.5 flex flex-col items-center gap-1">
+                      {/* Barcode lines */}
+                      <div className="h-10 w-full bg-white flex items-stretch px-1.5 select-none overflow-hidden">
+                        <div className="w-[3px] bg-black mr-[1px]"></div>
+                        <div className="w-[1px] bg-black mr-[2px]"></div>
+                        <div className="w-[4px] bg-black mr-[1px]"></div>
+                        <div className="w-[2px] bg-black mr-[3px]"></div>
+                        <div className="w-[1px] bg-black mr-[1px]"></div>
+                        <div className="w-[3px] bg-black mr-[2px]"></div>
+                        <div className="w-[2px] bg-black mr-[1px]"></div>
+                        <div className="w-[4px] bg-black mr-[2px]"></div>
+                        <div className="w-[1px] bg-black mr-[1px]"></div>
+                        <div className="w-[3px] bg-black mr-[3px]"></div>
+                        <div className="w-[2px] bg-black mr-[1px]"></div>
+                        <div className="w-[1px] bg-black mr-[2px]"></div>
+                        <div className="w-[4px] bg-black mr-[1px]"></div>
+                        <div className="w-[3px] bg-black mr-[2px]"></div>
+                        <div className="w-[1px] bg-black mr-[1px]"></div>
+                        <div className="w-[2px] bg-black mr-[3px]"></div>
+                        <div className="w-[3px] bg-black mr-[1px]"></div>
+                        <div className="w-[1px] bg-black mr-[2px]"></div>
+                        <div className="w-[4px] bg-black mr-[1px]"></div>
+                        <div className="w-[2px] bg-black mr-[1px]"></div>
+                        <div className="w-[1px] bg-black mr-[3px]"></div>
+                        <div className="w-[3px] bg-black mr-[1px]"></div>
+                        <div className="w-[2px] bg-black mr-[2px]"></div>
+                        <div className="w-[4px] bg-black mr-[1px]"></div>
+                        <div className="w-[1px] bg-black mr-[1px]"></div>
+                        <div className="w-[3px] bg-black mr-[2px]"></div>
+                        <div className="w-[2px] bg-black mr-[1px]"></div>
+                        <div className="w-[4px] bg-black mr-[2px]"></div>
+                        <div className="w-[1px] bg-black mr-[1px]"></div>
+                        <div className="w-[3px] bg-black mr-[3px]"></div>
+                        <div className="w-[2px] bg-black mr-[1px]"></div>
+                      </div>
+                      <span className="text-[9px] font-black text-black tracking-widest leading-none font-mono">
+                        {bulkPrintSticker.trackingNumber}
+                      </span>
+                    </div>
+
+                    {/* Label Footer */}
+                    <div className="border-t border-black pt-1 flex justify-between items-center text-[7px] font-bold text-gray-500">
+                      <span>GUÍA: {bulkPrintSticker.id || 'PENDIENTE'}</span>
+                      <span>2026-05-21 GT</span>
+                    </div>
+
+                  </div>
+                </div>
+
+                {/* Progress bar / Simulation feedback */}
+                {isPrinting && (
+                  <div className="w-full bg-gray-100 rounded-md p-3 border border-gray-200 flex flex-col gap-2">
+                    <div className="flex justify-between items-center text-4xs font-extrabold uppercase text-indigo-700 tracking-wider">
+                      <span>{printStatusText}</span>
+                      <span>{printProgress}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 h-1.5 rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full transition-all duration-300 ${printSuccess ? 'bg-green-500' : 'bg-indigo-600'}`}
+                        style={{ width: `${printProgress}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Actions / Interactive panel */}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    disabled={isPrinting}
+                    onClick={() => setBulkPrintSticker(null)}
+                    className="flex-1 py-2 text-3xs border border-gray-300 rounded font-black uppercase text-brand-gray-dark hover:bg-gray-50 cursor-pointer disabled:opacity-40 transition"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isPrinting}
+                    onClick={handleSimulatePrint}
+                    className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded font-black uppercase text-3xs tracking-wider flex items-center justify-center gap-1 transition cursor-pointer disabled:opacity-55 shadow-xs"
+                  >
+                    {printSuccess ? (
+                      <>
+                        <CheckCircle2 className="h-3.5 w-3.5 animate-bounce" />
+                        ¡Impreso!
+                      </>
+                    ) : (
+                      <>
+                        <Printer className="h-3.5 w-3.5" />
+                        Imprimir
+                      </>
+                    )}
+                  </button>
+                </div>
+
+              </div>
+            </div>
+          )}
 
           </main>
 
