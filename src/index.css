@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-orange: #EA580C;
+  --color-brand-orange-hover: #C2410C;
+  --color-brand-orange-light: #FFEDD5;
+  --color-brand-gray-dark: #111827;
+  --color-brand-gray-card: #1F2937;
+  --color-brand-gray-light: #F9FAFB;
+  --font-sans: "Inter", sans-serif;
+  --font-display: "Montserrat", sans-serif;
+}
+
+/* Custom scrollbars for high legibility table and details views */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Base custom interactive effects */
+.active-accent-border {
+  border-left: 4px solid var(--color-brand-orange);
+}
+
+/* Animation utilities for timeline */
+@keyframes pulseSlow {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: .7;
+    transform: scale(1.08);
+  }
+}
+
+.pulse-slow {
+  animation: pulseSlow 3s infinite ease-in-out;
+}
