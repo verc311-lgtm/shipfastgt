@@ -29,7 +29,10 @@ import {
   Wallet,
   Check,
   FileSpreadsheet,
-  X
+  X,
+  Bell,
+  UploadCloud,
+  PlusCircle
 } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 
@@ -294,6 +297,14 @@ export default function App() {
   // Admin View States
   const [adminSubTab, setAdminSubTab] = useState<string>('portal');
   const [preAlerts, setPreAlerts] = useState<PreAlert[]>(INITIAL_PRE_ALERTS);
+
+  // Client Pre-Alert Modal States
+  const [isClientPreAlertModalOpen, setIsClientPreAlertModalOpen] = useState(false);
+  const [clientPreAlertTracking, setClientPreAlertTracking] = useState('');
+  const [clientPreAlertBodega, setClientPreAlertBodega] = useState('Sin bodega');
+  const [clientPreAlertValue, setClientPreAlertValue] = useState('');
+  const [clientPreAlertInsurance, setClientPreAlertInsurance] = useState('Sin seguro');
+  const [clientPreAlertFileName, setClientPreAlertFileName] = useState('');
 
   // Bulk Upload Mayor States
   const [bulkFileText, setBulkFileText] = useState('');
@@ -600,6 +611,44 @@ export default function App() {
     setTimeout(() => {
       setPickupSuccessMsg('');
     }, 8000);
+  };
+
+  // Client Pre-Alert Submission Handler
+  const handleCreateClientPreAlert = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentUser) return;
+    if (!clientPreAlertTracking.trim()) {
+      alert('Por favor ingresa un número de tracking válido.');
+      return;
+    }
+    
+    const declaredVal = parseFloat(clientPreAlertValue) || 0;
+    if (clientPreAlertValue.trim() && (isNaN(declaredVal) || declaredVal < 0)) {
+      alert('Por favor ingresa un valor declarado válido.');
+      return;
+    }
+
+    const newPreAlert: PreAlert = {
+      id: clientPreAlertTracking.trim().toUpperCase(),
+      lockerId: currentUser.lockerId,
+      sender: 'Compra Online',
+      description: `Origen: ${clientPreAlertBodega} | Valor: $${declaredVal.toFixed(2)} | Seguro: ${clientPreAlertInsurance}${clientPreAlertFileName ? ` | Factura: ${clientPreAlertFileName}` : ''}`,
+      weightEst: 1.0,
+      status: 'Pendiente',
+      dateCreated: new Date().toISOString().split('T')[0]
+    };
+
+    setPreAlerts(prev => [newPreAlert, ...prev]);
+
+    // Reset Form fields
+    setClientPreAlertTracking('');
+    setClientPreAlertBodega('Sin bodega');
+    setClientPreAlertValue('');
+    setClientPreAlertInsurance('Sin seguro');
+    setClientPreAlertFileName('');
+    setIsClientPreAlertModalOpen(false);
+
+    alert(`¡Pre-Alerta registrada con éxito!\nEl paquete con tracking "${newPreAlert.id}" ha sido documentado. El equipo de ShipFast en ${clientPreAlertBodega === 'Sin bodega' ? 'Laredo o México' : clientPreAlertBodega} estará pendiente de su arribo.`);
   };
 
   // Driver Digital Signature Canvas
@@ -1641,6 +1690,14 @@ Para proporcionarle información específica, puede solicitar:
                       Mis Envíos
                     </button>
                     <button
+                      type="button"
+                      onClick={() => setIsClientPreAlertModalOpen(true)}
+                      className="px-4 py-1.5 text-3xs font-bold rounded uppercase tracking-wider transition flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs cursor-pointer active:scale-98"
+                    >
+                      <PlusCircle className="h-3.5 w-3.5 animate-pulse" />
+                      Pre-Alertar 🚀
+                    </button>
+                    <button
                       onClick={() => setActiveTab('pickup-request')}
                       className={`px-4 py-1.5 text-3xs font-bold rounded uppercase tracking-wider transition flex items-center gap-1.5 ${
                         activeTab === 'pickup-request' 
@@ -1774,6 +1831,48 @@ Para proporcionarle información específica, puede solicitar:
                         {clientSearchError}
                       </p>
                     )}
+                  </div>
+
+                  {/* Pre-Alerts Status Panel */}
+                  <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs space-y-3">
+                    <div className="flex justify-between items-center">
+                      <h4 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display flex items-center gap-1.5">
+                        <Bell className="h-4 w-4 text-indigo-500" />
+                        Mis Pre-Alertas
+                      </h4>
+                      <button
+                        onClick={() => setIsClientPreAlertModalOpen(true)}
+                        className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-5xs font-black px-2 py-1 rounded uppercase tracking-wider transition cursor-pointer active:scale-95"
+                      >
+                        + Nueva
+                      </button>
+                    </div>
+                    
+                    <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+                      {preAlerts.filter(pa => pa.lockerId === currentUser.lockerId).map(pa => (
+                        <div key={pa.id} className="p-2.5 bg-gray-50/80 border border-gray-100 rounded text-4xs space-y-1 relative overflow-hidden font-mono">
+                          <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500"></div>
+                          <div className="flex justify-between items-center font-bold">
+                            <span className="text-indigo-600 select-all font-black">{pa.id}</span>
+                            <span className={`px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase tracking-wide ${
+                              pa.status === 'Recibido' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
+                            }`}>
+                              {pa.status}
+                            </span>
+                          </div>
+                          <div className="text-gray-500 font-sans leading-tight">
+                            {pa.description}
+                          </div>
+                          <div className="text-[8px] text-gray-400 font-semibold uppercase flex justify-between pt-0.5 border-t border-gray-100/50 mt-1 font-sans">
+                            <span>Creación: {pa.dateCreated}</span>
+                            <span>Est: {pa.weightEst} Lbs</span>
+                          </div>
+                        </div>
+                      ))}
+                      {preAlerts.filter(pa => pa.lockerId === currentUser.lockerId).length === 0 && (
+                        <p className="text-4xs text-gray-400 italic text-center py-4">No tienes pre-alertas creadas en este momento.</p>
+                      )}
+                    </div>
                   </div>
 
                 </div>
@@ -5757,6 +5856,166 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                     )}
                   </button>
                 </div>
+
+              </div>
+            </div>
+          )}
+
+          {/* ==================== NUEVA PRE-ALERTA MANUAL CLIENT OVERLAY ==================== */}
+          {isClientPreAlertModalOpen && (
+            <div className="fixed inset-0 bg-brand-gray-dark/60 backdrop-blur-xs flex justify-center items-center z-50 p-4 animate-fade-in">
+              <div className="bg-white w-full max-w-md rounded-2xl border border-gray-100 shadow-2xl p-6 relative animate-zoom-in transition-all duration-300 font-sans">
+                
+                {/* Close Button X */}
+                <button
+                  type="button"
+                  onClick={() => setIsClientPreAlertModalOpen(false)}
+                  className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 cursor-pointer p-1 rounded-full hover:bg-gray-100 transition"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+
+                {/* Header Section */}
+                <div className="flex items-center gap-3 border-b border-gray-100 pb-4 mb-5">
+                  <div className="bg-blue-50 text-blue-600 p-2.5 rounded-xl flex items-center justify-center w-11 h-11 border border-blue-100 animate-pulse">
+                    <PlusCircle className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-extrabold text-brand-gray-dark tracking-tight uppercase">Nueva Pre-Alerta Manual</h3>
+                    <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mt-0.5">Registrar una pre-alerta para tus paquetes</p>
+                  </div>
+                </div>
+
+                {/* Form */}
+                <form onSubmit={handleCreateClientPreAlert} className="space-y-4">
+                  
+                  {/* CLIENTE (CASILLERO) * */}
+                  <div>
+                    <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">CLIENTE (CASILLERO) *</label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-gray-400" />
+                      <input
+                        type="text"
+                        disabled
+                        value={`${currentUser.name} (Casillero: ${currentUser.lockerId})`}
+                        className="w-full pl-9 pr-4 py-2 text-xs border border-yellow-400 bg-amber-50/20 text-gray-700 font-bold rounded-lg focus:outline-none cursor-not-allowed"
+                      />
+                    </div>
+                  </div>
+
+                  {/* 2-Column fields: TRACKING and BODEGA */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">TRACKING *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="Ej: 1Z999AA10123456784"
+                        value={clientPreAlertTracking}
+                        onChange={(e) => setClientPreAlertTracking(e.target.value)}
+                        className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none font-mono font-bold text-brand-gray-dark placeholder-gray-300"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">BODEGA</label>
+                      <select
+                        value={clientPreAlertBodega}
+                        onChange={(e) => setClientPreAlertBodega(e.target.value)}
+                        className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none font-semibold text-brand-gray-dark bg-white"
+                      >
+                        <option value="Sin bodega">Sin bodega</option>
+                        <option value="Laredo">Laredo 🇺🇸</option>
+                        <option value="Mexico">México 🇲🇽</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* 2-Column fields: VALOR DECLARADO and SEGURO */}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">VALOR DECLARADO ($) *</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        required
+                        min="0"
+                        placeholder="0.00"
+                        value={clientPreAlertValue}
+                        onChange={(e) => setClientPreAlertValue(e.target.value)}
+                        className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none font-bold text-brand-gray-dark"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">SEGURO (5%)</label>
+                      <select
+                        value={clientPreAlertInsurance}
+                        onChange={(e) => setClientPreAlertInsurance(e.target.value)}
+                        className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none font-bold text-brand-gray-dark bg-white text-center"
+                      >
+                        <option value="Sin seguro">Sin seguro</option>
+                        <option value="Con seguro (5%)">Con seguro (5%)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* FACTURA (IMAGEN O PDF) */}
+                  <div>
+                    <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">FACTURA (IMAGEN O PDF)</label>
+                    <input
+                      type="file"
+                      id="clientPreAlertFile"
+                      accept="image/*,.pdf"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setClientPreAlertFileName(file.name);
+                        }
+                      }}
+                      className="hidden"
+                    />
+                    <label
+                      htmlFor="clientPreAlertFile"
+                      className="border-2 border-dashed border-gray-200 hover:border-indigo-400 bg-gray-50 hover:bg-indigo-50/10 rounded-xl p-5 text-center cursor-pointer transition flex flex-col items-center justify-center gap-1.5"
+                    >
+                      <UploadCloud className="h-6 w-6 text-gray-400 hover:text-indigo-500 transition-colors animate-bounce" />
+                      <span className="text-[10px] font-bold text-gray-500 select-none">
+                        {clientPreAlertFileName ? (
+                          <span className="text-green-600 font-extrabold flex items-center justify-center gap-1">
+                            ✓ {clientPreAlertFileName}
+                          </span>
+                        ) : (
+                          'Click para subir factura'
+                        )}
+                      </span>
+                    </label>
+                  </div>
+
+                  {/* Footer Actions */}
+                  <div className="flex justify-end gap-3 border-t border-gray-100 pt-4 mt-6">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setClientPreAlertFileName('');
+                        setIsClientPreAlertModalOpen(false);
+                      }}
+                      className="px-5 py-2 text-xs font-bold text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition active:scale-95 cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold text-xs py-2.5 px-5 rounded-lg flex items-center justify-center gap-2 shadow-md shadow-indigo-100 hover:shadow-indigo-200 active:scale-98 transition cursor-pointer"
+                    >
+                      <span className="inline-flex items-center justify-center border border-white/40 rounded-full p-0.5">
+                        <Plus className="h-3 w-3" />
+                      </span>
+                      Crear Pre-Alerta
+                    </button>
+                  </div>
+
+                </form>
 
               </div>
             </div>
