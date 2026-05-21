@@ -16,7 +16,19 @@ import {
   Send, 
   RefreshCw, 
   SlidersHorizontal, 
-  UserCheck
+  UserCheck,
+  DollarSign,
+  Building,
+  Settings,
+  FileText,
+  Users,
+  Printer,
+  Layers,
+  Database,
+  Wallet,
+  Check,
+  Grid,
+  FileSpreadsheet
 } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 
@@ -53,13 +65,23 @@ interface ChatMessage {
   timestamp: string;
 }
 
+interface PreAlert {
+  id: string;
+  lockerId: string;
+  sender: string;
+  description: string;
+  weightEst: number;
+  status: 'Pendiente' | 'Recibido';
+  dateCreated: string;
+}
+
 interface UserProfile {
   lockerId: string;
   name: string;
   email: string;
   phone: string;
   address: string;
-  role: 'client' | 'admin';
+  role: string;
   password?: string;
 }
 
@@ -98,6 +120,11 @@ const DEFAULT_USERS: UserProfile[] = [
     role: "admin",
     password: "admin"
   }
+];
+
+const INITIAL_PRE_ALERTS: PreAlert[] = [
+  { id: "PA-101-GT", lockerId: "SFG0", sender: "Amazon US", description: "Repuestos de laptop", weightEst: 2.5, status: "Pendiente", dateCreated: "2026-05-20" },
+  { id: "PA-102-GT", lockerId: "SFG1", sender: "eBay", description: "Calzado deportivo", weightEst: 1.8, status: "Pendiente", dateCreated: "2026-05-21" },
 ];
 
 // Initial state data
@@ -264,6 +291,84 @@ export default function App() {
   const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // Admin View States
+  const [adminSubTab, setAdminSubTab] = useState<string>('portal');
+  const [preAlerts, setPreAlerts] = useState<PreAlert[]>(INITIAL_PRE_ALERTS);
+
+  // Bulk Upload Mayor States
+  const [bulkFileText, setBulkFileText] = useState('');
+  const [bulkSender, setBulkSender] = useState('Distribuidora El Quetzal S.A.');
+  const [bulkLocker, setBulkLocker] = useState('SFG0');
+
+  // Warehouse Receipt States
+  const [warehouseLocker, setWarehouseLocker] = useState('SFG0');
+  const [warehouseWeightInput, setWarehouseWeightInput] = useState(2.0);
+  const [warehouseBinInput, setWarehouseBinInput] = useState('Rack A-12');
+  const [warehouseNotes, setWarehouseNotes] = useState('');
+
+  // Consolidation States
+  const [selectedInventoryItems, setSelectedInventoryItems] = useState<string[]>([]);
+  const [consolidatedGuides, setConsolidatedGuides] = useState<any[]>([
+    { id: "SF-CONS-901-GT", date: "2026-05-20", origin: "Miami Hub", destination: "Guatemala Central", status: "Despachado", itemsCount: 15, totalWeight: 145.0, notes: "Vuelo consolidado AA-902" }
+  ]);
+  const [newConsolidationNotes, setNewConsolidationNotes] = useState('');
+
+  // Finance & Invoices
+  const [invoices, setInvoices] = useState<any[]>([
+    { id: "FAC-1001", lockerId: "SFG0", date: "2026-05-20", concept: "Flete Express SF-8219-GT", amount: 122.50, paymentStatus: "Pagado" },
+    { id: "FAC-1002", lockerId: "SFG1", date: "2026-05-21", concept: "Flete Express SF-9843-GT", amount: 57.40, paymentStatus: "Pendiente" }
+  ]);
+  const [invoiceLocker, setInvoiceLocker] = useState('SFG0');
+  const [invoiceConcept, setInvoiceConcept] = useState('');
+  const [invoiceAmount, setInvoiceAmount] = useState(120.00);
+
+  // Payments
+  const [paymentsLog, setPaymentsLog] = useState<any[]>([
+    { id: "PAG-501", lockerId: "SFG0", date: "2026-05-20", method: "Transferencia Bancaria", invoiceId: "FAC-1001", amount: 122.50, notes: "Ref Banrural #98431" }
+  ]);
+  const [paymentLocker, setPaymentLocker] = useState('SFG0');
+  const [paymentInvoice, setPaymentInvoice] = useState('FAC-1002');
+  const [paymentMethod, setPaymentMethod] = useState('Transferencia Bancaria');
+  const [paymentAmount, setPaymentAmount] = useState(57.40);
+  const [paymentNotes, setPaymentNotes] = useState('');
+
+  // Expenses
+  const [expensesLog, setExpensesLog] = useState<any[]>([
+    { id: "GTO-801", date: "2026-05-20", category: "Combustible", description: "Diésel camión ruta Occidente", amount: 450.00, cashier: "Operador Sur" },
+    { id: "GTO-802", date: "2026-05-21", category: "Mantenimiento", description: "Repuesto neumático moto repartidor 3", amount: 220.00, cashier: "Admin Central" }
+  ]);
+  const [expenseCategory, setExpenseCategory] = useState('Combustible');
+  const [expenseDescription, setExpenseDescription] = useState('');
+  const [expenseAmount, setExpenseAmount] = useState(150.00);
+
+  // System Rates
+  const [ratesSettings, setRatesSettings] = useState({
+    baseEstandar: 20,
+    baseExpress: 35,
+    pesoEstandar: 4,
+    pesoExpress: 7
+  });
+
+  // Branches
+  const [branchesList, setBranchesList] = useState<any[]>([
+    { id: "SUC-01", name: "Guatemala Hub Central", region: "Metropolitana", manager: "Carlos Lemus", staffCount: 18, activeVehicles: 6 },
+    { id: "SUC-02", name: "Antigua Guatemala", region: "Central", manager: "Sofía Méndez", staffCount: 4, activeVehicles: 2 },
+    { id: "SUC-03", name: "Quetzaltenango Regional", region: "Occidente", manager: "Pedro Asturias", staffCount: 9, activeVehicles: 3 },
+    { id: "SUC-04", name: "Cobán Norte", region: "Verapaces", manager: "Lucía Torres", staffCount: 3, activeVehicles: 1 },
+    { id: "SUC-05", name: "Escuintla Sur", region: "Pacífico", manager: "Roberto Gómez", staffCount: 5, activeVehicles: 2 }
+  ]);
+  const [newBranchName, setNewBranchName] = useState('');
+  const [newBranchRegion, setNewBranchRegion] = useState('Metropolitana');
+  const [newBranchManager, setNewBranchManager] = useState('');
+
+  // General System Settings
+  const [systemSettings, setSystemSettings] = useState({
+    siteName: "ShipFast Logistics Guatemala",
+    defaultPrefix: "+502",
+    operatingHours: "08:00 - 18:00",
+    allowSelfRegistration: true,
+    sandboxMode: true
+  });
+
   const [adminSearch, setAdminSearch] = useState('');
   const [adminStatusFilter, setAdminStatusFilter] = useState<string>('todos');
   const [adminServiceFilter, setAdminServiceFilter] = useState<string>('todos');
@@ -376,8 +481,8 @@ export default function App() {
     e.preventDefault();
     
     // Pricing formulas
-    const base = quoteService === 'Express' ? 35 : 20;
-    const weightCost = quoteWeight * (quoteService === 'Express' ? 7 : 4);
+    const base = quoteService === 'Express' ? ratesSettings.baseExpress : ratesSettings.baseEstandar;
+    const weightCost = quoteWeight * (quoteService === 'Express' ? ratesSettings.pesoExpress : ratesSettings.pesoEstandar);
     const total = base + weightCost;
     
     const days = quoteService === 'Express' ? '24 Horas' : '48 a 72 Horas';
@@ -1837,432 +1942,2422 @@ Para proporcionarle información específica, puede solicitar:
             )}
 
             {/* ==================== ADMIN: OPERATIONS DASHBOARD TAB ==================== */}
-            {currentUser.role === 'admin' && activeTab === 'admin-dashboard' && (
-              <div className="space-y-6 flex-1 min-h-0 flex flex-col">
-                
-                {/* KPI Metrics Dashboard Grid */}
-                <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 shrink-0">
-                  <div className="bg-white p-4 rounded-lg border-l-4 border-l-gray-900 border border-gray-200 shadow-2xs">
-                    <span className="text-2xs font-extrabold text-gray-400 uppercase tracking-wider block">Registros Totales</span>
-                    <span className="text-xl font-black text-brand-gray-dark font-display block mt-1">{shipments.length}</span>
-                    <span className="text-3xs text-gray-500 mt-1 block">Envíos activos hoy</span>
-                  </div>
+            {currentUser.role === 'admin' && activeTab === 'admin-dashboard' && (() => {
+              // We derive the active Category based on the current adminSubTab state
+              const getCategoryOfSubTab = (subTab: string) => {
+                if (['portal'].includes(subTab)) return 'resumen';
+                if (['registro-paquetes', 'cliente-mayor', 'pre-alertas'].includes(subTab)) return 'logistica';
+                if (['warehouse', 'inventario', 'consolidado'].includes(subTab)) return 'almacen';
+                if (['facturacion', 'pagos', 'gastos'].includes(subTab)) return 'finanzas';
+                if (['reportes', 'sucursales', 'usuarios', 'tarifas', 'ajustes'].includes(subTab)) return 'sistema';
+                return 'resumen';
+              };
+              
+              const activeCategory = getCategoryOfSubTab(adminSubTab);
 
-                  <div className="bg-white p-4 rounded-lg border-l-4 border-l-orange-500 border border-gray-200 shadow-2xs">
-                    <span className="text-2xs font-extrabold text-gray-400 uppercase tracking-wider block">Despachos Express</span>
-                    <span className="text-xl font-black text-brand-orange font-display block mt-1">
-                      {shipments.filter(s => s.serviceType === 'Express').length}
-                    </span>
-                    <span className="text-3xs text-gray-500 mt-1 block">Servicio alta prioridad</span>
-                  </div>
+              // Categories mapping
+              const categories = [
+                { id: 'resumen', label: 'Resumen', icon: TrendingUp, char: '📊' },
+                { id: 'logistica', label: 'Logística', icon: Truck, char: '📦' },
+                { id: 'almacen', label: 'Almacén', icon: Building, char: '🏢' },
+                { id: 'finanzas', label: 'Finanzas', icon: DollarSign, char: '💰' },
+                { id: 'sistema', label: 'Sistema', icon: Settings, char: '⚙️' },
+              ];
 
-                  <div className="bg-white p-4 rounded-lg border-l-4 border-l-blue-600 border border-gray-200 shadow-2xs">
-                    <span className="text-2xs font-extrabold text-gray-400 uppercase tracking-wider block">En Tránsito / Ruta</span>
-                    <span className="text-xl font-black text-blue-800 font-display block mt-1">
-                      {shipments.filter(s => s.status === 'En Tránsito' || s.status === 'En Ruta').length}
-                    </span>
-                    <span className="text-3xs text-gray-500 mt-1 block">Mensajeros en movimiento</span>
-                  </div>
+              // Sub-tabs mapping per category
+              const subTabsConfig: Record<string, { id: string; label: string; icon: any }[]> = {
+                resumen: [
+                  { id: 'portal', label: 'Dashboard Portal', icon: Database },
+                ],
+                logistica: [
+                  { id: 'registro-paquetes', label: 'Registro de Paquetes', icon: FileText },
+                  { id: 'cliente-mayor', label: 'Registro Cliente Mayor', icon: Users },
+                  { id: 'pre-alertas', label: 'Pre-alertas Clientes', icon: Clock },
+                ],
+                almacen: [
+                  { id: 'warehouse', label: 'Warehouse / Recepción', icon: Package },
+                  { id: 'inventario', label: 'Inventario Físico', icon: Grid },
+                  { id: 'consolidado', label: 'Consolidados de Carga', icon: Layers },
+                ],
+                finanzas: [
+                  { id: 'facturacion', label: 'Facturación / Fletes', icon: FileSpreadsheet },
+                  { id: 'pagos', label: 'Registro de Pagos', icon: Wallet },
+                  { id: 'gastos', label: 'Registro de Gastos', icon: TrendingUp },
+                ],
+                sistema: [
+                  { id: 'reportes', label: 'Reportes de Sistema', icon: TrendingUp },
+                  { id: 'sucursales', label: 'Sedes y Sucursales', icon: Building },
+                  { id: 'usuarios', label: 'Usuarios y Operadores', icon: Users },
+                  { id: 'tarifas', label: 'Configuración Tarifaria', icon: SlidersHorizontal },
+                  { id: 'ajustes', label: 'Ajustes de Sistema', icon: Settings },
+                ],
+              };
 
-                  <div className="bg-white p-4 rounded-lg border-l-4 border-l-green-600 border border-gray-200 shadow-2xs">
-                    <span className="text-2xs font-extrabold text-gray-400 uppercase tracking-wider block">Entregados Hoy</span>
-                    <span className="text-xl font-black text-green-700 font-display block mt-1">
-                      {shipments.filter(s => s.status === 'Entregado').length}
-                    </span>
-                    <span className="text-3xs text-gray-500 mt-1 block">Tasa de éxito superior</span>
-                  </div>
+              // Financial Calculations (Fixed Values, in Quetzales Q)
+              const totalPaidRevenues = invoices
+                .filter(i => i.paymentStatus === 'Pagado')
+                .reduce((acc, curr) => acc + curr.amount, 0);
+              const totalExpenses = expensesLog.reduce((acc, curr) => acc + curr.amount, 0);
+              const netCashLedger = totalPaidRevenues - totalExpenses;
 
-                  <div className="bg-white p-4 rounded-lg border-l-4 border-l-red-600 border border-gray-200 shadow-2xs">
-                    <span className="text-2xs font-extrabold text-gray-400 uppercase tracking-wider block">Incidentes / Retrasos</span>
-                    <span className="text-xl font-black text-red-600 font-display block mt-1">
-                      {shipments.filter(s => s.status === 'Retrasado').length}
-                    </span>
-                    <span className="text-3xs text-red-600 font-bold mt-1 block">Carreteras bloqueadas</span>
-                  </div>
-                </div>
+              // Helper variables for bulk upload mayor demo manifest
+              const defaultBulkManifest = `# Manifiesto de Carga Corporativa - Distribuidora El Quetzal S.A.
+Carlos Monterroso,Ciudad de Guatemala,Express,4.5,Mercadería frágil repuestos
+Ana Sofía Méndez,Quetzaltenango,Estándar,12.0,Caja grande herramientas
+Inversiones Altiplano,Huehuetenango,Estándar,35.0,Sacos insumos industriales
+Droguería La Unión,Cobán,Express,2.8,Medicina mantener refrigerado
+Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
 
-                {/* High Density Table & Control Panel */}
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 min-h-0 items-start">
+              return (
+                <div className="space-y-6 flex-1 min-h-0 flex flex-col">
                   
-                  {/* Shipment listing table - LEFT COLUMN */}
-                  <div className="lg:col-span-8 bg-white rounded-lg border border-gray-200 shadow-xs flex flex-col max-h-[600px] overflow-hidden">
+                  {/* ==================== DOUBLE-LEVEL TOP NAVIGATION BAR ==================== */}
+                  <div className="bg-white rounded-lg border border-gray-200 shadow-2xs overflow-hidden shrink-0">
                     
-                    <div className="p-4 border-b border-gray-200 bg-gray-50 flex flex-col sm:flex-row justify-between items-center gap-3 shrink-0">
-                      <h3 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display shrink-0">Monitoreo de Envíos</h3>
-                      
-                      <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
-                        <div className="relative">
-                          <input
-                            type="text"
-                            placeholder="Buscar ID, Casillero..."
-                            value={adminSearch}
-                            onChange={(e) => setAdminSearch(e.target.value)}
-                            className="pl-7 pr-3 py-1.5 text-2xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-brand-orange w-36"
-                          />
-                          <Search className="h-3 w-3 text-gray-400 absolute left-2.5 top-2.5" />
-                        </div>
-
-                        <select
-                          value={adminStatusFilter}
-                          onChange={(e) => setAdminStatusFilter(e.target.value)}
-                          className="px-2 py-1.5 text-2xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-brand-orange bg-white"
-                        >
-                          <option value="todos">Todos Estados</option>
-                          <option value="Creado">Creado</option>
-                          <option value="En Tránsito">En Tránsito</option>
-                          <option value="En Sucursal">En Sucursal</option>
-                          <option value="En Ruta">En Ruta</option>
-                          <option value="Entregado">Entregado</option>
-                          <option value="Retrasado">Retrasado</option>
-                        </select>
-
-                        <select
-                          value={adminServiceFilter}
-                          onChange={(e) => setAdminServiceFilter(e.target.value)}
-                          className="px-2 py-1.5 text-2xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-brand-orange bg-white"
-                        >
-                          <option value="todos">Todos Servicios</option>
-                          <option value="Express">Express</option>
-                          <option value="Estándar">Estándar</option>
-                        </select>
-
-                        <button
-                          onClick={() => setNewShipmentModal(true)}
-                          className="bg-brand-orange hover:bg-brand-orange-hover text-white text-2xs font-bold px-3 py-1.5 rounded flex items-center gap-1 cursor-pointer transition"
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                          Nuevo Despacho
-                        </button>
-                      </div>
+                    {/* Level 1: Category Groups */}
+                    <div className="bg-brand-gray-dark px-4 py-2 flex flex-wrap gap-2 border-b border-gray-800">
+                      {categories.map(cat => {
+                        const CategoryIcon = cat.icon;
+                        const isCatActive = activeCategory === cat.id;
+                        return (
+                          <button
+                            key={cat.id}
+                            onClick={() => {
+                              // Auto-select the first sub-tab of this category
+                              const firstSubTab = subTabsConfig[cat.id][0].id;
+                              setAdminSubTab(firstSubTab);
+                            }}
+                            className={`flex items-center space-x-2 px-4 py-2 text-2xs font-extrabold uppercase tracking-wider rounded-md transition-all cursor-pointer ${
+                              isCatActive 
+                                ? 'bg-brand-orange text-white' 
+                                : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                            }`}
+                          >
+                            <CategoryIcon className="h-3.5 w-3.5 shrink-0" />
+                            <span>{cat.label}</span>
+                          </button>
+                        );
+                      })}
                     </div>
 
-                    <div className="overflow-x-auto flex-1">
-                      <table className="w-full text-left border-collapse">
-                        <thead>
-                          <tr className="bg-gray-100 border-b border-gray-200 text-3xs font-extrabold text-gray-500 uppercase tracking-wider">
-                            <th className="py-2.5 px-4">Guía ID</th>
-                            <th className="py-2.5 px-3">Casillero</th>
-                            <th className="py-2.5 px-3">Remitente</th>
-                            <th className="py-2.5 px-3">Ruta</th>
-                            <th className="py-2.5 px-3">Estado</th>
-                            <th className="py-2.5 px-3">Servicio</th>
-                            <th className="py-2.5 px-4 text-center">Acciones</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100 text-2xs font-semibold text-brand-gray-dark">
-                          {filteredShipments.map((s) => {
-                            const isActive = selectedAdminShipment && selectedAdminShipment.id === s.id;
-                            return (
-                              <tr 
-                                key={s.id}
-                                className={`hover:bg-gray-50/70 transition-all ${isActive ? 'bg-orange-50/50' : ''}`}
-                              >
-                                <td className="py-2 px-4 font-bold text-brand-orange uppercase">{s.id}</td>
-                                <td className="py-2 px-3 font-mono text-gray-500">{s.lockerId}</td>
-                                <td className="py-2 px-3 truncate max-w-[120px]">{s.sender}</td>
-                                <td className="py-2 px-3 truncate max-w-[150px]">
-                                  {s.origin.split(',')[0]} &rarr; {s.destination.split(',')[0]}
-                                </td>
-                                <td className="py-2 px-3">
-                                  <span className={`px-2 py-0.5 rounded text-4xs font-bold uppercase ${
-                                    s.status === 'Entregado' ? 'bg-green-100 text-green-800' :
-                                    s.status === 'Retrasado' ? 'bg-red-100 text-red-800 font-extrabold border border-red-200 animate-pulse' :
-                                    s.status === 'En Ruta' ? 'bg-blue-100 text-blue-800' :
-                                    'bg-gray-100 text-gray-700'
-                                  }`}>
-                                    {s.status}
-                                  </span>
-                                </td>
-                                <td className="py-2 px-3">{s.serviceType}</td>
-                                <td className="py-2 px-4 text-center">
-                                  <button
-                                    onClick={() => {
-                                      setSelectedAdminShipment(s);
-                                      setUpdateStatusVal(s.status);
-                                    }}
-                                    className="border border-gray-300 hover:border-brand-gray-dark hover:bg-gray-800 hover:text-white text-gray-600 px-2 py-0.5 rounded text-4xs font-bold uppercase transition cursor-pointer"
-                                  >
-                                    Gestionar
-                                  </button>
-                                </td>
-                              </tr>
-                            );
-                          })}
-
-                          {filteredShipments.length === 0 && (
-                            <tr>
-                              <td colSpan={7} className="text-center py-12 text-gray-400 font-medium">
-                                No se encontraron despachos con los filtros seleccionados.
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
+                    {/* Level 2: Sub-Tabs for active category */}
+                    <div className="bg-gray-50 px-4 py-2 flex flex-wrap gap-1 border-t border-gray-100">
+                      {subTabsConfig[activeCategory].map(tab => {
+                        const TabIcon = tab.icon;
+                        const isTabActive = adminSubTab === tab.id;
+                        return (
+                          <button
+                            key={tab.id}
+                            onClick={() => setAdminSubTab(tab.id)}
+                            className={`flex items-center space-x-1.5 px-3 py-1.5 text-3xs font-extrabold uppercase tracking-widest rounded transition-all cursor-pointer border ${
+                              isTabActive 
+                                ? 'bg-white border-brand-orange text-brand-orange shadow-3xs' 
+                                : 'bg-transparent border-transparent text-gray-500 hover:text-brand-gray-dark hover:bg-gray-100/50'
+                            }`}
+                          >
+                            <TabIcon className="h-3 w-3" />
+                            <span>{tab.label}</span>
+                          </button>
+                        );
+                      })}
                     </div>
 
                   </div>
 
-                  {/* Bitácora Logística Update Controls - RIGHT COLUMN */}
-                  <div className="lg:col-span-4 space-y-6">
-                    {selectedAdminShipment ? (
-                      <div className="bg-white rounded-lg border border-gray-200 shadow-xs overflow-hidden">
+                  {/* ==================== SUB-TABS RENDER ENGINE ==================== */}
+                  <div className="flex-1 min-h-0 overflow-y-auto pb-6">
+
+                    {/* ==================== 1. PORTAL (DASHBOARD) ==================== */}
+                    {adminSubTab === 'portal' && (
+                      <div className="space-y-6">
                         
-                        <div className="bg-brand-gray-dark text-white p-4 border-b border-gray-800 flex justify-between items-center">
-                          <div>
-                            <span className="text-4xs font-bold text-gray-400 uppercase block">ADMINISTRACIÓN DE GUÍA</span>
-                            <h4 className="text-xs font-bold tracking-wider font-display text-white uppercase">{selectedAdminShipment.id}</h4>
+                        {/* High-density operational KPIs */}
+                        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+                          <div className="bg-white p-4 rounded-lg border-l-4 border-l-gray-900 border border-gray-200 shadow-2xs">
+                            <span className="text-4xs font-extrabold text-gray-400 uppercase tracking-widest block">Guías Totales</span>
+                            <span className="text-xl font-black text-brand-gray-dark font-display block mt-1">{shipments.length}</span>
+                            <span className="text-4xs text-gray-500 mt-1 block">Envíos registrados</span>
                           </div>
-                          <button 
-                            onClick={() => setSelectedAdminShipment(null)}
-                            className="text-gray-400 hover:text-white text-3xs uppercase font-extrabold cursor-pointer"
-                          >
-                            Cerrar
-                          </button>
+
+                          <div className="bg-white p-4 rounded-lg border-l-4 border-l-orange-500 border border-gray-200 shadow-2xs">
+                            <span className="text-4xs font-extrabold text-gray-400 uppercase tracking-widest block">Servicios Express</span>
+                            <span className="text-xl font-black text-brand-orange font-display block mt-1">
+                              {shipments.filter(s => s.serviceType === 'Express').length}
+                            </span>
+                            <span className="text-4xs text-gray-500 mt-1 block">Despachos de alta velocidad</span>
+                          </div>
+
+                          <div className="bg-white p-4 rounded-lg border-l-4 border-l-blue-600 border border-gray-200 shadow-2xs">
+                            <span className="text-4xs font-extrabold text-gray-400 uppercase tracking-widest block">En Tránsito / Ruta</span>
+                            <span className="text-xl font-black text-blue-800 font-display block mt-1">
+                              {shipments.filter(s => s.status === 'En Tránsito' || s.status === 'En Ruta').length}
+                            </span>
+                            <span className="text-4xs text-gray-500 mt-1 block">Unidades en movimiento</span>
+                          </div>
+
+                          <div className="bg-white p-4 rounded-lg border-l-4 border-l-green-600 border border-gray-200 shadow-2xs">
+                            <span className="text-4xs font-extrabold text-gray-400 uppercase tracking-widest block">Entregados</span>
+                            <span className="text-xl font-black text-green-700 font-display block mt-1">
+                              {shipments.filter(s => s.status === 'Entregado').length}
+                            </span>
+                            <span className="text-4xs text-gray-500 mt-1 block">Tasa de éxito superior</span>
+                          </div>
+
+                          <div className="bg-white p-4 rounded-lg border-l-4 border-l-red-600 border border-gray-200 shadow-2xs">
+                            <span className="text-4xs font-extrabold text-gray-400 uppercase tracking-widest block">Retrasos / Alertas</span>
+                            <span className="text-xl font-black text-red-600 font-display block mt-1">
+                              {shipments.filter(s => s.status === 'Retrasado').length}
+                            </span>
+                            <span className="text-4xs text-red-600 font-extrabold mt-1 block">Incidentes viales</span>
+                          </div>
                         </div>
 
-                        <div className="p-4 bg-gray-50 border-b border-gray-100 text-2xs space-y-1 shrink-0">
-                          <div><span className="text-gray-400">Casillero Asignado:</span> <strong className="font-mono text-brand-orange">{selectedAdminShipment.lockerId}</strong></div>
-                          <div><span className="text-gray-400">Ruta:</span> <strong>{selectedAdminShipment.origin.split(',')[0]}</strong> a <strong>{selectedAdminShipment.destination.split(',')[0]}</strong></div>
-                          <div><span className="text-gray-400">Destinatario:</span> {selectedAdminShipment.receiver}</div>
-                        </div>
-
-                        <div className="p-4 border-b border-gray-100">
-                          <h5 className="text-3xs font-extrabold text-brand-gray-dark uppercase tracking-wider mb-3">Registrar Bitácora en Ruta</h5>
+                        {/* Financial Ledger Balance (Q) & Warehouse Occupancy */}
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                           
-                          <form onSubmit={handleAdminUpdateStatus} className="space-y-3">
-                            <div className="grid grid-cols-2 gap-2">
-                              <div>
-                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Nuevo Estado</label>
-                                <select
-                                  value={updateStatusVal}
-                                  onChange={(e) => setUpdateStatusVal(e.target.value as any)}
-                                  className="w-full px-2 py-1 text-2xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white"
+                          {/* Financial Summary Card */}
+                          <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs space-y-4">
+                            <h3 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display border-b border-gray-100 pb-2">📊 Estado Financiero de Caja (Fijos en Q)</h3>
+                            
+                            <div className="space-y-2 text-2xs">
+                              <div className="flex justify-between items-center text-gray-600">
+                                <span>Ingresos por Fletes Cobrados:</span>
+                                <strong className="text-green-700 font-bold font-mono">Q {totalPaidRevenues.toFixed(2)}</strong>
+                              </div>
+                              <div className="flex justify-between items-center text-gray-600">
+                                <span>Gastos Operativos Totales:</span>
+                                <strong className="text-red-600 font-bold font-mono">Q {totalExpenses.toFixed(2)}</strong>
+                              </div>
+                              
+                              <div className="border-t border-dashed border-gray-200 pt-3 flex justify-between items-center text-xs font-black">
+                                <span className="text-brand-gray-dark">SALDO LÍQUIDO NETO:</span>
+                                <span className={`font-mono ${netCashLedger >= 0 ? 'text-brand-orange' : 'text-red-600'}`}>
+                                  Q {netCashLedger.toFixed(2)}
+                                </span>
+                              </div>
+                            </div>
+                            
+                            <p className="text-4xs text-gray-400 leading-normal bg-gray-50 p-2.5 rounded border border-gray-100">
+                              Valores de facturación y gastos directos sin cálculos de IVA. Todas las operaciones reflejadas en Quetzales.
+                            </p>
+                          </div>
+
+                          {/* Warehouse Capacity Card */}
+                          <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs space-y-4">
+                            <h3 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display border-b border-gray-100 pb-2">🏢 Capacidad de Bodega Central</h3>
+                            
+                            <div className="space-y-3">
+                              <div className="flex justify-between text-2xs font-bold text-gray-600">
+                                <span>Capacidad Utilizada</span>
+                                <span className="text-brand-orange">68% Ocupado</span>
+                              </div>
+                              
+                              {/* Sleek Progress Bar */}
+                              <div className="w-full bg-gray-100 rounded-full h-3.5 border border-gray-200 overflow-hidden">
+                                <div 
+                                  className="bg-gradient-to-r from-brand-gray-dark to-brand-orange h-full rounded-full transition-all duration-500" 
+                                  style={{ width: '68%' }}
+                                />
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-2 text-4xs text-gray-500 pt-1">
+                                <div>&bull; Racks Activos: <strong>4 (A-D)</strong></div>
+                                <div>&bull; Bins Ocupados: <strong>27 / 40</strong></div>
+                                <div>&bull; Capacidad Libre: <strong>32%</strong></div>
+                                <div>&bull; Carga en Kg: <strong>{shipments.filter(s => s.status === 'En Sucursal').reduce((acc, curr) => acc + curr.weight, 0).toFixed(1)} Kg</strong></div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Critical System Notifications */}
+                          <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs space-y-3">
+                            <h3 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display border-b border-gray-100 pb-2">🚨 Alertas del Hub Central</h3>
+                            
+                            <div className="space-y-2 max-h-[140px] overflow-y-auto">
+                              <div className="p-2 bg-orange-50 border border-brand-orange/20 rounded flex items-center space-x-2 text-4xs text-brand-orange font-bold">
+                                <AlertTriangle className="h-4 w-4 text-brand-orange shrink-0 animate-pulse" />
+                                <span>Pre-alerta pendiente de ingreso: Repuestos de laptop (2.5 Kg) de Amazon US.</span>
+                              </div>
+                              <div className="p-2 bg-red-50 border border-red-200 rounded flex items-center space-x-2 text-4xs text-red-800 font-bold">
+                                <AlertTriangle className="h-4 w-4 text-red-600 shrink-0" />
+                                <span>Bloqueo Carretera: Ruta al Atlántico KM 42 reporta retrasos en tránsito.</span>
+                              </div>
+                            </div>
+                          </div>
+
+                        </div>
+
+                        {/* Recent Activity Log */}
+                        <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs">
+                          <h3 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display border-b border-gray-100 pb-3 mb-4">📜 Historial Operativo Reciente</h3>
+                          <div className="space-y-3 max-h-[220px] overflow-y-auto">
+                            <div className="border-l-2 border-brand-orange pl-3 text-4xs space-y-1">
+                              <div className="flex justify-between font-bold text-brand-gray-dark">
+                                <span>FACTURA EMITIDA Y COBRADA</span>
+                                <span className="text-gray-400 font-semibold">2026-05-21 08:30</span>
+                              </div>
+                              <p className="text-gray-500">Recibo de pago FAC-1001 registrado bajo el método Transferencia Bancaria por Q 122.50.</p>
+                            </div>
+                            <div className="border-l-2 border-brand-gray-dark pl-3 text-4xs space-y-1">
+                              <div className="flex justify-between font-bold text-brand-gray-dark">
+                                <span>RECEPCIÓN DE PAQUETE EN WAREHOUSE</span>
+                                <span className="text-gray-400 font-semibold">2026-05-21 08:15</span>
+                              </div>
+                              <p className="text-gray-500">Carga ingresada en Rack A-12 de Amazon US para casillero SFG0 con peso de 2.5 Kg.</p>
+                            </div>
+                            <div className="border-l-2 border-blue-600 pl-3 text-4xs space-y-1">
+                              <div className="flex justify-between font-bold text-brand-gray-dark">
+                                <span>DESPACHO EN RUTA</span>
+                                <span className="text-gray-400 font-semibold">2026-05-21 08:00</span>
+                              </div>
+                              <p className="text-gray-500">Envío SF-9843-GT asignado a mensajero motorizado con destino final Antigua Guatemala.</p>
+                            </div>
+                          </div>
+                        </div>
+
+                      </div>
+                    )}
+
+                    {/* ==================== 2. REGISTRO DE PAQUETES (`registro-paquetes`) ==================== */}
+                    {adminSubTab === 'registro-paquetes' && (
+                      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                        
+                        {/* Shipment listing table - LEFT COLUMN */}
+                        <div className="lg:col-span-8 bg-white rounded-lg border border-gray-200 shadow-xs flex flex-col max-h-[600px] overflow-hidden">
+                          
+                          <div className="p-4 border-b border-gray-200 bg-gray-50 flex flex-col sm:flex-row justify-between items-center gap-3 shrink-0">
+                            <h3 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display shrink-0">Monitoreo General de Envíos</h3>
+                            
+                            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+                              <div className="relative">
+                                <input
+                                  type="text"
+                                  placeholder="Buscar ID, Casillero..."
+                                  value={adminSearch}
+                                  onChange={(e) => setAdminSearch(e.target.value)}
+                                  className="pl-7 pr-3 py-1.5 text-3xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-brand-orange w-36"
+                                />
+                                <Search className="h-3 w-3 text-gray-400 absolute left-2.5 top-2.5" />
+                              </div>
+
+                              <select
+                                value={adminStatusFilter}
+                                onChange={(e) => setAdminStatusFilter(e.target.value)}
+                                className="px-2 py-1.5 text-3xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-brand-orange bg-white font-semibold"
+                              >
+                                <option value="todos">Todos Estados</option>
+                                <option value="Creado">Creado</option>
+                                <option value="En Tránsito">En Tránsito</option>
+                                <option value="En Sucursal">En Sucursal</option>
+                                <option value="En Ruta">En Ruta</option>
+                                <option value="Entregado">Entregado</option>
+                                <option value="Retrasado">Retrasado</option>
+                              </select>
+
+                              <select
+                                value={adminServiceFilter}
+                                onChange={(e) => setAdminServiceFilter(e.target.value)}
+                                className="px-2 py-1.5 text-3xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-brand-orange bg-white font-semibold"
+                              >
+                                <option value="todos">Todos Servicios</option>
+                                <option value="Express">Express</option>
+                                <option value="Estándar">Estándar</option>
+                              </select>
+
+                              <button
+                                onClick={() => setNewShipmentModal(true)}
+                                className="bg-brand-orange hover:bg-brand-orange-hover text-white text-3xs font-bold px-3 py-1.5 rounded flex items-center gap-1 cursor-pointer transition uppercase tracking-wider"
+                              >
+                                <Plus className="h-3.5 w-3.5" />
+                                Nuevo Despacho
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="overflow-x-auto flex-1">
+                            <table className="w-full text-left border-collapse">
+                              <thead>
+                                <tr className="bg-gray-100 border-b border-gray-200 text-4xs font-extrabold text-gray-500 uppercase tracking-wider">
+                                  <th className="py-2.5 px-4">Guía ID</th>
+                                  <th className="py-2.5 px-3">Casillero</th>
+                                  <th className="py-2.5 px-3">Remitente</th>
+                                  <th className="py-2.5 px-3">Ruta</th>
+                                  <th className="py-2.5 px-3">Estado</th>
+                                  <th className="py-2.5 px-3">Servicio</th>
+                                  <th className="py-2.5 px-4 text-center">Acciones</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-100 text-3xs font-semibold text-brand-gray-dark">
+                                {filteredShipments.map((s) => {
+                                  const isActive = selectedAdminShipment && selectedAdminShipment.id === s.id;
+                                  return (
+                                    <tr 
+                                      key={s.id}
+                                      className={`hover:bg-gray-50/70 transition-all ${isActive ? 'bg-orange-50/50' : ''}`}
+                                    >
+                                      <td className="py-2 px-4 font-bold text-brand-orange uppercase">{s.id}</td>
+                                      <td className="py-2 px-3 font-mono text-gray-500">{s.lockerId}</td>
+                                      <td className="py-2 px-3 truncate max-w-[120px]">{s.sender}</td>
+                                      <td className="py-2 px-3 truncate max-w-[150px]">
+                                        {s.origin.split(',')[0]} &rarr; {s.destination.split(',')[0]}
+                                      </td>
+                                      <td className="py-2 px-3">
+                                        <span className={`px-2 py-0.5 rounded text-4xs font-bold uppercase ${
+                                          s.status === 'Entregado' ? 'bg-green-100 text-green-800' :
+                                          s.status === 'Retrasado' ? 'bg-red-100 text-red-800 font-extrabold border border-red-200 animate-pulse' :
+                                          s.status === 'En Ruta' ? 'bg-blue-100 text-blue-800' :
+                                          'bg-gray-100 text-gray-700'
+                                        }`}>
+                                          {s.status}
+                                        </span>
+                                      </td>
+                                      <td className="py-2 px-3">{s.serviceType}</td>
+                                      <td className="py-2 px-4 text-center">
+                                        <button
+                                          onClick={() => {
+                                            setSelectedAdminShipment(s);
+                                            setUpdateStatusVal(s.status);
+                                          }}
+                                          className="border border-gray-300 hover:border-brand-gray-dark hover:bg-gray-800 hover:text-white text-gray-600 px-2 py-0.5 rounded text-4xs font-bold uppercase transition cursor-pointer"
+                                        >
+                                          Gestionar
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+
+                                {filteredShipments.length === 0 && (
+                                  <tr>
+                                    <td colSpan={7} className="text-center py-12 text-gray-400 font-medium">
+                                      No se encontraron despachos con los filtros seleccionados.
+                                    </td>
+                                  </tr>
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+
+                        </div>
+
+                        {/* Bitácora Logística Update Controls - RIGHT COLUMN */}
+                        <div className="lg:col-span-4 space-y-6">
+                          {selectedAdminShipment ? (
+                            <div className="bg-white rounded-lg border border-gray-200 shadow-xs overflow-hidden">
+                              
+                              <div className="bg-brand-gray-dark text-white p-4 border-b border-gray-800 flex justify-between items-center">
+                                <div>
+                                  <span className="text-4xs font-bold text-gray-400 uppercase block">ADMINISTRACIÓN DE GUÍA</span>
+                                  <h4 className="text-xs font-bold tracking-wider font-display text-white uppercase">{selectedAdminShipment.id}</h4>
+                                </div>
+                                <button 
+                                  onClick={() => setSelectedAdminShipment(null)}
+                                  className="text-gray-400 hover:text-white text-3xs uppercase font-extrabold cursor-pointer"
                                 >
-                                  <option value="Creado">Creado</option>
-                                  <option value="En Tránsito">En Tránsito</option>
-                                  <option value="En Sucursal">En Sucursal</option>
-                                  <option value="En Ruta">En Ruta</option>
-                                  <option value="Entregado">Entregado</option>
-                                  <option value="Retrasado">Retrasado</option>
+                                  Cerrar
+                                </button>
+                              </div>
+
+                              <div className="p-4 bg-gray-50 border-b border-gray-100 text-3xs space-y-1 shrink-0">
+                                <div><span className="text-gray-400">Casillero Asignado:</span> <strong className="font-mono text-brand-orange">{selectedAdminShipment.lockerId}</strong></div>
+                                <div><span className="text-gray-400">Ruta:</span> <strong>{selectedAdminShipment.origin.split(',')[0]}</strong> a <strong>{selectedAdminShipment.destination.split(',')[0]}</strong></div>
+                                <div><span className="text-gray-400">Destinatario:</span> {selectedAdminShipment.receiver}</div>
+                              </div>
+
+                              <div className="p-4 border-b border-gray-100">
+                                <h5 className="text-3xs font-extrabold text-brand-gray-dark uppercase tracking-wider mb-3">Registrar Bitácora en Ruta</h5>
+                                
+                                <form onSubmit={handleAdminUpdateStatus} className="space-y-3">
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                      <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Nuevo Estado</label>
+                                      <select
+                                        value={updateStatusVal}
+                                        onChange={(e) => setUpdateStatusVal(e.target.value as any)}
+                                        className="w-full px-2 py-1 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white font-semibold"
+                                      >
+                                        <option value="Creado">Creado</option>
+                                        <option value="En Tránsito">En Tránsito</option>
+                                        <option value="En Sucursal">En Sucursal</option>
+                                        <option value="En Ruta">En Ruta</option>
+                                        <option value="Entregado">Entregado</option>
+                                        <option value="Retrasado">Retrasado</option>
+                                      </select>
+                                    </div>
+
+                                    <div>
+                                      <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Ubicación Actual</label>
+                                      <input
+                                        type="text"
+                                        required
+                                        placeholder="Ej: Hub Central, Guatemala"
+                                        value={updateLocationVal}
+                                        onChange={(e) => setUpdateLocationVal(e.target.value)}
+                                        className="w-full px-2 py-1 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div>
+                                    <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Detalles de Operación *</label>
+                                    <textarea
+                                      required
+                                      placeholder="Observaciones técnicas o incidencias..."
+                                      rows={2}
+                                      value={updateDetailsVal}
+                                      onChange={(e) => setUpdateDetailsVal(e.target.value)}
+                                      className="w-full px-2 py-1 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark"
+                                    />
+                                  </div>
+
+                                  <button
+                                    type="submit"
+                                    className="w-full bg-brand-orange hover:bg-brand-orange-hover text-white text-3xs font-extrabold py-2 rounded transition uppercase tracking-wider cursor-pointer"
+                                  >
+                                    Registrar en Bitácora
+                                  </button>
+                                </form>
+                              </div>
+
+                              <div className="p-4 max-h-[180px] overflow-y-auto">
+                                <h5 className="text-3xs font-extrabold text-brand-gray-dark uppercase tracking-wider mb-2">Historial de Eventos</h5>
+                                <div className="space-y-3">
+                                  {selectedAdminShipment.history.map((h, hIdx) => (
+                                    <div key={hIdx} className="border-l-2 border-brand-orange pl-3 text-4xs space-y-0.5">
+                                      <div className="flex justify-between font-bold text-brand-gray-dark">
+                                        <span>{h.status} — {h.location}</span>
+                                        <span className="text-gray-400 font-semibold">{h.date} {h.time}</span>
+                                      </div>
+                                      <p className="text-gray-500">{h.details}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+
+                            </div>
+                          ) : (
+                            <div className="bg-gray-100 border border-dashed border-gray-300 p-8 rounded-lg text-center text-gray-400 shadow-2xs">
+                              <SlidersHorizontal className="h-8 w-8 text-gray-300 mx-auto mb-2" />
+                              <p className="text-xs font-bold text-brand-gray-dark uppercase">Centro de Operaciones</p>
+                              <p className="text-4xs text-gray-500 mt-1 leading-relaxed">Seleccione un despacho de la tabla para visualizar la ficha técnica, registrar movimientos, cambiar estados o actualizar la bitácora logística.</p>
+                            </div>
+                          )}
+                        </div>
+
+                      </div>
+                    )}
+
+                    {/* ==================== 3. REGISTRO CLIENTE MAYOR (`cliente-mayor`) ==================== */}
+                    {adminSubTab === 'cliente-mayor' && (
+                      <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs space-y-6">
+                        <div>
+                          <h3 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display mb-1">📦 Carga Masiva de Clientes Mayoristas (Manifiesto Corporativo)</h3>
+                          <p className="text-4xs text-gray-500">Suba múltiples despachos de una sola vez vinculados a una cuenta corporativa. Ideal para distribuidores que despachan lotes masivos de mercadería.</p>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                          
+                          {/* Instructions & Template load */}
+                          <div className="lg:col-span-8 space-y-4">
+                            <div>
+                              <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Seleccionar Cliente Mayorista *</label>
+                              <select
+                                value={bulkLocker}
+                                onChange={(e) => {
+                                  setBulkLocker(e.target.value);
+                                  const matchingUser = users.find(u => u.lockerId === e.target.value);
+                                  if (matchingUser) setBulkSender(matchingUser.name);
+                                }}
+                                className="px-3 py-2 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white font-mono text-brand-orange font-bold"
+                              >
+                                {users.filter(u => u.role === 'client').map(u => (
+                                  <option key={u.lockerId} value={u.lockerId}>{u.lockerId} &mdash; {u.name}</option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div>
+                              <div className="flex justify-between items-center mb-1">
+                                <label className="text-4xs font-bold text-gray-500 uppercase block">Carga de Manifiesto en Formato CSV *</label>
+                                <button
+                                  type="button"
+                                  onClick={() => setBulkFileText(defaultBulkManifest)}
+                                  className="text-brand-orange text-4xs font-extrabold uppercase hover:underline cursor-pointer"
+                                >
+                                  Cargar Lote de Demostración
+                                </button>
+                              </div>
+                              <textarea
+                                value={bulkFileText}
+                                onChange={(e) => setBulkFileText(e.target.value)}
+                                rows={8}
+                                placeholder="Destinatario,Destino,Servicio,PesoKg,Notas"
+                                className="w-full px-3 py-2 border border-gray-300 rounded font-mono text-3xs focus:outline-none focus:ring-1 focus:ring-brand-orange"
+                              />
+                              <p className="text-4xs text-gray-400 mt-1">El formato de datos debe ser: Destinatario,Destino,Servicio (Express/Estándar),Peso (Kg),Notas</p>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (!bulkFileText.trim()) {
+                                  alert('Por favor ingrese el manifiesto en formato de líneas CSV.');
+                                  return;
+                                }
+
+                                const rows = bulkFileText.split('\n');
+                                let addedCount = 0;
+                                const newInvoices: any[] = [];
+                                const newShipmentsList: Shipment[] = [];
+                                const currentDate = new Date().toISOString().split('T')[0];
+                                const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
+
+                                rows.forEach(row => {
+                                  if (row.startsWith('#') || !row.trim()) return; // skip comments / empty rows
+                                  const cols = row.split(',');
+                                  if (cols.length >= 4) {
+                                    const receiverName = cols[0].trim();
+                                    const destinationCity = cols[1].trim();
+                                    const serviceType = (cols[2].trim() === 'Estándar' ? 'Estándar' : 'Express') as 'Express' | 'Estándar';
+                                    const weightKg = Number(cols[3].trim()) || 1.0;
+                                    const notesText = cols[4] ? cols[4].trim() : 'Carga de lote mayorista';
+
+                                    const generatedId = `SF-${Math.floor(1000 + Math.random() * 9000)}-GT`;
+                                    
+                                    // Calculate flete
+                                    const baseVal = serviceType === 'Express' ? ratesSettings.baseExpress : ratesSettings.baseEstandar;
+                                    const extraWeightVal = weightKg * (serviceType === 'Express' ? ratesSettings.pesoExpress : ratesSettings.pesoEstandar);
+                                    const fleteTotal = baseVal + extraWeightVal;
+
+                                    const newShipment: Shipment = {
+                                      id: generatedId,
+                                      lockerId: bulkLocker,
+                                      sender: bulkSender,
+                                      receiver: receiverName,
+                                      origin: 'Miami Hub, FL',
+                                      destination: destinationCity + ', Guatemala',
+                                      status: 'Creado',
+                                      serviceType: serviceType,
+                                      weight: weightKg,
+                                      dimensions: '30x20x20 cm',
+                                      lastUpdated: `${currentDate} ${currentTime}`,
+                                      history: [
+                                        {
+                                          date: currentDate,
+                                          time: currentTime,
+                                          status: 'Creado',
+                                          location: 'Miami Hub, FL',
+                                          details: 'Manifiesto cargado en lote corporativo por el administrador central.'
+                                        }
+                                      ],
+                                      notes: notesText
+                                    };
+
+                                    newShipmentsList.push(newShipment);
+
+                                    // Auto-create invoice
+                                    const invoiceId = `FAC-${1000 + invoices.length + addedCount + 1}`;
+                                    newInvoices.push({
+                                      id: invoiceId,
+                                      lockerId: bulkLocker,
+                                      date: currentDate,
+                                      concept: `Flete ${serviceType} ${generatedId} (${weightKg} Kg)`,
+                                      amount: fleteTotal,
+                                      paymentStatus: 'Pendiente'
+                                    });
+
+                                    addedCount++;
+                                  }
+                                });
+
+                                if (newShipmentsList.length > 0) {
+                                  setShipments(prev => [...newShipmentsList, ...prev]);
+                                  setInvoices(prev => [...prev, ...newInvoices]);
+                                  alert(`Se procesaron y cargaron exitosamente ${addedCount} envíos y se crearon sus facturas correspondientes bajo el casillero ${bulkLocker}.`);
+                                  setBulkFileText('');
+                                  setAdminSubTab('registro-paquetes');
+                                } else {
+                                  alert('No se pudieron procesar filas válidas. Verifique el formato.');
+                                }
+                              }}
+                              className="bg-brand-orange hover:bg-brand-orange-hover text-white text-3xs font-extrabold px-6 py-2 rounded uppercase tracking-wider cursor-pointer transition shadow-2xs"
+                            >
+                              Procesar y Cargar Lote Corporativo
+                            </button>
+                          </div>
+
+                          {/* Info Sidebar card */}
+                          <div className="lg:col-span-4 bg-gray-50 border border-gray-200 p-5 rounded-lg text-3xs space-y-3 leading-relaxed text-gray-600">
+                            <h4 className="font-extrabold text-brand-gray-dark uppercase tracking-wider border-b border-gray-200 pb-1.5">Directrices de Manifiesto</h4>
+                            <p>El sistema soporta la ingesta masiva de guías mediante la separación de valores por comas (CSV). Al procesar:</p>
+                            <ul className="list-disc pl-4 space-y-1.5">
+                              <li>Se asignará un código correlativo **SF-XXXX-GT** a cada guía.</li>
+                              <li>Los paquetes se asociarán al casillero seleccionado en el combo superior.</li>
+                              <li>Se generarán facturas **individuales** automáticas en Quetzales (Q) sin recargos.</li>
+                            </ul>
+                          </div>
+
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ==================== 4. PRE-ALERTAS DE CLIENTES (`pre-alertas`) ==================== */}
+                    {adminSubTab === 'pre-alertas' && (
+                      <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs space-y-4">
+                        <div>
+                          <h3 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display mb-1">🕒 Pre-alertas Declaradas por Clientes</h3>
+                          <p className="text-4xs text-gray-500">Buzón de recepción en Miami. Cuando el cliente compra en tiendas online, declara su paquete antes de que llegue a nuestras bodegas en USA.</p>
+                        </div>
+
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse">
+                            <thead>
+                              <tr className="bg-gray-100 border-b border-gray-200 text-4xs font-extrabold text-gray-500 uppercase tracking-wider">
+                                <th className="py-2.5 px-4">Pre-Alerta ID</th>
+                                <th className="py-2.5 px-3">Casillero</th>
+                                <th className="py-2.5 px-3">Tienda / Remitente</th>
+                                <th className="py-2.5 px-3">Descripción Contenido</th>
+                                <th className="py-2.5 px-3 text-center">Peso Est. (Kg)</th>
+                                <th className="py-2.5 px-3">Fecha Declaración</th>
+                                <th className="py-2.5 px-3">Estado</th>
+                                <th className="py-2.5 px-4 text-center">Acción</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100 text-3xs font-semibold text-brand-gray-dark">
+                              {preAlerts.map(pa => (
+                                <tr key={pa.id} className="hover:bg-gray-50/50">
+                                  <td className="py-3 px-4 font-bold text-brand-orange uppercase">{pa.id}</td>
+                                  <td className="py-3 px-3 font-mono text-gray-500">{pa.lockerId}</td>
+                                  <td className="py-3 px-3 font-bold">{pa.sender}</td>
+                                  <td className="py-3 px-3 italic">{pa.description}</td>
+                                  <td className="py-3 px-3 text-center font-mono">{pa.weightEst} Kg</td>
+                                  <td className="py-3 px-3 font-mono">{pa.dateCreated}</td>
+                                  <td className="py-3 px-3">
+                                    <span className={`px-2 py-0.5 rounded text-4xs font-extrabold uppercase border ${
+                                      pa.status === 'Recibido' 
+                                        ? 'bg-green-50 border-green-200 text-green-700' 
+                                        : 'bg-orange-50 border-orange-200 text-brand-orange animate-pulse'
+                                    }`}>
+                                      {pa.status}
+                                    </span>
+                                  </td>
+                                  <td className="py-3 px-4 text-center">
+                                    {pa.status === 'Pendiente' ? (
+                                      <button
+                                        onClick={() => {
+                                          // Set received status
+                                          setPreAlerts(prev => prev.map(item => item.id === pa.id ? { ...item, status: 'Recibido' } : item));
+                                          
+                                          // Add package to shipments
+                                          const matchingUser = users.find(u => u.lockerId === pa.lockerId);
+                                          const clientName = matchingUser ? matchingUser.name : 'Cliente Registrado';
+                                          const generatedId = `SF-${Math.floor(1000 + Math.random() * 9000)}-GT`;
+                                          const currentDate = new Date().toISOString().split('T')[0];
+                                          const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
+
+                                          // Calculate standard rate
+                                          const base = ratesSettings.baseExpress;
+                                          const weight = pa.weightEst * ratesSettings.pesoExpress;
+                                          const flete = base + weight;
+
+                                          const newShip: Shipment = {
+                                            id: generatedId,
+                                            lockerId: pa.lockerId,
+                                            sender: pa.sender,
+                                            receiver: clientName,
+                                            origin: 'Miami Hub, FL',
+                                            destination: matchingUser ? matchingUser.address : 'Guatemala',
+                                            status: 'En Tránsito',
+                                            serviceType: 'Express',
+                                            weight: pa.weightEst,
+                                            dimensions: '20x20x15 cm',
+                                            lastUpdated: `${currentDate} ${currentTime}`,
+                                            history: [
+                                              {
+                                                date: currentDate,
+                                                time: currentTime,
+                                                status: 'En Tránsito',
+                                                location: 'Miami Hub, FL',
+                                                details: 'Carga pre-alertada recibida físicamente en Miami y cargada para vuelo de consolidación.'
+                                              }
+                                            ],
+                                            notes: pa.description
+                                          };
+
+                                          setShipments([newShip, ...shipments]);
+
+                                          // Generate invoice
+                                          setInvoices(prev => [
+                                            {
+                                              id: `FAC-${1000 + invoices.length + 1}`,
+                                              lockerId: pa.lockerId,
+                                              date: currentDate,
+                                              concept: `Flete Pre-alerta ${generatedId} (${pa.weightEst} Kg)`,
+                                              amount: flete,
+                                              paymentStatus: 'Pendiente'
+                                            },
+                                            ...prev
+                                          ]);
+
+                                          alert(`Paquete pre-alertado registrado como recibido. Se ha asignado la guía de rastreo: ${generatedId} y se ha creado una factura pendiente por flete de Q ${flete.toFixed(2)}.`);
+                                        }}
+                                        className="bg-brand-orange hover:bg-brand-orange-hover text-white px-2 py-0.5 rounded text-4xs font-bold uppercase transition cursor-pointer shadow-3xs"
+                                      >
+                                        Recibir en Miami
+                                      </button>
+                                    ) : (
+                                      <span className="text-gray-400 text-4xs font-bold uppercase flex items-center justify-center gap-0.5">
+                                        <Check className="h-3 w-3 text-green-500" />
+                                        Completado
+                                      </span>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+
+                              {preAlerts.length === 0 && (
+                                <tr>
+                                  <td colSpan={8} className="text-center py-10 text-gray-400 font-medium">
+                                    No hay pre-alertas declaradas en el sistema.
+                                  </td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ==================== 5. WAREHOUSE RECEPCIÓN Y BASCULA (`warehouse`) ==================== */}
+                    {adminSubTab === 'warehouse' && (() => {
+                      // We build a thermal barcode representation dynamically
+                      const barcodeLines = [
+                        3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5, 8, 9, 7, 9, 3, 2, 3, 8, 4, 6, 2, 6
+                      ];
+
+                      const handleWarehouseCheckIn = (e: React.FormEvent) => {
+                        e.preventDefault();
+                        if (!warehouseNotes.trim()) {
+                          alert('Por favor ingrese una descripción detallada para el contenido del paquete.');
+                          return;
+                        }
+
+                        const generatedId = `SF-${Math.floor(1000 + Math.random() * 9000)}-GT`;
+                        const currentDate = new Date().toISOString().split('T')[0];
+                        const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
+
+                        // Calculate live flete fijos en Q
+                        const matchingUser = users.find(u => u.lockerId === warehouseLocker);
+                        const clientName = matchingUser ? matchingUser.name : 'Cliente';
+                        const fleteBase = ratesSettings.baseEstandar;
+                        const weightVal = warehouseWeightInput * ratesSettings.pesoEstandar;
+                        const fleteTotal = fleteBase + weightVal;
+
+                        const newShip: Shipment = {
+                          id: generatedId,
+                          lockerId: warehouseLocker,
+                          sender: 'Tienda Courier Intern.',
+                          receiver: clientName,
+                          origin: 'Miami Bodega',
+                          destination: matchingUser ? matchingUser.address : 'Guatemala Hub Central',
+                          status: 'En Sucursal', // Recepcionado en bodega central
+                          serviceType: 'Estándar',
+                          weight: warehouseWeightInput,
+                          dimensions: '30x25x20 cm',
+                          lastUpdated: `${currentDate} ${currentTime}`,
+                          history: [
+                            {
+                              date: currentDate,
+                              time: currentTime,
+                              status: 'En Sucursal',
+                              location: 'Guatemala - Hub Central',
+                              details: `Ingreso físico a bodega central. Ubicación asignada: ${warehouseBinInput}.`
+                            }
+                          ],
+                          notes: `${warehouseNotes} [Shelved: ${warehouseBinInput}]`
+                        };
+
+                        setShipments([newShip, ...shipments]);
+
+                        // Generate invoice
+                        const newFacId = `FAC-${1000 + invoices.length + 1}`;
+                        setInvoices(prev => [
+                          {
+                            id: newFacId,
+                            lockerId: warehouseLocker,
+                            date: currentDate,
+                            concept: `Cargo Flete Almacén ${generatedId} (${warehouseWeightInput} Kg)`,
+                            amount: fleteTotal,
+                            paymentStatus: 'Pendiente'
+                          },
+                          ...prev
+                        ]);
+
+                        alert(`¡Paquete ingresado formalmente en Bodega Central! ID de guía asignado: ${generatedId}. Código de Estantería: ${warehouseBinInput}. Se ha emitido la factura ${newFacId} por Q ${fleteTotal.toFixed(2)}.`);
+                        
+                        // We do not reset to keep the printed sticker on screen for the admin to see!
+                      };
+
+                      return (
+                        <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs space-y-6">
+                          <div>
+                            <h3 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display mb-1">🏢 Recepción de Carga y Báscula (Warehouse Check-In)</h3>
+                            <p className="text-4xs text-gray-500">Módulo operativo en andén para pesar, medir e ingresar paquetes a estanterías físicas de almacenamiento, con generación de código QR/Etiqueta Zebra.</p>
+                          </div>
+
+                          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                            
+                            {/* Warehouse check-in form - LEFT */}
+                            <form onSubmit={handleWarehouseCheckIn} className="lg:col-span-7 space-y-4">
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Casillero Destino *</label>
+                                  <select
+                                    value={warehouseLocker}
+                                    onChange={(e) => setWarehouseLocker(e.target.value)}
+                                    className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white font-mono text-brand-orange font-bold"
+                                  >
+                                    {users.filter(u => u.role === 'client').map(u => (
+                                      <option key={u.lockerId} value={u.lockerId}>{u.lockerId} &mdash; {u.name}</option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                <div>
+                                  <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Ubicación Estantería (Rack Bin) *</label>
+                                  <select
+                                    value={warehouseBinInput}
+                                    onChange={(e) => setWarehouseBinInput(e.target.value)}
+                                    className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white font-semibold font-mono"
+                                  >
+                                    <option value="Rack A-01">Rack A-01</option>
+                                    <option value="Rack A-02">Rack A-02</option>
+                                    <option value="Rack A-12">Rack A-12</option>
+                                    <option value="Rack B-04">Rack B-04</option>
+                                    <option value="Rack B-08">Rack B-08</option>
+                                    <option value="Rack C-02">Rack C-02</option>
+                                    <option value="Rack C-09">Rack C-09</option>
+                                    <option value="Rack D-01">Rack D-01</option>
+                                    <option value="Rack D-10">Rack D-10</option>
+                                  </select>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Lectura de Báscula (Peso en Kg) *</label>
+                                  <input
+                                    type="number"
+                                    step="0.1"
+                                    min="0.1"
+                                    required
+                                    value={warehouseWeightInput}
+                                    onChange={(e) => setWarehouseWeightInput(Number(e.target.value))}
+                                    className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold font-mono"
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Descripción del Contenido *</label>
+                                  <input
+                                    type="text"
+                                    required
+                                    placeholder="Ej: Calzado, repuestos, ropa..."
+                                    value={warehouseNotes}
+                                    onChange={(e) => setWarehouseNotes(e.target.value)}
+                                    className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark"
+                                  />
+                                </div>
+                              </div>
+
+                              <button
+                                type="submit"
+                                className="w-full bg-brand-orange hover:bg-brand-orange-hover text-white text-3xs font-extrabold py-2.5 rounded uppercase tracking-wider transition cursor-pointer"
+                              >
+                                Ingresar a Bodega Central
+                              </button>
+                            </form>
+
+                            {/* Thermal printer sticker label simulation preview - RIGHT */}
+                            <div className="lg:col-span-5 space-y-4">
+                              <span className="text-4xs font-bold text-gray-400 uppercase tracking-widest block text-center">ETIQUETA TÉRMICA GENERADA (IMPRESORA ZEBRA)</span>
+                              
+                              {/* The simulated sticker */}
+                              <div className="bg-white border-2 border-brand-gray-dark p-6 max-w-xs mx-auto rounded shadow-lg text-brand-gray-dark space-y-4 font-mono select-none relative overflow-hidden active-accent-border">
+                                <div className="text-center font-black border-b border-brand-gray-dark pb-2">
+                                  <div className="text-xs tracking-widest uppercase">SHIPFAST GT</div>
+                                  <div className="text-4xs text-gray-500">WAREHOUSE REGIONAL HUB</div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2 text-4xs">
+                                  <div>
+                                    <span className="block text-gray-400 uppercase font-black">Casillero:</span>
+                                    <strong className="text-xs font-black tracking-widest block">{warehouseLocker}</strong>
+                                  </div>
+                                  <div className="text-right">
+                                    <span className="block text-gray-400 uppercase font-black">Rack Estante:</span>
+                                    <strong className="text-xs font-black block text-brand-orange">{warehouseBinInput}</strong>
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2 text-4xs">
+                                  <div>
+                                    <span className="block text-gray-400 uppercase font-black">Peso Físico:</span>
+                                    <strong className="text-xs font-bold block">{warehouseWeightInput.toFixed(1)} Kg</strong>
+                                  </div>
+                                  <div className="text-right">
+                                    <span className="block text-gray-400 uppercase font-black">Flete Est.:</span>
+                                    <strong className="text-xs font-bold block">Q {(ratesSettings.baseEstandar + (warehouseWeightInput * ratesSettings.pesoEstandar)).toFixed(2)}</strong>
+                                  </div>
+                                </div>
+
+                                <div className="border-t border-brand-gray-dark pt-2">
+                                  <div className="text-4xs text-gray-500 uppercase font-black block text-center mb-1">Rastreo de Distribución</div>
+                                  
+                                  {/* Sleek barcode simulation */}
+                                  <div className="flex justify-center items-stretch h-8 space-x-[1.5px] bg-white">
+                                    {barcodeLines.map((width, idx) => (
+                                      <div 
+                                        key={idx} 
+                                        className="bg-brand-gray-dark h-full" 
+                                        style={{ width: `${width * 0.75}px` }} 
+                                      />
+                                    ))}
+                                  </div>
+                                  
+                                  <div className="text-4xs text-center font-black mt-1">*{warehouseLocker}-HUB-GT*</div>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    alert('Imprimiendo etiqueta en Impresora Térmica Zebra GK420d... (Simulación Completada).');
+                                  }}
+                                  className="w-full bg-brand-gray-dark hover:bg-gray-800 text-white text-4xs font-bold py-1.5 rounded uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-1.5"
+                                >
+                                  <Printer className="h-3 w-3 text-brand-orange animate-pulse" />
+                                  Imprimir Sticker Técnico
+                                </button>
+                              </div>
+                            </div>
+
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* ==================== 6. INVENTARIO FÍSICO DE RACKS (`inventario`) ==================== */}
+                    {adminSubTab === 'inventario' && (() => {
+                      const activeInBodega = shipments.filter(s => s.status === 'En Sucursal');
+                      
+                      // We construct a physical rack visual representation
+                      const racksListVisual = ['A', 'B', 'C', 'D'];
+                      const binsListVisual = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10'];
+
+                      return (
+                        <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs space-y-6">
+                          <div>
+                            <h3 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display mb-1">🏢 Inventario Físico y Mapeo de Estanterías</h3>
+                            <p className="text-4xs text-gray-500">Esquema visual interactivo de los Racks A-D del Hub de Distribución. Seleccione y agrupe paquetes para su posterior consolidación en vuelos nacionales.</p>
+                          </div>
+
+                          {/* Visual Racks Grid */}
+                          <div className="bg-gray-50 border border-gray-200 p-5 rounded-lg space-y-4">
+                            <span className="text-4xs font-bold text-gray-400 uppercase tracking-widest block">Mapeo del Almacén en Tiempo Real</span>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                              {racksListVisual.map(rack => (
+                                <div key={rack} className="bg-white border border-gray-200 rounded-lg p-4 space-y-2.5">
+                                  <h4 className="text-2xs font-extrabold text-brand-gray-dark uppercase tracking-widest font-mono border-b border-gray-100 pb-1.5 flex justify-between">
+                                    <span>RACK {rack} (Almacenamiento)</span>
+                                    <span className="text-gray-400 font-semibold font-sans">10 Bins Estándar</span>
+                                  </h4>
+                                  
+                                  {/* Grid of Bins */}
+                                  <div className="grid grid-cols-5 gap-2">
+                                    {binsListVisual.map(bin => {
+                                      const coord = `Rack ${rack}-${bin}`;
+                                      const occupant = activeInBodega.find(s => s.notes && s.notes.includes(coord));
+                                      
+                                      return (
+                                        <button
+                                          key={bin}
+                                          onClick={() => {
+                                            if (occupant) {
+                                              alert(`Bin ocupado por: ${occupant.id}\nCasillero: ${occupant.lockerId}\nPeso: ${occupant.weight} Kg\nContenido: ${occupant.notes}`);
+                                            } else {
+                                              alert(`Bin ${coord} disponible para ingreso de carga.`);
+                                            }
+                                          }}
+                                          className={`py-2 px-1 text-4xs font-mono font-bold rounded text-center border uppercase transition-all duration-200 ${
+                                            occupant 
+                                              ? 'bg-orange-50 border-brand-orange text-brand-orange hover:bg-orange-100' 
+                                              : 'bg-green-50 border-green-200 text-green-700 hover:bg-green-100'
+                                          }`}
+                                        >
+                                          <div>{rack}-{bin}</div>
+                                          <div className="text-[7px] font-semibold tracking-tight mt-0.5 truncate max-w-[45px]">
+                                            {occupant ? occupant.lockerId : 'VACÍO'}
+                                          </div>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Inventory Table Selector for Consolidation */}
+                          <div className="space-y-3">
+                            <div className="flex justify-between items-center">
+                              <h4 className="text-3xs font-extrabold text-brand-gray-dark uppercase tracking-wider">Listado General en Bodega para Consolidar</h4>
+                              <span className="bg-brand-orange/15 text-brand-orange text-4xs font-bold px-3 py-1 rounded-full uppercase border border-brand-orange/20">
+                                {selectedInventoryItems.length} seleccionados
+                              </span>
+                            </div>
+
+                            <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                              <table className="w-full text-left border-collapse">
+                                <thead>
+                                  <tr className="bg-gray-100 border-b border-gray-200 text-4xs font-extrabold text-gray-500 uppercase tracking-wider">
+                                    <th className="py-2.5 px-4 text-center w-12">Seleccionar</th>
+                                    <th className="py-2.5 px-3">Guía ID</th>
+                                    <th className="py-2.5 px-3">Casillero</th>
+                                    <th className="py-2.5 px-3">Consignatario</th>
+                                    <th className="py-2.5 px-3">Peso Físico</th>
+                                    <th className="py-2.5 px-3">Ubicación Rack</th>
+                                    <th className="py-2.5 px-3">Fecha Recibido</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100 text-3xs font-semibold text-brand-gray-dark">
+                                  {activeInBodega.map(item => {
+                                    const isChecked = selectedInventoryItems.includes(item.id);
+                                    // Parse rack bin from notes if possible
+                                    const rackMatches = item.notes ? item.notes.match(/Rack [A-D]-[0-9]+/g) : null;
+                                    const rackBin = rackMatches ? rackMatches[0] : 'N/A';
+
+                                    return (
+                                      <tr key={item.id} className="hover:bg-gray-50/50">
+                                        <td className="py-2.5 px-4 text-center">
+                                          <input
+                                            type="checkbox"
+                                            checked={isChecked}
+                                            onChange={() => {
+                                              if (isChecked) {
+                                                setSelectedInventoryItems(prev => prev.filter(id => id !== item.id));
+                                              } else {
+                                                setSelectedInventoryItems(prev => [...prev, item.id]);
+                                              }
+                                            }}
+                                            className="rounded border-gray-300 text-brand-orange focus:ring-brand-orange cursor-pointer h-3.5 w-3.5"
+                                          />
+                                        </td>
+                                        <td className="py-2.5 px-3 font-bold text-brand-orange uppercase">{item.id}</td>
+                                        <td className="py-2.5 px-3 font-mono text-gray-500">{item.lockerId}</td>
+                                        <td className="py-2.5 px-3 font-bold">{item.receiver}</td>
+                                        <td className="py-2.5 px-3 font-mono">{item.weight} Kg</td>
+                                        <td className="py-2.5 px-3 font-mono text-brand-orange font-bold">{rackBin}</td>
+                                        <td className="py-2.5 px-3 text-gray-400 font-mono">{item.lastUpdated}</td>
+                                      </tr>
+                                    );
+                                  })}
+
+                                  {activeInBodega.length === 0 && (
+                                    <tr>
+                                      <td colSpan={7} className="text-center py-10 text-gray-400 font-medium">
+                                        No hay paquetes disponibles en bodega central en este momento.
+                                      </td>
+                                    </tr>
+                                  )}
+                                </tbody>
+                              </table>
+                            </div>
+
+                            {selectedInventoryItems.length > 0 && (
+                              <div className="pt-2 flex justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => setAdminSubTab('consolidado')}
+                                  className="bg-brand-orange hover:bg-brand-orange-hover text-white text-3xs font-extrabold px-5 py-2 rounded uppercase tracking-wider transition cursor-pointer flex items-center gap-1.5"
+                                >
+                                  <Layers className="h-3.5 w-3.5" />
+                                  Proceder a Consolidar Lote
+                                </button>
+                              </div>
+                            )}
+                          </div>
+
+                        </div>
+                      );
+                    })()}
+
+                    {/* ==================== 7. CONSOLIDADOS DE CARGA (`consolidado`) ==================== */}
+                    {adminSubTab === 'consolidado' && (
+                      <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs space-y-6">
+                        <div>
+                          <h3 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display mb-1">📦 Consolidación de Carga y Guías Madre (Master Waybill)</h3>
+                          <p className="text-4xs text-gray-500">Agrupe los paquetes seleccionados en el inventario bajo un manifiesto maestro de vuelo o camión troncal para despachar en masa con estatus unificado.</p>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                          
+                          {/* Consolidation creator - LEFT */}
+                          <div className="lg:col-span-7 space-y-6">
+                            
+                            {/* Selected Packages List Summary */}
+                            <div className="bg-gray-50 border border-gray-200 p-4 rounded-lg space-y-3">
+                              <h4 className="text-3xs font-extrabold text-brand-gray-dark uppercase tracking-wider">Resumen del Lote a Agrupar ({selectedInventoryItems.length} Items)</h4>
+                              
+                              {selectedInventoryItems.length > 0 ? (
+                                <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
+                                  {selectedInventoryItems.map(itemId => {
+                                    const match = shipments.find(s => s.id === itemId);
+                                    if (!match) return null;
+                                    return (
+                                      <div key={itemId} className="bg-white p-2.5 rounded border border-gray-200 flex justify-between items-center text-4xs font-mono font-semibold">
+                                        <div>
+                                          <span className="font-bold text-brand-orange block">{match.id}</span>
+                                          <span className="text-gray-400">Casillero: {match.lockerId} | {match.receiver}</span>
+                                        </div>
+                                        <strong>{match.weight} Kg</strong>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                <p className="text-4xs text-gray-400 italic">No hay paquetes seleccionados del inventario. Vaya a la pestaña "Inventario Físico" y active las casillas.</p>
+                              )}
+                            </div>
+
+                            {/* Manifest Master Details Form */}
+                            <div className="space-y-4">
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Código de Manifiesto Consolidado *</label>
+                                  <input
+                                    type="text"
+                                    required
+                                    className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-bold font-mono text-brand-orange uppercase"
+                                    defaultValue={`SF-CONS-${Math.floor(100 + Math.random() * 900)}-GT`}
+                                    id="consolidatedIdInput"
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Ruta Troncal / Vuelo *</label>
+                                  <input
+                                    type="text"
+                                    required
+                                    placeholder="Ej: Vuelo AA-902, Ruta Occidente Camión 3"
+                                    className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark"
+                                    value={newConsolidationNotes}
+                                    onChange={(e) => setNewConsolidationNotes(e.target.value)}
+                                  />
+                                </div>
+                              </div>
+
+                              <button
+                                type="button"
+                                disabled={selectedInventoryItems.length === 0}
+                                onClick={() => {
+                                  if (selectedInventoryItems.length === 0) {
+                                    alert('Debe tener al menos un paquete seleccionado en el inventario.');
+                                    return;
+                                  }
+
+                                  const inputId = (document.getElementById('consolidatedIdInput') as HTMLInputElement)?.value || 'SF-CONS-999-GT';
+                                  const currentDate = new Date().toISOString().split('T')[0];
+                                  const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
+
+                                  // Calculate total weight of selected items
+                                  const totalWeightVal = selectedInventoryItems.reduce((acc, currId) => {
+                                    const match = shipments.find(s => s.id === currId);
+                                    return acc + (match ? match.weight : 0);
+                                  }, 0);
+
+                                  // Create Master Waybill item
+                                  const newCons = {
+                                    id: inputId,
+                                    date: currentDate,
+                                    origin: 'Miami Hub, FL',
+                                    destination: 'Guatemala Central',
+                                    status: 'En Tránsito',
+                                    itemsCount: selectedInventoryItems.length,
+                                    totalWeight: totalWeightVal,
+                                    notes: newConsolidationNotes || 'Ruta Troncal unificada'
+                                  };
+
+                                  setConsolidatedGuides([newCons, ...consolidatedGuides]);
+
+                                  // Update selected shipments status to En Tránsito and append to history
+                                  setShipments(prev => prev.map(s => {
+                                    if (selectedInventoryItems.includes(s.id)) {
+                                      return {
+                                        ...s,
+                                        status: 'En Tránsito',
+                                        lastUpdated: `${currentDate} ${currentTime}`,
+                                        history: [
+                                          {
+                                            date: currentDate,
+                                            time: currentTime,
+                                            status: 'En Tránsito',
+                                            location: 'Ruta Troncal Primaria',
+                                            details: `Manifiesto agrupado en Guía Madre Consolidada ${inputId} bajo la ruta ${newConsolidationNotes || 'Troncal'}.`
+                                          },
+                                          ...s.history
+                                        ]
+                                      };
+                                    }
+                                    return s;
+                                  }));
+
+                                  alert(`Consolidación ${inputId} generada exitosamente. Se unificaron ${selectedInventoryItems.length} paquetes con un peso total acumulado de ${totalWeightVal.toFixed(1)} Kg. Estado unificado de guías actualizado a En Tránsito.`);
+                                  setSelectedInventoryItems([]);
+                                  setNewConsolidationNotes('');
+                                }}
+                                className="w-full bg-brand-orange hover:bg-brand-orange-hover disabled:bg-gray-300 text-white text-3xs font-extrabold py-2.5 rounded uppercase tracking-wider transition cursor-pointer"
+                              >
+                                Consolidar y Despachar Lote
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Master Waybills active log - RIGHT */}
+                          <div className="lg:col-span-5 space-y-4">
+                            <span className="text-4xs font-bold text-gray-400 uppercase tracking-widest block text-center">HISTORIAL DE GUÍAS MADRE EMITIDAS</span>
+                            
+                            <div className="space-y-4 max-h-[350px] overflow-y-auto pr-1">
+                              {consolidatedGuides.map(guide => (
+                                <div key={guide.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-3xs space-y-3 font-mono text-3xs text-brand-gray-dark border-t-4 border-t-brand-orange">
+                                  <div className="flex justify-between items-center border-b border-gray-100 pb-1.5">
+                                    <strong className="text-brand-orange font-black text-2xs">{guide.id}</strong>
+                                    <span className="bg-blue-50 border border-blue-200 text-blue-800 text-4xs font-bold px-2 py-0.5 rounded-full">{guide.status}</span>
+                                  </div>
+                                  
+                                  <div className="grid grid-cols-2 gap-2 text-4xs">
+                                    <div>&bull; Fecha: <strong>{guide.date}</strong></div>
+                                    <div>&bull; Bultos Consol.: <strong>{guide.itemsCount} Guías</strong></div>
+                                    <div>&bull; Origen: <strong>{guide.origin}</strong></div>
+                                    <div>&bull; Peso Master: <strong>{guide.totalWeight.toFixed(1)} Kg</strong></div>
+                                  </div>
+
+                                  <div className="text-4xs text-gray-500 leading-normal border-t border-gray-100 pt-2 font-sans italic">
+                                    <strong>Planificación de Ruta:</strong> {guide.notes}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ==================== 8. FACTURACIÓN Y COBROS (`facturacion`) ==================== */}
+                    {adminSubTab === 'facturacion' && (
+                      <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs space-y-6">
+                        <div>
+                          <h3 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display mb-1">💰 Facturación y Control de Fletes de Clientes</h3>
+                          <p className="text-4xs text-gray-500">Módulo de contabilidad. Genere facturas directas con importes fijos expresados puramente en Quetzales (Q), libres de recargos automáticos o fórmulas de IVA.</p>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                          
+                          {/* Invoice table list - LEFT */}
+                          <div className="lg:col-span-8 space-y-4">
+                            <span className="text-4xs font-bold text-gray-400 uppercase tracking-widest block">Libro Ledger de Facturas Emitidas</span>
+                            
+                            <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                              <table className="w-full text-left border-collapse">
+                                <thead>
+                                  <tr className="bg-gray-100 border-b border-gray-200 text-4xs font-extrabold text-gray-500 uppercase tracking-wider">
+                                    <th className="py-2.5 px-4">Factura ID</th>
+                                    <th className="py-2.5 px-3">Casillero</th>
+                                    <th className="py-2.5 px-3">Fecha Emisión</th>
+                                    <th className="py-2.5 px-3">Concepto Descripción</th>
+                                    <th className="py-2.5 px-3 text-right">Importe Cobro</th>
+                                    <th className="py-2.5 px-4 text-center">Estado Pago</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100 text-3xs font-semibold text-brand-gray-dark">
+                                  {invoices.map(invoice => (
+                                    <tr key={invoice.id} className="hover:bg-gray-50/50">
+                                      <td className="py-3 px-4 font-bold text-brand-gray-dark uppercase">{invoice.id}</td>
+                                      <td className="py-3 px-3 font-mono text-gray-500">{invoice.lockerId}</td>
+                                      <td className="py-3 px-3 font-mono">{invoice.date}</td>
+                                      <td className="py-3 px-3 font-bold">{invoice.concept}</td>
+                                      <td className="py-3 px-3 text-right font-mono text-brand-orange font-black">Q {invoice.amount.toFixed(2)}</td>
+                                      <td className="py-3 px-4 text-center">
+                                        <span className={`px-2 py-0.5 rounded text-4xs font-extrabold uppercase border ${
+                                          invoice.paymentStatus === 'Pagado'
+                                            ? 'bg-green-50 border-green-200 text-green-700'
+                                            : 'bg-red-50 border-red-200 text-red-700 font-extrabold animate-pulse'
+                                        }`}>
+                                          {invoice.paymentStatus}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+
+                          {/* Invoice form manual creator - RIGHT */}
+                          <div className="lg:col-span-4 bg-gray-50 border border-gray-200 p-5 rounded-lg space-y-4">
+                            <h4 className="text-3xs font-extrabold text-brand-gray-dark uppercase tracking-wider border-b border-gray-200 pb-1.5">Emitir Factura Manual (Q)</h4>
+                            
+                            <form 
+                              onSubmit={(e) => {
+                                e.preventDefault();
+                                if (!invoiceConcept.trim()) {
+                                  alert('Ingrese el concepto del cobro.');
+                                  return;
+                                }
+
+                                const currentDate = new Date().toISOString().split('T')[0];
+                                const invoiceId = `FAC-${1000 + invoices.length + 1}`;
+
+                                setInvoices(prev => [
+                                  {
+                                    id: invoiceId,
+                                    lockerId: invoiceLocker,
+                                    date: currentDate,
+                                    concept: invoiceConcept,
+                                    amount: invoiceAmount,
+                                    paymentStatus: 'Pendiente'
+                                  },
+                                  ...prev
+                                ]);
+
+                                alert(`Factura manual ${invoiceId} emitida por un valor de Q ${invoiceAmount.toFixed(2)} asociada al casillero ${invoiceLocker}.`);
+                                setInvoiceConcept('');
+                                setInvoiceAmount(120.00);
+                              }}
+                              className="space-y-3"
+                            >
+                              <div>
+                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Casillero Asignado *</label>
+                                <select
+                                  value={invoiceLocker}
+                                  onChange={(e) => setInvoiceLocker(e.target.value)}
+                                  className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white font-mono text-brand-orange font-bold"
+                                >
+                                  {users.filter(u => u.role === 'client').map(u => (
+                                    <option key={u.lockerId} value={u.lockerId}>{u.lockerId} &mdash; {u.name}</option>
+                                  ))}
                                 </select>
                               </div>
 
                               <div>
-                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Ubicación Actual</label>
+                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Concepto Detalle *</label>
                                 <input
                                   type="text"
                                   required
-                                  placeholder="Ej: Hub Central, Guatemala"
-                                  value={updateLocationVal}
-                                  onChange={(e) => setUpdateLocationVal(e.target.value)}
-                                  className="w-full px-2 py-1 text-2xs border border-gray-300 rounded"
+                                  placeholder="Ej: Flete de paquete SF-4912-GT"
+                                  value={invoiceConcept}
+                                  onChange={(e) => setInvoiceConcept(e.target.value)}
+                                  className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark"
                                 />
+                              </div>
+
+                              <div>
+                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Importe en Quetzales (Q) *</label>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  required
+                                  value={invoiceAmount}
+                                  onChange={(e) => setInvoiceAmount(Number(e.target.value))}
+                                  className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-bold font-mono text-brand-gray-dark"
+                                />
+                              </div>
+
+                              <button
+                                type="submit"
+                                className="w-full bg-brand-orange hover:bg-brand-orange-hover text-white text-3xs font-extrabold py-2 rounded uppercase tracking-wider transition cursor-pointer"
+                              >
+                                Emitir Factura Manual
+                              </button>
+                            </form>
+                          </div>
+
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ==================== 9. REGISTRO DE PAGOS / COBROS (`pagos`) ==================== */}
+                    {adminSubTab === 'pagos' && (
+                      <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs space-y-6">
+                        <div>
+                          <h3 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display mb-1">💰 Caja Chica y Recibos de Pagos Recaudados</h3>
+                          <p className="text-4xs text-gray-500">Módulo de control de caja. Reciba pagos en efectivo, transferencia o contra-entrega (COD) para cancelar facturas pendientes, sumando saldo líquido en tiempo real.</p>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                          
+                          {/* Payments Log Ledger - LEFT */}
+                          <div className="lg:col-span-8 space-y-4">
+                            <span className="text-4xs font-bold text-gray-400 uppercase tracking-widest block">Historial Ledger de Transacciones de Caja</span>
+                            
+                            <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                              <table className="w-full text-left border-collapse">
+                                <thead>
+                                  <tr className="bg-gray-100 border-b border-gray-200 text-4xs font-extrabold text-gray-500 uppercase tracking-wider">
+                                    <th className="py-2.5 px-4">Recibo ID</th>
+                                    <th className="py-2.5 px-3">Casillero</th>
+                                    <th className="py-2.5 px-3">Factura Relac.</th>
+                                    <th className="py-2.5 px-3">Fecha Recibo</th>
+                                    <th className="py-2.5 px-3">Método Pago</th>
+                                    <th className="py-2.5 px-3 text-right">Monto Recaudado</th>
+                                    <th className="py-2.5 px-4">Notas / Auditoría</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100 text-3xs font-semibold text-brand-gray-dark">
+                                  {paymentsLog.map(pay => (
+                                    <tr key={pay.id} className="hover:bg-gray-50/50">
+                                      <td className="py-3 px-4 font-bold text-brand-gray-dark uppercase">{pay.id}</td>
+                                      <td className="py-3 px-3 font-mono text-gray-500">{pay.lockerId}</td>
+                                      <td className="py-3 px-3 font-bold text-brand-orange uppercase">{pay.invoiceId}</td>
+                                      <td className="py-3 px-3 font-mono">{pay.date}</td>
+                                      <td className="py-3 px-3 font-bold">{pay.method}</td>
+                                      <td className="py-3 px-3 text-right font-mono text-green-700 font-black">Q {pay.amount.toFixed(2)}</td>
+                                      <td className="py-3 px-4 text-gray-400 italic">{pay.notes}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+
+                          {/* Record Payment Form - RIGHT */}
+                          <div className="lg:col-span-4 bg-gray-50 border border-gray-200 p-5 rounded-lg space-y-4">
+                            <h4 className="text-3xs font-extrabold text-brand-gray-dark uppercase tracking-wider border-b border-gray-200 pb-1.5">Registrar Cobro Recibido (Caja)</h4>
+                            
+                            <form 
+                              onSubmit={(e) => {
+                                e.preventDefault();
+                                
+                                const selectedInvoice = invoices.find(i => i.id === paymentInvoice);
+                                if (!selectedInvoice) {
+                                  alert('Seleccione una factura pendiente válida.');
+                                  return;
+                                }
+
+                                const currentDate = new Date().toISOString().split('T')[0];
+                                const receiptId = `PAG-${500 + paymentsLog.length + 1}`;
+
+                                // Update invoice status
+                                setInvoices(prev => prev.map(inv => inv.id === paymentInvoice ? { ...inv, paymentStatus: 'Pagado' } : inv));
+
+                                // Append transaction receipt
+                                setPaymentsLog(prev => [
+                                  {
+                                    id: receiptId,
+                                    lockerId: paymentLocker,
+                                    date: currentDate,
+                                    method: paymentMethod,
+                                    invoiceId: paymentInvoice,
+                                    amount: paymentAmount,
+                                    notes: paymentNotes || 'Auditado en ventanilla'
+                                  },
+                                  ...prev
+                                ]);
+
+                                alert(`¡Recibo de pago ${receiptId} registrado correctamente! Factura ${paymentInvoice} marcada como Pagada.`);
+                                
+                                // Reset fields
+                                setPaymentNotes('');
+                              }}
+                              className="space-y-3"
+                            >
+                              <div>
+                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Seleccionar Factura Pendiente *</label>
+                                <select
+                                  value={paymentInvoice}
+                                  onChange={(e) => {
+                                    setPaymentInvoice(e.target.value);
+                                    const match = invoices.find(i => i.id === e.target.value);
+                                    if (match) {
+                                      setPaymentLocker(match.lockerId);
+                                      setPaymentAmount(match.amount);
+                                    }
+                                  }}
+                                  className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white font-mono text-brand-orange font-bold"
+                                >
+                                  <option value="">-- Facturas en Cola --</option>
+                                  {invoices.filter(i => i.paymentStatus === 'Pendiente').map(i => (
+                                    <option key={i.id} value={i.id}>{i.id} &mdash; {i.lockerId} (Q {i.amount.toFixed(2)})</option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-2 text-4xs bg-white p-2.5 rounded border border-gray-200">
+                                <div>Locker: <strong>{paymentLocker}</strong></div>
+                                <div>Monto: <strong>Q {paymentAmount.toFixed(2)}</strong></div>
+                              </div>
+
+                              <div>
+                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Método de Recaudación *</label>
+                                <select
+                                  value={paymentMethod}
+                                  onChange={(e) => setPaymentMethod(e.target.value)}
+                                  className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white font-semibold"
+                                >
+                                  <option value="Transferencia Bancaria">Transferencia Bancaria</option>
+                                  <option value="Pago en Efectivo">Pago en Efectivo</option>
+                                  <option value="Tarjeta de Crédito">Tarjeta de Crédito/Débito</option>
+                                  <option value="Contra-Entrega (COD)">Contra-Entrega (COD)</option>
+                                </select>
+                              </div>
+
+                              <div>
+                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Notas / Código Referencia *</label>
+                                <input
+                                  type="text"
+                                  required
+                                  placeholder="Ej: Depósito Banrural Ref #8219"
+                                  value={paymentNotes}
+                                  onChange={(e) => setPaymentNotes(e.target.value)}
+                                  className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark"
+                                />
+                              </div>
+
+                              <button
+                                type="submit"
+                                className="w-full bg-brand-orange hover:bg-brand-orange-hover text-white text-3xs font-extrabold py-2 rounded uppercase tracking-wider transition cursor-pointer"
+                              >
+                                Registrar Recibo de Pago
+                              </button>
+                            </form>
+                          </div>
+
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ==================== 10. REGISTRO DE GASTOS (`gastos`) ==================== */}
+                    {adminSubTab === 'gastos' && (
+                      <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs space-y-6">
+                        <div>
+                          <h3 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display mb-1">💸 Registro de Gastos y Egresos Operativos</h3>
+                          <p className="text-4xs text-gray-500">Módulo de control presupuestario. Registre egresos de combustible, viáticos, mantenimiento de vehículos o reparaciones, deduciendo automáticamente el efectivo neto.</p>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                          
+                          {/* Expenses table ledger - LEFT */}
+                          <div className="lg:col-span-8 space-y-4">
+                            <span className="text-4xs font-bold text-gray-400 uppercase tracking-widest block">Libro Ledger de Egresos y Gastos Administrativos</span>
+                            
+                            <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                              <table className="w-full text-left border-collapse">
+                                <thead>
+                                  <tr className="bg-gray-100 border-b border-gray-200 text-4xs font-extrabold text-gray-500 uppercase tracking-wider">
+                                    <th className="py-2.5 px-4">Gasto ID</th>
+                                    <th className="py-2.5 px-3">Fecha Registro</th>
+                                    <th className="py-2.5 px-3">Categoría Estatus</th>
+                                    <th className="py-2.5 px-3">Detalle / Justificación</th>
+                                    <th className="py-2.5 px-3 text-right">Monto Gastado</th>
+                                    <th className="py-2.5 px-4">Cajero / Operador</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100 text-3xs font-semibold text-brand-gray-dark">
+                                  {expensesLog.map(exp => (
+                                    <tr key={exp.id} className="hover:bg-gray-50/50">
+                                      <td className="py-3 px-4 font-bold text-brand-gray-dark uppercase">{exp.id}</td>
+                                      <td className="py-3 px-3 font-mono">{exp.date}</td>
+                                      <td className="py-3 px-3 font-bold text-brand-orange uppercase">{exp.category}</td>
+                                      <td className="py-3 px-3">{exp.description}</td>
+                                      <td className="py-3 px-3 text-right font-mono text-red-600 font-black">Q {exp.amount.toFixed(2)}</td>
+                                      <td className="py-3 px-4 text-gray-400 font-bold">{exp.cashier}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+
+                          {/* Gasto creator - RIGHT */}
+                          <div className="lg:col-span-4 bg-gray-50 border border-gray-200 p-5 rounded-lg space-y-4">
+                            <h4 className="text-3xs font-extrabold text-brand-gray-dark uppercase tracking-wider border-b border-gray-200 pb-1.5">Registrar Egreso Operativo (Q)</h4>
+                            
+                            <form 
+                              onSubmit={(e) => {
+                                e.preventDefault();
+                                if (!expenseDescription.trim()) {
+                                  alert('Ingrese una justificación detallada del gasto.');
+                                  return;
+                                }
+
+                                const currentDate = new Date().toISOString().split('T')[0];
+                                const expId = `GTO-${800 + expensesLog.length + 1}`;
+
+                                setExpensesLog(prev => [
+                                  {
+                                    id: expId,
+                                    date: currentDate,
+                                    category: expenseCategory,
+                                    description: expenseDescription,
+                                    amount: expenseAmount,
+                                    cashier: 'Auditor Central'
+                                  },
+                                  ...prev
+                                ]);
+
+                                alert(`Gasto administrativo ${expId} por valor de Q ${expenseAmount.toFixed(2)} registrado en el ledger.`);
+                                setExpenseDescription('');
+                                setExpenseAmount(150.00);
+                              }}
+                              className="space-y-3"
+                            >
+                              <div>
+                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Categoría del Gasto *</label>
+                                <select
+                                  value={expenseCategory}
+                                  onChange={(e) => setExpenseCategory(e.target.value)}
+                                  className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white font-semibold"
+                                >
+                                  <option value="Combustible">Combustible Troncales</option>
+                                  <option value="Viáticos">Viáticos / Repartidores</option>
+                                  <option value="Mantenimiento">Mantenimiento Flotilla</option>
+                                  <option value="Servicios">Alquileres / Luz / Internet</option>
+                                  <option value="Papelería">Papelería y Stickers Bodega</option>
+                                  <option value="Otros">Otros Imprevistos</option>
+                                </select>
+                              </div>
+
+                              <div>
+                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Detalle / Proveedor Justificación *</label>
+                                <input
+                                  type="text"
+                                  required
+                                  placeholder="Ej: Diésel camión placas C-214"
+                                  value={expenseDescription}
+                                  onChange={(e) => setExpenseDescription(e.target.value)}
+                                  className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Monto en Quetzales (Q) *</label>
+                                <input
+                                  type="number"
+                                  min="1"
+                                  required
+                                  value={expenseAmount}
+                                  onChange={(e) => setExpenseAmount(Number(e.target.value))}
+                                  className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-bold font-mono text-brand-gray-dark"
+                                />
+                              </div>
+
+                              <button
+                                type="submit"
+                                className="w-full bg-brand-orange hover:bg-brand-orange-hover text-white text-3xs font-extrabold py-2 rounded uppercase tracking-wider transition cursor-pointer"
+                              >
+                                Registrar Egreso
+                              </button>
+                            </form>
+                          </div>
+
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ==================== 11. REPORTES DE RENDIMIENTO (`reportes`) ==================== */}
+                    {adminSubTab === 'reportes' && (() => {
+                      const totalWeightKg = shipments.reduce((acc, curr) => acc + curr.weight, 0);
+                      const deliveredRatio = (shipments.filter(s => s.status === 'Entregado').length / shipments.length) * 100;
+
+                      return (
+                        <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs space-y-6">
+                          <div>
+                            <h3 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display mb-1">📊 Reportes Operativos e Indicadores Clave (KPIs)</h3>
+                            <p className="text-4xs text-gray-500">Módulo gerencial de analítica. Supervise el volumen de carga movilizada, márgenes brutos de rentabilidad neta y tasas operativas en Guatemala.</p>
+                          </div>
+
+                          {/* Graphical Stats Cards */}
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            
+                            {/* Card 1: Load volume */}
+                            <div className="bg-gray-50 border border-gray-200 p-5 rounded-lg space-y-3">
+                              <span className="text-4xs font-bold text-gray-400 uppercase tracking-widest block">Volumen Acumulado de Carga</span>
+                              <div className="text-xl font-black text-brand-gray-dark font-mono">{totalWeightKg.toFixed(1)} Kg</div>
+                              <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                                <div className="bg-brand-orange h-full rounded-full" style={{ width: '74%' }} />
+                              </div>
+                              <span className="text-[10px] text-gray-500 block">+12.4% con respecto a la semana anterior</span>
+                            </div>
+
+                            {/* Card 2: Cash Revenue Net */}
+                            <div className="bg-gray-50 border border-gray-200 p-5 rounded-lg space-y-3">
+                              <span className="text-4xs font-bold text-gray-400 uppercase tracking-widest block">Margen Neto Operativo</span>
+                              <div className="text-xl font-black text-green-700 font-mono">Q {netCashLedger.toFixed(2)}</div>
+                              <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                                <div className="bg-green-600 h-full rounded-full" style={{ width: '85%' }} />
+                              </div>
+                              <span className="text-[10px] text-gray-500 block">Eficiencia financiera consolidada</span>
+                            </div>
+
+                            {/* Card 3: SLA success */}
+                            <div className="bg-gray-50 border border-gray-200 p-5 rounded-lg space-y-3">
+                              <span className="text-4xs font-bold text-gray-400 uppercase tracking-widest block">Tasa SLA de Entregas (Éxito)</span>
+                              <div className="text-xl font-black text-brand-orange font-mono">{deliveredRatio.toFixed(1)}%</div>
+                              <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                                <div className="bg-brand-orange h-full rounded-full" style={{ width: `${deliveredRatio}%` }} />
+                              </div>
+                              <span className="text-[10px] text-gray-500 block">Entregas dentro del rango estimado (24h/48h)</span>
+                            </div>
+
+                          </div>
+
+                          {/* Quick export simulator */}
+                          <div className="p-4 bg-orange-50/50 border border-brand-orange/20 rounded-lg flex flex-col sm:flex-row justify-between items-center gap-3">
+                            <span className="text-3xs text-brand-orange font-bold">¿Desea exportar el libro contable de caja consolidado o el manifiesto unificado en formato de hoja de cálculo?</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                alert('Generando y descargando libro consolidado en formato CSV... (Simulación Exitosa).');
+                              }}
+                              className="bg-brand-gray-dark hover:bg-gray-800 text-white text-3xs font-extrabold px-4 py-2 rounded uppercase tracking-wider transition cursor-pointer flex items-center gap-1.5 shadow-3xs"
+                            >
+                              <FileSpreadsheet className="h-3.5 w-3.5 text-brand-orange animate-pulse" />
+                              Exportar Libro Ledger (.CSV)
+                            </button>
+                          </div>
+
+                        </div>
+                      );
+                    })()}
+
+                    {/* ==================== 12. SEDES Y SUCURSALES (`sucursales`) ==================== */}
+                    {adminSubTab === 'sucursales' && (
+                      <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs space-y-6">
+                        <div>
+                          <h3 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display mb-1">🏢 Sedes, Andenes y Sucursales de Distribución</h3>
+                          <p className="text-4xs text-gray-500">Directorio de hubs físicos autorizados en la red logística de ShipFast Guatemala. Gestione personal asignado, flota automotriz activa y andenes de descarga.</p>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                          
+                          {/* Branch office listings - LEFT */}
+                          <div className="lg:col-span-8 space-y-4">
+                            <span className="text-4xs font-bold text-gray-400 uppercase tracking-widest block">Listado de Sucursales Activas Nacionales</span>
+                            
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              {branchesList.map(branch => (
+                                <div key={branch.id} className="bg-gray-50 border border-gray-200 p-4 rounded-lg space-y-2.5 font-mono text-3xs text-brand-gray-dark border-l-4 border-l-brand-gray-dark hover:border-l-brand-orange transition-all">
+                                  <div className="flex justify-between items-center border-b border-gray-200 pb-1">
+                                    <strong className="text-2xs font-extrabold text-brand-gray-dark font-sans">{branch.name}</strong>
+                                    <span className="text-[10px] text-gray-400 font-bold uppercase">{branch.id}</span>
+                                  </div>
+
+                                  <div className="space-y-1 text-gray-600">
+                                    <div>&bull; Director Regional: <strong>{branch.manager}</strong></div>
+                                    <div>&bull; Región Geográfica: {branch.region}</div>
+                                    <div>&bull; Operadores Staff: <strong>{branch.staffCount} personas</strong></div>
+                                    <div>&bull; Flota Vehicular: <strong>{branch.activeVehicles} unidades</strong></div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Branch office register - RIGHT */}
+                          <div className="lg:col-span-4 bg-gray-50 border border-gray-200 p-5 rounded-lg space-y-4">
+                            <h4 className="text-3xs font-extrabold text-brand-gray-dark uppercase tracking-wider border-b border-gray-200 pb-1.5">Registrar Nueva Sucursal</h4>
+                            
+                            <form 
+                              onSubmit={(e) => {
+                                e.preventDefault();
+                                if (!newBranchName.trim() || !newBranchManager.trim()) {
+                                  alert('Por favor complete todos los datos.');
+                                  return;
+                                }
+
+                                const brId = `SUC-0${branchesList.length + 1}`;
+
+                                setBranchesList(prev => [
+                                  ...prev,
+                                  {
+                                    id: brId,
+                                    name: newBranchName,
+                                    region: newBranchRegion,
+                                    manager: newBranchManager,
+                                    staffCount: 4,
+                                    activeVehicles: 2
+                                  }
+                                ]);
+
+                                alert(`Nueva sucursal regional ${newBranchName} registrada exitosamente bajo el código ${brId}.`);
+                                setNewBranchName('');
+                                setNewBranchManager('');
+                              }}
+                              className="space-y-3"
+                            >
+                              <div>
+                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Nombre Oficial Sucursal *</label>
+                                <input
+                                  type="text"
+                                  required
+                                  placeholder="Ej: Sucursal Chiquimula"
+                                  value={newBranchName}
+                                  onChange={(e) => setNewBranchName(e.target.value)}
+                                  className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Región de Operaciones *</label>
+                                <select
+                                  value={newBranchRegion}
+                                  onChange={(e) => setNewBranchRegion(e.target.value)}
+                                  className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white font-semibold"
+                                >
+                                  <option value="Metropolitana">Metropolitana</option>
+                                  <option value="Central">Central</option>
+                                  <option value="Occidente">Occidente</option>
+                                  <option value="Oriente">Oriente</option>
+                                  <option value="Verapaces">Verapaces</option>
+                                  <option value="Pacífico">Pacífico (Sur)</option>
+                                </select>
+                              </div>
+
+                              <div>
+                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Administrador / Manager de Andén *</label>
+                                <input
+                                  type="text"
+                                  required
+                                  placeholder="Nombre de Gerente"
+                                  value={newBranchManager}
+                                  onChange={(e) => setNewBranchManager(e.target.value)}
+                                  className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark"
+                                />
+                              </div>
+
+                              <button
+                                type="submit"
+                                className="w-full bg-brand-orange hover:bg-brand-orange-hover text-white text-3xs font-extrabold py-2 rounded uppercase tracking-wider transition cursor-pointer"
+                              >
+                                Registrar Sucursal
+                              </button>
+                            </form>
+                          </div>
+
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ==================== 13. USUARIOS Y OPERADORES (`usuarios`) ==================== */}
+                    {adminSubTab === 'usuarios' && (() => {
+                      const handleAddOperator = (e: React.FormEvent) => {
+                        e.preventDefault();
+                        const userName = (document.getElementById('opNameInput') as HTMLInputElement)?.value || '';
+                        const userRole = (document.getElementById('opRoleSelect') as HTMLSelectElement)?.value || 'driver';
+                        let userPhone = (document.getElementById('opPhoneInput') as HTMLInputElement)?.value || '';
+                        const userEmail = (document.getElementById('opEmailInput') as HTMLInputElement)?.value || '';
+
+                        if (!userName.trim() || !userEmail.trim()) {
+                          alert('Por favor complete todos los datos del operador.');
+                          return;
+                        }
+
+                        // Phone validation force +502
+                        userPhone = userPhone.trim();
+                        if (!userPhone.startsWith('+502')) {
+                          userPhone = '+502 ' + userPhone.replace('+502', '').trim();
+                        }
+
+                        const newStaff: UserProfile = {
+                          lockerId: `SFG${users.length}`,
+                          name: userName,
+                          email: userEmail,
+                          phone: userPhone,
+                          address: 'Sucursal Central, Guatemala',
+                          role: userRole,
+                          password: '1234'
+                        };
+
+                        setUsers([...users, newStaff]);
+                        alert(`Operador/Repartidor ${userName} agregado exitosamente con el prefijo +502 en su teléfono.`);
+                        
+                        // Reset fields
+                        (document.getElementById('opNameInput') as HTMLInputElement).value = '';
+                        (document.getElementById('opPhoneInput') as HTMLInputElement).value = '+502 ';
+                        (document.getElementById('opEmailInput') as HTMLInputElement).value = '';
+                      };
+
+                      return (
+                        <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs space-y-6">
+                          <div>
+                            <h3 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display mb-1">👥 Usuarios, Pilotos y Operadores de Distribución</h3>
+                            <p className="text-4xs text-gray-500">Módulo de recursos humanos. Gestione los perfiles de operadores de bodega central y pilotos/mensajeros de ruta. Valide teléfonos con el código de país obligatorio (+502).</p>
+                          </div>
+
+                          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                            
+                            {/* Operator directories - LEFT */}
+                            <div className="lg:col-span-8 space-y-4">
+                              <span className="text-4xs font-bold text-gray-400 uppercase tracking-widest block">Directorio Logístico de Pilotos y Mensajeros Autorizados</span>
+                              
+                              <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                                <table className="w-full text-left border-collapse">
+                                  <thead>
+                                    <tr className="bg-gray-100 border-b border-gray-200 text-4xs font-extrabold text-gray-500 uppercase tracking-wider">
+                                      <th className="py-2.5 px-4">Identificador</th>
+                                      <th className="py-2.5 px-3">Nombre Completo</th>
+                                      <th className="py-2.5 px-3">Rol / Función</th>
+                                      <th className="py-2.5 px-3">Número de Teléfono (+502)</th>
+                                      <th className="py-2.5 px-4">Correo Institucional</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-gray-100 text-3xs font-semibold text-brand-gray-dark">
+                                    {users.map((u, uIdx) => (
+                                      <tr key={uIdx} className="hover:bg-gray-50/50">
+                                        <td className="py-3 px-4 font-mono font-bold text-gray-400">{u.lockerId}</td>
+                                        <td className="py-3 px-3 font-bold">{u.name}</td>
+                                        <td className="py-3 px-3">
+                                          <span className={`px-2 py-0.5 rounded text-4xs font-extrabold uppercase border ${
+                                            u.role === 'admin' 
+                                              ? 'bg-brand-orange/10 border-brand-orange/30 text-brand-orange' 
+                                              : 'bg-gray-50 border-gray-200 text-gray-600'
+                                          }`}>
+                                            {u.role === 'admin' ? 'Administrador Central' : 
+                                             u.role === 'driver' ? 'Mensajero Motorizado' :
+                                             u.role === 'pilot' ? 'Piloto de Carga' :
+                                             u.role === 'operator' ? 'Despachador de Bodega' :
+                                             u.role === 'auditor' ? 'Auditor Contable' : 'Cliente'}
+                                          </span>
+                                        </td>
+                                        <td className="py-3 px-3 font-mono font-bold text-brand-gray-dark">{u.phone}</td>
+                                        <td className="py-3 px-4 font-mono text-gray-400">{u.email}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
                               </div>
                             </div>
 
-                            <div>
-                              <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Detalles de Operación *</label>
-                              <textarea
-                                required
-                                placeholder="Observaciones técnicas o incidencias..."
-                                rows={2}
-                                value={updateDetailsVal}
-                                onChange={(e) => setUpdateDetailsVal(e.target.value)}
-                                className="w-full px-2 py-1 text-2xs border border-gray-300 rounded"
+                            {/* Operator register - RIGHT */}
+                            <div className="lg:col-span-4 bg-gray-50 border border-gray-200 p-5 rounded-lg space-y-4">
+                              <h4 className="text-3xs font-extrabold text-brand-gray-dark uppercase tracking-wider border-b border-gray-200 pb-1.5">Registrar Nuevo Operador</h4>
+                              
+                              <form onSubmit={handleAddOperator} className="space-y-3">
+                                <div>
+                                  <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Nombre Completo *</label>
+                                  <input
+                                    type="text"
+                                    required
+                                    placeholder="Nombre del conductor/operario"
+                                    id="opNameInput"
+                                    className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark"
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Función Operativa *</label>
+                                  <select
+                                    id="opRoleSelect"
+                                    className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white font-semibold"
+                                  >
+                                    <option value="driver">Mensajero Motorizado (Local)</option>
+                                    <option value="pilot">Piloto de Carga Troncal</option>
+                                    <option value="operator">Despachador de Bodega</option>
+                                    <option value="auditor">Auditor Contable</option>
+                                  </select>
+                                </div>
+
+                                <div>
+                                  <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Número de Teléfono (+502) *</label>
+                                  <input
+                                    type="text"
+                                    required
+                                    defaultValue="+502 "
+                                    id="opPhoneInput"
+                                    className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-bold font-mono text-brand-gray-dark"
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Correo Electrónico *</label>
+                                  <input
+                                    type="email"
+                                    required
+                                    placeholder="operador@shipfast.gt"
+                                    id="opEmailInput"
+                                    className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark"
+                                  />
+                                </div>
+
+                                <button
+                                  type="submit"
+                                  className="w-full bg-brand-orange hover:bg-brand-orange-hover text-white text-3xs font-extrabold py-2 rounded uppercase tracking-wider transition cursor-pointer"
+                                >
+                                  Registrar Colaborador
+                                </button>
+                              </form>
+                            </div>
+
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* ==================== 14. CONFIGURACIÓN TARIFARIA (`tarifas`) ==================== */}
+                    {adminSubTab === 'tarifas' && (
+                      <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs space-y-6">
+                        <div>
+                          <h3 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display mb-1">⚙️ Configuración de Tarifas de Envío en Quetzales (Q)</h3>
+                          <p className="text-4xs text-gray-500">Módulo comercial dinámico. Ajuste los precios base y costos por peso adicional. Los cambios en estos parámetros se reflejan instantáneamente en el cotizador público de la landing page.</p>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+                          
+                          {/* Rates sliders - LEFT */}
+                          <div className="bg-gray-50 border border-gray-200 p-6 rounded-lg space-y-6">
+                            <span className="text-4xs font-bold text-gray-400 uppercase tracking-widest block border-b border-gray-200 pb-2">Controles de Margen Tarifario Fijos en Q</span>
+                            
+                            {/* Standard Service Base Rate */}
+                            <div className="space-y-2">
+                              <div className="flex justify-between text-3xs font-bold text-brand-gray-dark">
+                                <span>TARIFA BASE ESTÁNDAR</span>
+                                <span className="text-brand-orange font-mono">Q {ratesSettings.baseEstandar}</span>
+                              </div>
+                              <input
+                                type="range"
+                                min="10"
+                                max="100"
+                                step="5"
+                                value={ratesSettings.baseEstandar}
+                                onChange={(e) => setRatesSettings(prev => ({ ...prev, baseEstandar: Number(e.target.value) }))}
+                                className="w-full accent-brand-orange cursor-pointer"
                               />
                             </div>
 
-                            <button
-                              type="submit"
-                              className="w-full bg-brand-orange hover:bg-brand-orange-hover text-white text-3xs font-extrabold py-2 rounded transition uppercase tracking-wider cursor-pointer"
-                            >
-                              Registrar en Bitácora
-                            </button>
-                          </form>
-                        </div>
-
-                        <div className="p-4 max-h-[180px] overflow-y-auto">
-                          <h5 className="text-3xs font-extrabold text-brand-gray-dark uppercase tracking-wider mb-2">Historial de Eventos</h5>
-                          <div className="space-y-3">
-                            {selectedAdminShipment.history.map((h, hIdx) => (
-                              <div key={hIdx} className="border-l-2 border-brand-orange pl-3 text-3xs space-y-0.5">
-                                <div className="flex justify-between font-bold text-brand-gray-dark">
-                                  <span>{h.status} — {h.location}</span>
-                                  <span className="text-gray-400 font-semibold">{h.date} {h.time}</span>
-                                </div>
-                                <p className="text-gray-500">{h.details}</p>
+                            {/* Express Service Base Rate */}
+                            <div className="space-y-2">
+                              <div className="flex justify-between text-3xs font-bold text-brand-gray-dark">
+                                <span>TARIFA BASE EXPRESS (24h)</span>
+                                <span className="text-brand-orange font-mono">Q {ratesSettings.baseExpress}</span>
                               </div>
-                            ))}
-                          </div>
-                        </div>
+                              <input
+                                type="range"
+                                min="20"
+                                max="200"
+                                step="5"
+                                value={ratesSettings.baseExpress}
+                                onChange={(e) => setRatesSettings(prev => ({ ...prev, baseExpress: Number(e.target.value) }))}
+                                className="w-full accent-brand-orange cursor-pointer"
+                              />
+                            </div>
 
-                      </div>
-                    ) : (
-                      <div className="bg-gray-100 border border-dashed border-gray-300 p-8 rounded-lg text-center text-gray-400 shadow-2xs">
-                        <SlidersHorizontal className="h-8 w-8 text-gray-300 mx-auto mb-2" />
-                        <p className="text-xs font-bold text-brand-gray-dark uppercase">Centro de Operaciones</p>
-                        <p className="text-3xs text-gray-500 mt-1 leading-relaxed">Seleccione un despacho de la tabla para visualizar la ficha técnica, registrar movimientos, cambiar estados o actualizar la bitácora logística.</p>
+                            {/* Additional Weight standard */}
+                            <div className="space-y-2">
+                              <div className="flex justify-between text-3xs font-bold text-brand-gray-dark">
+                                <span>COSTO POR KG EXTRA ESTÁNDAR</span>
+                                <span className="text-brand-orange font-mono">Q {ratesSettings.pesoEstandar} / Kg</span>
+                              </div>
+                              <input
+                                type="range"
+                                min="1"
+                                max="20"
+                                step="1"
+                                value={ratesSettings.pesoEstandar}
+                                onChange={(e) => setRatesSettings(prev => ({ ...prev, pesoEstandar: Number(e.target.value) }))}
+                                className="w-full accent-brand-orange cursor-pointer"
+                              />
+                            </div>
+
+                            {/* Additional Weight express */}
+                            <div className="space-y-2">
+                              <div className="flex justify-between text-3xs font-bold text-brand-gray-dark">
+                                <span>COSTO POR KG EXTRA EXPRESS</span>
+                                <span className="text-brand-orange font-mono">Q {ratesSettings.pesoExpress} / Kg</span>
+                              </div>
+                              <input
+                                type="range"
+                                min="2"
+                                max="40"
+                                step="1"
+                                value={ratesSettings.pesoExpress}
+                                onChange={(e) => setRatesSettings(prev => ({ ...prev, pesoExpress: Number(e.target.value) }))}
+                                className="w-full accent-brand-orange cursor-pointer"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Quick interactive calculator preview - RIGHT */}
+                          <div className="bg-gray-50 border border-gray-200 p-6 rounded-lg space-y-4">
+                            <span className="text-4xs font-bold text-gray-400 uppercase tracking-widest block border-b border-gray-200 pb-2">SIMULADOR CON TARIFAS LIVE</span>
+                            
+                            <div className="space-y-3 text-3xs text-gray-600">
+                              <p>El flete estimado para un paquete promedio de **5 Kg** en servicio **Express** sería de:</p>
+                              
+                              <div className="bg-white border border-gray-200 rounded p-4 text-center space-y-2 font-mono active-accent-border">
+                                <div className="text-[10px] text-gray-400 uppercase">Total Estimado Consolidado</div>
+                                <div className="text-lg font-black text-brand-orange">
+                                  Q {(ratesSettings.baseExpress + (5 * ratesSettings.pesoExpress)).toFixed(2)}
+                                </div>
+                                <div className="text-[9px] text-gray-500 font-semibold font-sans">
+                                  (Base Express Q {ratesSettings.baseExpress} + Cargo Peso 5 Kg x Q {ratesSettings.pesoExpress})
+                                </div>
+                              </div>
+
+                              <p className="text-4xs italic text-gray-400 leading-normal pt-2">
+                                *Nota Comercial: Al cambiar los parámetros comerciales con los sliders de la izquierda, la landing page y el cotizador de casilleros de los clientes se reprogramarán instantáneamente en tiempo real.
+                              </p>
+                            </div>
+                          </div>
+
+                        </div>
                       </div>
                     )}
+
+                    {/* ==================== 15. AJUSTES DE SISTEMA (`ajustes`) ==================== */}
+                    {adminSubTab === 'ajustes' && (
+                      <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs space-y-6">
+                        <div>
+                          <h3 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display mb-1">⚙️ Ajustes Generales del Sistema Logístico</h3>
+                          <p className="text-4xs text-gray-500">Configure los parámetros técnicos meta del Hub digital. Ajuste tiempos, active módulos experimentales y bloquee el registro de casilleros automatizado.</p>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+                          
+                          {/* System settings form */}
+                          <div className="bg-gray-50 border border-gray-200 p-6 rounded-lg space-y-4">
+                            <span className="text-4xs font-bold text-gray-400 uppercase tracking-widest block border-b border-gray-200 pb-2">Parámetros Operativos Generales</span>
+                            
+                            <div className="space-y-3">
+                              <div>
+                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Nombre Oficial del Portal / Site</label>
+                                <input
+                                  type="text"
+                                  className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark"
+                                  value={systemSettings.siteName}
+                                  onChange={(e) => setSystemSettings(prev => ({ ...prev, siteName: e.target.value }))}
+                                />
+                              </div>
+
+                              <div>
+                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Prefijo Telefónico por Defecto</label>
+                                <input
+                                  type="text"
+                                  className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-mono font-bold text-brand-orange"
+                                  value={systemSettings.defaultPrefix}
+                                  onChange={(e) => setSystemSettings(prev => ({ ...prev, defaultPrefix: e.target.value }))}
+                                />
+                              </div>
+
+                              <div>
+                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Horario Operativo de Hubs</label>
+                                <input
+                                  type="text"
+                                  className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold font-mono"
+                                  value={systemSettings.operatingHours}
+                                  onChange={(e) => setSystemSettings(prev => ({ ...prev, operatingHours: e.target.value }))}
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Toggle toggles */}
+                          <div className="bg-gray-50 border border-gray-200 p-6 rounded-lg space-y-4">
+                            <span className="text-4xs font-bold text-gray-400 uppercase tracking-widest block border-b border-gray-200 pb-2">Toggles de Seguridad y Pruebas</span>
+                            
+                            <div className="space-y-4">
+                              {/* Toggle 1: self-reg */}
+                              <div className="flex justify-between items-center text-3xs">
+                                <div>
+                                  <strong className="text-brand-gray-dark block">Permitir Auto-Registro de Clientes</strong>
+                                  <span className="text-gray-400 text-4xs block">Habilita la pestaña de creación de casilleros</span>
+                                </div>
+                                <input
+                                  type="checkbox"
+                                  checked={systemSettings.allowSelfRegistration}
+                                  onChange={(e) => setSystemSettings(prev => ({ ...prev, allowSelfRegistration: e.target.checked }))}
+                                  className="rounded border-gray-300 text-brand-orange focus:ring-brand-orange cursor-pointer h-4 w-4"
+                                />
+                              </div>
+
+                              {/* Toggle 2: sandbox */}
+                              <div className="flex justify-between items-center text-3xs">
+                                <div>
+                                  <strong className="text-brand-gray-dark block">Modo Sandbox de Demostración Activo</strong>
+                                  <span className="text-gray-400 text-4xs block">Simula transiciones de rastreo automáticas</span>
+                                </div>
+                                <input
+                                  type="checkbox"
+                                  checked={systemSettings.sandboxMode}
+                                  onChange={(e) => setSystemSettings(prev => ({ ...prev, sandboxMode: e.target.checked }))}
+                                  className="rounded border-gray-300 text-brand-orange focus:ring-brand-orange cursor-pointer h-4 w-4"
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                        </div>
+                      </div>
+                    )}
+
                   </div>
+
+                  {/* ==================== CREATE NEW INDIVIDUAL SHIPMENT MODAL (OVERLAY) ==================== */}
+                  {newShipmentModal && (
+                    <div className="fixed inset-0 bg-brand-gray-dark/60 backdrop-blur-xs flex justify-center items-center z-40 p-4">
+                      <div className="bg-white w-full max-w-lg rounded-lg border border-gray-200 shadow-2xl overflow-hidden animate-zoom-in">
+                        
+                        <div className="bg-brand-gray-dark text-white p-4 flex justify-between items-center border-b border-gray-800">
+                          <h4 className="text-xs font-extrabold uppercase tracking-wider font-display flex items-center gap-2">
+                            <Plus className="h-4 w-4 text-brand-orange animate-pulse" />
+                            Ingresar Nuevo Envío Individual
+                          </h4>
+                          <button 
+                            onClick={() => setNewShipmentModal(false)}
+                            className="text-gray-400 hover:text-white font-black text-xs cursor-pointer"
+                          >
+                            &times;
+                          </button>
+                        </div>
+
+                        <form onSubmit={handleAdminCreateShipment} className="p-6 space-y-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Nombre Remitente *</label>
+                              <input
+                                type="text"
+                                required
+                                value={adminSender}
+                                onChange={(e) => setAdminSender(e.target.value)}
+                                className="w-full px-2.5 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange font-semibold text-brand-gray-dark"
+                                placeholder="Empresa remitente"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Contacto Consignatario *</label>
+                              <input
+                                type="text"
+                                required
+                                value={adminReceiver}
+                                onChange={(e) => setAdminReceiver(e.target.value)}
+                                className="w-full px-2.5 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange font-semibold text-brand-gray-dark"
+                                placeholder="Persona destino"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Asignar Casillero de Cliente *</label>
+                              <select
+                                value={adminLockerLink}
+                                onChange={(e) => setAdminLockerLink(e.target.value)}
+                                className="w-full px-2 py-1.5 text-3xs border border-gray-300 rounded bg-white font-mono text-brand-orange font-bold focus:ring-1 focus:ring-brand-orange"
+                              >
+                                {users.filter(u => u.role === 'client').map(u => (
+                                  <option key={u.lockerId} value={u.lockerId}>{u.lockerId} — {u.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Dimensiones</label>
+                              <input
+                                type="text"
+                                required
+                                value={adminDimensions}
+                                onChange={(e) => setAdminDimensions(e.target.value)}
+                                className="w-full px-2.5 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark"
+                                placeholder="30x20x20 cm"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Dirección de Origen Principal *</label>
+                              <input
+                                type="text"
+                                required
+                                value={adminOrigin}
+                                onChange={(e) => setAdminOrigin(e.target.value)}
+                                className="w-full px-2.5 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark"
+                                placeholder="Ciudad Origen"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Dirección de Destino Principal *</label>
+                              <input
+                                type="text"
+                                required
+                                value={adminDestination}
+                                onChange={(e) => setAdminDestination(e.target.value)}
+                                className="w-full px-2.5 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark"
+                                placeholder="Ciudad Destino"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Servicio</label>
+                              <select
+                                value={adminService}
+                                onChange={(e) => setAdminService(e.target.value as any)}
+                                className="w-full px-2 py-1.5 text-3xs border border-gray-300 rounded bg-white font-semibold"
+                              >
+                                <option value="Express">Express</option>
+                                <option value="Estándar">Estándar</option>
+                              </select>
+                            </div>
+
+                            <div>
+                              <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Peso Físico (Kg)</label>
+                              <input
+                                type="number"
+                                min="1"
+                                required
+                                value={adminWeight}
+                                onChange={(e) => setAdminWeight(Number(e.target.value))}
+                                className="w-full px-2.5 py-1.5 text-3xs border border-gray-300 rounded font-semibold font-mono"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Observaciones Especiales</label>
+                            <textarea
+                              value={adminNotes}
+                              onChange={(e) => setAdminNotes(e.target.value)}
+                              rows={2}
+                              className="w-full px-2.5 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark"
+                              placeholder="Frágil, no apilar..."
+                            />
+                          </div>
+
+                          <div className="pt-4 border-t border-gray-100 flex justify-end gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => setNewShipmentModal(false)}
+                              className="px-4 py-2 text-3xs border border-gray-300 rounded font-bold uppercase hover:bg-gray-100 cursor-pointer"
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              type="submit"
+                              className="px-5 py-2 text-3xs bg-brand-orange hover:bg-brand-orange-hover text-white rounded font-bold uppercase cursor-pointer"
+                            >
+                              Crear Despacho
+                            </button>
+                          </div>
+
+                        </form>
+                      </div>
+                    </div>
+                  )}
 
                 </div>
-
-                {/* Create New Shipment Modal (Overlay) */}
-                {newShipmentModal && (
-                  <div className="fixed inset-0 bg-brand-gray-dark/60 backdrop-blur-xs flex justify-center items-center z-40 p-4">
-                    <div className="bg-white w-full max-w-lg rounded-lg border border-gray-200 shadow-2xl overflow-hidden animate-zoom-in">
-                      
-                      <div className="bg-brand-gray-dark text-white p-4 flex justify-between items-center border-b border-gray-800">
-                        <h4 className="text-xs font-extrabold uppercase tracking-wider font-display flex items-center gap-2">
-                          <Plus className="h-4 w-4 text-brand-orange animate-pulse" />
-                          Ingresar Nuevo Envío Corporativo
-                        </h4>
-                        <button 
-                          onClick={() => setNewShipmentModal(false)}
-                          className="text-gray-400 hover:text-white font-black text-xs cursor-pointer"
-                        >
-                          &times;
-                        </button>
-                      </div>
-
-                      <form onSubmit={handleAdminCreateShipment} className="p-6 space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Nombre Remitente *</label>
-                            <input
-                              type="text"
-                              required
-                              value={adminSender}
-                              onChange={(e) => setAdminSender(e.target.value)}
-                              className="w-full px-2.5 py-1.5 text-2xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange"
-                              placeholder="Empresa remitente"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Contacto Consignatario *</label>
-                            <input
-                              type="text"
-                              required
-                              value={adminReceiver}
-                              onChange={(e) => setAdminReceiver(e.target.value)}
-                              className="w-full px-2.5 py-1.5 text-2xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange"
-                              placeholder="Persona destino"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Asignar Casillero de Cliente *</label>
-                            <select
-                              value={adminLockerLink}
-                              onChange={(e) => setAdminLockerLink(e.target.value)}
-                              className="w-full px-2 py-1.5 text-2xs border border-gray-300 rounded bg-white font-mono text-brand-orange font-bold focus:ring-1 focus:ring-brand-orange"
-                            >
-                              {users.filter(u => u.role === 'client').map(u => (
-                                <option key={u.lockerId} value={u.lockerId}>{u.lockerId} — {u.name}</option>
-                              ))}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Dimensiones</label>
-                            <input
-                              type="text"
-                              required
-                              value={adminDimensions}
-                              onChange={(e) => setAdminDimensions(e.target.value)}
-                              className="w-full px-2.5 py-1.5 text-2xs border border-gray-300 rounded"
-                              placeholder="30x20x20 cm"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Dirección de Origen Principal *</label>
-                            <input
-                              type="text"
-                              required
-                              value={adminOrigin}
-                              onChange={(e) => setAdminOrigin(e.target.value)}
-                              className="w-full px-2.5 py-1.5 text-2xs border border-gray-300 rounded"
-                              placeholder="Ciudad Origen"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Dirección de Destino Principal *</label>
-                            <input
-                              type="text"
-                              required
-                              value={adminDestination}
-                              onChange={(e) => setAdminDestination(e.target.value)}
-                              className="w-full px-2.5 py-1.5 text-2xs border border-gray-300 rounded"
-                              placeholder="Ciudad Destino"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Servicio</label>
-                            <select
-                              value={adminService}
-                              onChange={(e) => setAdminService(e.target.value as any)}
-                              className="w-full px-2 py-1.5 text-2xs border border-gray-300 rounded bg-white"
-                            >
-                              <option value="Express">Express</option>
-                              <option value="Estándar">Estándar</option>
-                            </select>
-                          </div>
-
-                          <div>
-                            <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Peso Físico (Kg)</label>
-                            <input
-                              type="number"
-                              min="1"
-                              required
-                              value={adminWeight}
-                              onChange={(e) => setAdminWeight(Number(e.target.value))}
-                              className="w-full px-2.5 py-1.5 text-2xs border border-gray-300 rounded"
-                            />
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Observaciones Especiales</label>
-                          <textarea
-                            value={adminNotes}
-                            onChange={(e) => setAdminNotes(e.target.value)}
-                            rows={2}
-                            className="w-full px-2.5 py-1.5 text-2xs border border-gray-300 rounded"
-                            placeholder="Frágil, no apilar..."
-                          />
-                        </div>
-
-                        <div className="pt-4 border-t border-gray-100 flex justify-end gap-2 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => setNewShipmentModal(false)}
-                            className="px-4 py-2 text-2xs border border-gray-300 rounded font-bold uppercase hover:bg-gray-100 cursor-pointer"
-                          >
-                            Cancelar
-                          </button>
-                          <button
-                            type="submit"
-                            className="px-5 py-2 text-2xs bg-brand-orange hover:bg-brand-orange-hover text-white rounded font-bold uppercase cursor-pointer"
-                          >
-                            Crear Despacho
-                          </button>
-                        </div>
-
-                      </form>
-                    </div>
-                  </div>
-                )}
-
-              </div>
-            )}
+              );
+            })()}
 
             {/* ==================== ADMIN: DRIVER PORTAL TERMINAL TAB ==================== */}
             {currentUser.role === 'admin' && activeTab === 'driver-terminal' && (
