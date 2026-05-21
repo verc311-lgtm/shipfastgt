@@ -52,7 +52,7 @@ interface Shipment {
   destination: string;
   status: 'Creado' | 'En Tránsito' | 'En Sucursal' | 'En Ruta' | 'Entregado' | 'Retrasado';
   serviceType: 'Express' | 'Estándar';
-  weight: number; // in kg
+  weight: number; // in Lbs
   dimensions: string;
   lastUpdated: string;
   history: TrackingHistory[];
@@ -5120,7 +5120,6 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                                 receiverName: matchedClient ? matchedClient.name : 'Consignatario General',
                                                 bodega: row.bodega,
                                                 weightLbs: row.weight || 0.0,
-                                                weightKg: Number((row.weight * 0.453592).toFixed(2)),
                                                 pieces: row.pieces || 1,
                                                 destination: matchedClient ? matchedClient.address : 'Guatemala Central'
                                               });
