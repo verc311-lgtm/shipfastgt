@@ -33,7 +33,10 @@ import {
   X,
   Bell,
   UploadCloud,
-  PlusCircle
+  PlusCircle,
+  Share2,
+  FileDown,
+  Link
 } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 
@@ -159,6 +162,7 @@ export default function App() {
     route: string;
     productLink?: string;
   } | null>(null);
+  const [copyLinkSuccess, setCopyLinkSuccess] = useState(false);
 
   // Shipments state
   const [shipments, setShipments] = useState<Shipment[]>(INITIAL_SHIPMENTS);
@@ -514,6 +518,352 @@ export default function App() {
       route,
       productLink: quoteProductLink
     });
+  };
+
+  // Pre-calculate quote if URL has parameters on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const origin = params.get('origin');
+    const destination = params.get('destination');
+    const weight = params.get('weight');
+    const price = params.get('price');
+    const link = params.get('link');
+
+    if (origin || destination || weight || price || link) {
+      const decodedOrigin = origin ? decodeURIComponent(origin) : 'Texas';
+      const decodedDest = destination ? decodeURIComponent(destination) : 'Guatemala';
+      const parsedWeight = weight ? Number(weight) : 1;
+      const parsedPrice = price ? Number(price) : 0;
+      const decodedLink = link ? decodeURIComponent(link) : '';
+
+      setQuoteOrigin(decodedOrigin === 'Mexico' || decodedOrigin === 'México' || decodedOrigin === 'mexico' ? 'México' : 'Texas');
+      setQuoteDestination(decodedDest);
+      setQuoteWeight(parsedWeight);
+      setQuoteProductPriceUsd(parsedPrice > 0 ? parsedPrice : '');
+      setQuoteProductLink(decodedLink);
+
+      // Compute calculations directly
+      const baseVal = 35;
+      let weightCostVal = 0;
+      let daysVal = '3 a 5 Días Hábiles';
+
+      if (decodedOrigin === 'Mexico' || decodedOrigin === 'México' || decodedOrigin === 'mexico') {
+        weightCostVal = parsedWeight * 30;
+        daysVal = '2 a 4 Días Hábiles';
+      } else {
+        weightCostVal = parsedWeight * 60;
+        daysVal = '3 a 5 Días Hábiles';
+      }
+
+      let productPriceQtsVal = 0;
+      let taxesQtsVal = 0;
+
+      if (parsedPrice > 0) {
+        productPriceQtsVal = parsedPrice * 8;
+        taxesQtsVal = Number((productPriceQtsVal * 0.12).toFixed(2));
+      }
+
+      const totalVal = baseVal + weightCostVal + productPriceQtsVal + taxesQtsVal;
+      
+      let routeVal = `Ruta Logística Nacional hacia ${decodedDest}`;
+      if (decodedDest === 'Guatemala' || decodedDest === 'Sacatepéquez' || decodedDest === 'Chimaltenango') {
+        routeVal = `Corredor Central Metropolitano (Destino: ${decodedDest})`;
+      } else if (['Quetzaltenango', 'Huehuetenango', 'San Marcos', 'Totonicapán', 'Sololá', 'Quiché', 'Retalhuleu', 'Suchitepéquez'].includes(decodedDest)) {
+        routeVal = `Corredor Occidente CA-1 (Destino: ${decodedDest})`;
+      } else if (['Escuintla', 'Santa Rosa', 'Jutiapa'].includes(decodedDest)) {
+        routeVal = `Corredor Sur / Costa Sur CA-9 (Destino: ${decodedDest})`;
+      } else if (['Zacapa', 'Chiquimula', 'El Progreso', 'Jalapa', 'Izabal'].includes(decodedDest)) {
+        routeVal = `Corredor Oriental CA-9 Norte (Destino: ${decodedDest})`;
+      } else if (['Alta Verapaz', 'Baja Verapaz', 'Petén'].includes(decodedDest)) {
+        routeVal = `Ruta Transversal del Norte / Petén (Destino: ${decodedDest})`;
+      }
+
+      setCalculatedQuote({
+        base: baseVal,
+        weightCost: weightCostVal,
+        productPriceUsd: parsedPrice,
+        productPriceQts: productPriceQtsVal,
+        taxesQts: taxesQtsVal,
+        total: totalVal,
+        days: daysVal,
+        route: routeVal,
+        productLink: decodedLink || undefined
+      });
+      
+      if (!currentUser) {
+        setAccessTab('quote');
+      }
+    }
+  }, [currentUser]);
+
+  // Copy shareable link to clipboard
+  const handleCopyShareLink = () => {
+    if (!calculatedQuote) return;
+    const baseUrl = window.location.origin + window.location.pathname;
+    const priceParam = calculatedQuote.productPriceUsd ? `&price=${calculatedQuote.productPriceUsd}` : '';
+    const linkParam = calculatedQuote.productLink ? `&link=${encodeURIComponent(calculatedQuote.productLink)}` : '';
+    const shareUrl = `${baseUrl}?origin=${quoteOrigin}&destination=${quoteDestination}&weight=${quoteWeight}${priceParam}${linkParam}`;
+    
+    navigator.clipboard.writeText(shareUrl).then(() => {
+      setCopyLinkSuccess(true);
+      setTimeout(() => setCopyLinkSuccess(false), 3000);
+    });
+  };
+
+  // Download Quote PDF (Opens print-ready professional invoice layout)
+  const handleDownloadPDF = () => {
+    if (!calculatedQuote) return;
+
+    const quoteId = `SF-QT-${Math.floor(100000 + Math.random() * 900000)}`;
+    const dateStr = new Date().toLocaleDateString('es-GT', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Por favor permite las ventanas emergentes (popups) para descargar el PDF de tu cotización.');
+      return;
+    }
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html lang="es">
+      <head>
+        <meta charset="UTF-8">
+        <title>Cotización ${quoteId} - ShipFast GT</title>
+        <style>
+          body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #333;
+            margin: 0;
+            padding: 40px;
+            line-height: 1.5;
+          }
+          .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #EA580C;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+          }
+          .logo-title {
+            font-size: 28px;
+            font-weight: 800;
+            color: #1F2937;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+          }
+          .logo-title span {
+            color: #EA580C;
+          }
+          .company-info {
+            text-align: right;
+            font-size: 12px;
+            color: #6B7280;
+          }
+          .title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #111827;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          .meta-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+            background-color: #F9FAFB;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #E5E7EB;
+            font-size: 13px;
+          }
+          .meta-item {
+            margin-bottom: 6px;
+          }
+          .meta-item strong {
+            color: #4B5563;
+          }
+          .table-title {
+            font-size: 14px;
+            font-weight: bold;
+            color: #1F2937;
+            border-bottom: 1px solid #E5E7EB;
+            padding-bottom: 8px;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+          }
+          th {
+            background-color: #F3F4F6;
+            color: #374151;
+            font-weight: 600;
+            text-align: left;
+            padding: 10px 12px;
+            font-size: 13px;
+            border-bottom: 1px solid #E5E7EB;
+          }
+          td {
+            padding: 12px;
+            font-size: 13px;
+            border-bottom: 1px solid #F3F4F6;
+          }
+          .text-right {
+            text-align: right;
+          }
+          .total-row {
+            background-color: #FFF7ED;
+            font-weight: bold;
+            border-top: 2px solid #FED7AA;
+          }
+          .total-row td {
+            color: #C2410C;
+            font-size: 16px;
+            border-bottom: 2px solid #FED7AA;
+          }
+          .route-box {
+            background-color: #EFF6FF;
+            border: 1px solid #BFDBFE;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 13px;
+            color: #1E3A8A;
+            margin-bottom: 40px;
+          }
+          .footer {
+            text-align: center;
+            font-size: 11px;
+            color: #9CA3AF;
+            border-top: 1px solid #E5E7EB;
+            padding-top: 20px;
+          }
+          .btn-print-action {
+            background-color: #EA580C;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 14px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-bottom: 20px;
+            transition: background-color 0.2s;
+          }
+          .btn-print-action:hover {
+            background-color: #C2410C;
+          }
+          @media print {
+            .no-print {
+              display: none !important;
+            }
+            body {
+              padding: 0;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="no-print" style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+          <button class="btn-print-action" onclick="window.print()">🖨️ Imprimir / Guardar como PDF</button>
+          <button class="btn-print-action" style="background-color: #4B5563;" onclick="window.close()">Cerrar Ventana</button>
+        </div>
+
+        <div class="header">
+          <div class="logo-title">
+            ShipFast<span>GT</span>
+          </div>
+          <div class="company-info">
+            <strong>ShipFast Logistics S.A.</strong><br>
+            Texas 🇺🇸 • México 🇲🇽 • Guatemala 🇬🇹<br>
+            Soporte: info@shipfastgt.com | WhatsApp: +502 3000-0000
+          </div>
+        </div>
+
+        <div class="title">Cotización Oficial de Courier e Importación</div>
+
+        <div class="meta-grid">
+          <div>
+            <div class="meta-item"><strong>ID Cotización:</strong> ${quoteId}</div>
+            <div class="meta-item"><strong>Fecha:</strong> ${dateStr}</div>
+            <div class="meta-item"><strong>Origen:</strong> ${quoteOrigin === 'Texas' ? 'Texas (Laredo, EUA) 🇺🇸' : 'México 🇲🇽'}</div>
+            <div class="meta-item"><strong>Destino:</strong> ${quoteDestination}, Guatemala 🇬🇹</div>
+          </div>
+          <div>
+            <div class="meta-item"><strong>Peso Registrado:</strong> ${quoteWeight} Lbs</div>
+            <div class="meta-item"><strong>Tiempo de Entrega:</strong> ${calculatedQuote.days}</div>
+            <div class="meta-item"><strong>Validez:</strong> 15 Días a partir de la emisión</div>
+          </div>
+        </div>
+
+        <div class="table-title">Desglose de Tarifas y Flete</div>
+        <table>
+          <thead>
+            <tr>
+              <th>Concepto / Detalle del Servicio</th>
+              <th class="text-right">Monto</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${calculatedQuote.productLink ? `
+            <tr>
+              <td><strong>Enlace del Producto:</strong><br><span style="font-size: 11px; color: #4B5563;">${calculatedQuote.productLink}</span></td>
+              <td class="text-right">-</td>
+            </tr>
+            ` : ''}
+            ${calculatedQuote.productPriceUsd ? `
+            <tr>
+              <td><strong>Costo del Producto:</strong> $${calculatedQuote.productPriceUsd.toFixed(2)} USD (Tipo de cambio fijo x8.00)</td>
+              <td class="text-right">Q ${calculatedQuote.productPriceQts?.toFixed(2)}</td>
+            </tr>
+            <tr>
+              <td><strong>Impuestos de Importación:</strong> IVA General sobre Importación (12%)</td>
+              <td class="text-right" style="color: #DC2626;">Q ${calculatedQuote.taxesQts?.toFixed(2)}</td>
+            </tr>
+            ` : ''}
+            <tr>
+              <td><strong>Cargo por Peso (Flete Internacional):</strong> ${quoteWeight} Lbs (${quoteOrigin === 'Texas' ? 'Q60.00/Lb Laredo' : 'Q30.00/Lb México'})</td>
+              <td class="text-right">Q ${calculatedQuote.weightCost.toFixed(2)}</td>
+            </tr>
+            <tr>
+              <td><strong>Cargo Base (Servicio de Envío Local):</strong> Entrega domiciliar nacional</td>
+              <td class="text-right">Q ${calculatedQuote.base.toFixed(2)}</td>
+            </tr>
+            <tr class="total-row">
+              <td>TOTAL ESTIMADO A PAGAR:</td>
+              <td class="text-right">Q ${calculatedQuote.total.toFixed(2)}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="route-box">
+          <strong>📍 Ruta Operativa Asignada:</strong> ${calculatedQuote.route}<br>
+          Monitoreo y despacho terrestre coordinado para cobertura departamental en Guatemala.
+        </div>
+
+        <div class="footer">
+          <p>Esta es una estimación de tarifa sujeta a la validación del peso volumétrico y descripción real del paquete en nuestras bodegas de origen.</p>
+          <p>© ${new Date().getFullYear()} ShipFast GT. Todos los derechos reservados.</p>
+        </div>
+
+        <script>
+          setTimeout(function() {
+            window.print();
+          }, 800);
+        </script>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
   };
 
   // Logout Handler
@@ -1665,51 +2015,106 @@ Para proporcionarle información específica, puede solicitar:
 
                       {/* Display Quotation Result */}
                       {calculatedQuote && (
-                        <div className="p-4 bg-orange-50/50 border border-brand-orange/20 rounded-lg space-y-2 mt-4 animate-zoom-in">
-                          <div className="flex justify-between items-center pb-1.5 border-b border-brand-orange/10">
-                            <span className="text-3xs font-extrabold text-brand-gray-dark uppercase tracking-wider">Detalle del Flete</span>
-                            <span className="text-2xs font-bold text-brand-orange">{calculatedQuote.days}</span>
+                        <div className="bg-white border border-gray-150 rounded-xl shadow-md p-4 space-y-3.5 border-t-4 border-t-brand-orange mt-4 animate-zoom-in">
+                          <div className="flex justify-between items-center pb-2.5 border-b border-gray-150/60">
+                            <div className="flex items-center gap-2">
+                              <div className="p-1 bg-orange-100 rounded text-brand-orange">
+                                <TrendingUp className="h-3.5 w-3.5" />
+                              </div>
+                              <div>
+                                <h4 className="text-4xs font-bold text-gray-700 uppercase tracking-wider">Detalle del Flete</h4>
+                                <p className="text-5xs text-gray-400 tracking-wide font-semibold">Cálculo Automático</p>
+                              </div>
+                            </div>
+                            <span className="px-2 py-0.5 bg-orange-50 text-brand-orange text-4xs font-bold rounded-full border border-orange-100/50 flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {calculatedQuote.days}
+                            </span>
                           </div>
 
-                          <div className="text-4xs text-gray-600 space-y-1">
+                          <div className="space-y-2.5">
                             {calculatedQuote.productLink && (
-                              <div className="flex justify-between items-center truncate max-w-full">
-                                <span>Enlace Producto:</span>
-                                <a href={calculatedQuote.productLink} target="_blank" rel="noopener noreferrer" className="font-semibold text-blue-600 underline hover:text-blue-800 break-all truncate max-w-[150px]">
+                              <div className="flex justify-between items-center text-4xs text-gray-500 bg-gray-50 p-2 rounded border border-gray-100">
+                                <span className="flex items-center gap-1 shrink-0"><Link className="h-3 w-3 text-gray-400" /> Enlace:</span>
+                                <a href={calculatedQuote.productLink} target="_blank" rel="noopener noreferrer" className="font-semibold text-blue-600 hover:underline truncate max-w-[150px] break-all">
                                   {calculatedQuote.productLink}
                                 </a>
                               </div>
                             )}
 
-                            {calculatedQuote.productPriceUsd !== undefined && calculatedQuote.productPriceUsd > 0 && (
-                              <>
-                                <div className="flex justify-between">
-                                  <span>Precio Producto ($ USD):</span>
-                                  <span className="font-semibold">${calculatedQuote.productPriceUsd.toFixed(2)}</span>
-                                </div>
-                                <div className="flex justify-between text-brand-gray-dark font-semibold">
-                                  <span>Valor en Quetzales (Cambio x8):</span>
-                                  <span className="font-bold">Q {calculatedQuote.productPriceQts?.toFixed(2)}</span>
-                                </div>
-                                <div className="flex justify-between text-red-600">
-                                  <span>Impuesto (12% IVA):</span>
-                                  <span className="font-semibold">Q {calculatedQuote.taxesQts?.toFixed(2)}</span>
-                                </div>
-                              </>
-                            )}
+                            <div className="bg-gray-50/30 p-2.5 rounded border border-gray-100 space-y-1.5">
+                              {calculatedQuote.productPriceUsd !== undefined && calculatedQuote.productPriceUsd > 0 && (
+                                <>
+                                  <div className="flex justify-between text-4xs text-gray-500">
+                                    <span>Valor del Producto ($ USD):</span>
+                                    <span className="font-medium text-gray-800">${calculatedQuote.productPriceUsd.toFixed(2)}</span>
+                                  </div>
+                                  <div className="flex justify-between text-4xs text-gray-500">
+                                    <span>Valor en Quetzales (Cambio x8):</span>
+                                    <span className="font-semibold text-gray-800">Q {calculatedQuote.productPriceQts?.toFixed(2)}</span>
+                                  </div>
+                                  <div className="flex justify-between text-4xs text-red-500 font-medium">
+                                    <span>Impuesto de Importación (12% IVA):</span>
+                                    <span>Q {calculatedQuote.taxesQts?.toFixed(2)}</span>
+                                  </div>
+                                  <div className="border-t border-gray-200/50 my-1"></div>
+                                </>
+                              )}
 
-                            <div className="flex justify-between"><span>Cargo Base (Envío Local):</span> <span className="font-semibold">Q {calculatedQuote.base.toFixed(2)}</span></div>
-                            <div className="flex justify-between"><span>Cargo por Peso ({quoteWeight} Lbs):</span> <span className="font-semibold">Q {calculatedQuote.weightCost.toFixed(2)}</span></div>
-                            
-                            <div className="flex justify-between text-2xs font-extrabold text-brand-gray-dark pt-1.5 border-t border-brand-orange/10">
-                              <span>TOTAL ESTIMADO:</span>
-                              <span className="text-brand-orange font-black">Q {calculatedQuote.total.toFixed(2)}</span>
+                              <div className="flex justify-between text-4xs text-gray-500">
+                                <span className="flex items-center gap-1"><Package className="h-3 w-3 text-gray-400" /> Flete Internacional ({quoteWeight} Lbs):</span>
+                                <span className="font-medium text-gray-800">Q {calculatedQuote.weightCost.toFixed(2)}</span>
+                              </div>
+                              <div className="flex justify-between text-4xs text-gray-500">
+                                <span className="flex items-center gap-1"><Truck className="h-3 w-3 text-gray-400" /> Envío Local (Flat):</span>
+                                <span className="font-medium text-gray-800">Q {calculatedQuote.base.toFixed(2)}</span>
+                              </div>
                             </div>
-                          </div>
 
-                          <div className="pt-2 text-4xs text-gray-500 leading-normal flex items-start gap-1">
-                            <MapPin className="h-3 w-3 shrink-0 text-brand-orange mt-0.5" />
-                            <span><strong>Ruta Operativa:</strong> {calculatedQuote.route}</span>
+                            {/* Big Estimated Total Highlight */}
+                            <div className="bg-gradient-to-r from-orange-50 to-orange-100/50 p-3 rounded-lg border border-orange-100/50 flex justify-between items-center">
+                              <div>
+                                <span className="text-5xs font-bold text-gray-400 uppercase tracking-widest block">TOTAL ESTIMADO</span>
+                                <span className="text-5xs text-gray-400">Impuestos y envío local incluidos</span>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-sm font-black text-brand-orange tracking-tight block">Q {calculatedQuote.total.toFixed(2)}</span>
+                              </div>
+                            </div>
+
+                            {/* Route Box */}
+                            <div className="p-2 bg-blue-50/50 border border-blue-100/50 rounded text-4xs text-blue-800 leading-normal flex items-start gap-1.5">
+                              <MapPin className="h-3.5 w-3.5 shrink-0 text-blue-500 mt-0.5" />
+                              <div>
+                                <strong>Ruta Logística:</strong> {calculatedQuote.route}
+                              </div>
+                            </div>
+
+                            {/* Action Row */}
+                            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-150/60">
+                              <button
+                                type="button"
+                                onClick={handleCopyShareLink}
+                                className="flex items-center justify-center gap-1 py-1.5 px-2 bg-gray-100 hover:bg-gray-200 text-gray-600 text-4xs font-bold rounded transition duration-150 uppercase tracking-wider cursor-pointer"
+                              >
+                                <Share2 className="h-3 w-3" />
+                                {copyLinkSuccess ? '¡Copiado!' : 'Copiar Enlace'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleDownloadPDF}
+                                className="flex items-center justify-center gap-1 py-1.5 px-2 bg-brand-orange hover:bg-brand-orange-hover text-white text-4xs font-bold rounded transition duration-150 uppercase tracking-wider cursor-pointer shadow-xs"
+                              >
+                                <FileDown className="h-3 w-3" />
+                                Descargar PDF
+                              </button>
+                            </div>
+                            
+                            {copyLinkSuccess && (
+                              <div className="text-center text-5xs text-green-600 font-bold bg-green-50 py-1 rounded border border-green-100/50 animate-fade-in">
+                                ✓ ¡El enlace de esta cotización ha sido copiado al portapapeles!
+                              </div>
+                            )}
                           </div>
                         </div>
                       )}
@@ -2331,51 +2736,106 @@ Para proporcionarle información específica, puede solicitar:
                   </button>
 
                   {calculatedQuote && (
-                    <div className="p-4 bg-orange-50/50 border border-brand-orange/20 rounded-lg space-y-2 mt-4 animate-zoom-in">
-                      <div className="flex justify-between items-center pb-1.5 border-b border-brand-orange/10">
-                        <span className="text-3xs font-extrabold text-brand-gray-dark uppercase tracking-wider">Detalle del Flete</span>
-                        <span className="text-2xs font-bold text-brand-orange">{calculatedQuote.days}</span>
+                    <div className="bg-white border border-gray-150 rounded-xl shadow-md p-4 space-y-3.5 border-t-4 border-t-brand-orange mt-4 animate-zoom-in">
+                      <div className="flex justify-between items-center pb-2.5 border-b border-gray-150/60">
+                        <div className="flex items-center gap-2">
+                          <div className="p-1 bg-orange-100 rounded text-brand-orange">
+                            <TrendingUp className="h-3.5 w-3.5" />
+                          </div>
+                          <div>
+                            <h4 className="text-4xs font-bold text-gray-700 uppercase tracking-wider">Detalle del Flete</h4>
+                            <p className="text-5xs text-gray-400 tracking-wide font-semibold">Cálculo Automático</p>
+                          </div>
+                        </div>
+                        <span className="px-2 py-0.5 bg-orange-50 text-brand-orange text-4xs font-bold rounded-full border border-orange-100/50 flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {calculatedQuote.days}
+                        </span>
                       </div>
 
-                      <div className="text-4xs text-gray-600 space-y-1">
+                      <div className="space-y-2.5">
                         {calculatedQuote.productLink && (
-                          <div className="flex justify-between items-center truncate max-w-full">
-                            <span>Enlace Producto:</span>
-                            <a href={calculatedQuote.productLink} target="_blank" rel="noopener noreferrer" className="font-semibold text-blue-600 underline hover:text-blue-800 break-all truncate max-w-[150px]">
+                          <div className="flex justify-between items-center text-4xs text-gray-500 bg-gray-50 p-2 rounded border border-gray-100">
+                            <span className="flex items-center gap-1 shrink-0"><Link className="h-3 w-3 text-gray-400" /> Enlace:</span>
+                            <a href={calculatedQuote.productLink} target="_blank" rel="noopener noreferrer" className="font-semibold text-blue-600 hover:underline truncate max-w-[150px] break-all">
                               {calculatedQuote.productLink}
                             </a>
                           </div>
                         )}
 
-                        {calculatedQuote.productPriceUsd !== undefined && calculatedQuote.productPriceUsd > 0 && (
-                          <>
-                            <div className="flex justify-between">
-                              <span>Precio Producto ($ USD):</span>
-                              <span className="font-semibold">${calculatedQuote.productPriceUsd.toFixed(2)}</span>
-                            </div>
-                            <div className="flex justify-between text-brand-gray-dark font-semibold">
-                              <span>Valor en Quetzales (Cambio x8):</span>
-                              <span className="font-bold">Q {calculatedQuote.productPriceQts?.toFixed(2)}</span>
-                            </div>
-                            <div className="flex justify-between text-red-600">
-                              <span>Impuesto (12% IVA):</span>
-                              <span className="font-semibold">Q {calculatedQuote.taxesQts?.toFixed(2)}</span>
-                            </div>
-                          </>
-                        )}
+                        <div className="bg-gray-50/30 p-2.5 rounded border border-gray-100 space-y-1.5">
+                          {calculatedQuote.productPriceUsd !== undefined && calculatedQuote.productPriceUsd > 0 && (
+                            <>
+                              <div className="flex justify-between text-4xs text-gray-500">
+                                <span>Valor del Producto ($ USD):</span>
+                                <span className="font-medium text-gray-800">${calculatedQuote.productPriceUsd.toFixed(2)}</span>
+                              </div>
+                              <div className="flex justify-between text-4xs text-gray-500">
+                                <span>Valor en Quetzales (Cambio x8):</span>
+                                <span className="font-semibold text-gray-800">Q {calculatedQuote.productPriceQts?.toFixed(2)}</span>
+                              </div>
+                              <div className="flex justify-between text-4xs text-red-500 font-medium">
+                                <span>Impuesto de Importación (12% IVA):</span>
+                                <span>Q {calculatedQuote.taxesQts?.toFixed(2)}</span>
+                              </div>
+                              <div className="border-t border-gray-200/50 my-1"></div>
+                            </>
+                          )}
 
-                        <div className="flex justify-between"><span>Cargo Base (Envío Local):</span> <span className="font-semibold">Q {calculatedQuote.base.toFixed(2)}</span></div>
-                        <div className="flex justify-between"><span>Cargo por Peso ({quoteWeight} Lbs):</span> <span className="font-semibold">Q {calculatedQuote.weightCost.toFixed(2)}</span></div>
-                        
-                        <div className="flex justify-between text-2xs font-extrabold text-brand-gray-dark pt-1.5 border-t border-brand-orange/10">
-                          <span>TOTAL ESTIMADO:</span>
-                          <span className="text-brand-orange font-black">Q {calculatedQuote.total.toFixed(2)}</span>
+                          <div className="flex justify-between text-4xs text-gray-500">
+                            <span className="flex items-center gap-1"><Package className="h-3 w-3 text-gray-400" /> Flete Internacional ({quoteWeight} Lbs):</span>
+                            <span className="font-medium text-gray-800">Q {calculatedQuote.weightCost.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between text-4xs text-gray-500">
+                            <span className="flex items-center gap-1"><Truck className="h-3 w-3 text-gray-400" /> Envío Local (Flat):</span>
+                            <span className="font-medium text-gray-800">Q {calculatedQuote.base.toFixed(2)}</span>
+                          </div>
                         </div>
-                      </div>
 
-                      <div className="pt-2 text-4xs text-gray-500 leading-normal flex items-start gap-1">
-                        <MapPin className="h-3 w-3 shrink-0 text-brand-orange mt-0.5" />
-                        <span><strong>Ruta Operativa:</strong> {calculatedQuote.route}</span>
+                        {/* Big Estimated Total Highlight */}
+                        <div className="bg-gradient-to-r from-orange-50 to-orange-100/50 p-3 rounded-lg border border-orange-100/50 flex justify-between items-center">
+                          <div>
+                            <span className="text-5xs font-bold text-gray-400 uppercase tracking-widest block">TOTAL ESTIMADO</span>
+                            <span className="text-5xs text-gray-400">Impuestos y envío local incluidos</span>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-sm font-black text-brand-orange tracking-tight block">Q {calculatedQuote.total.toFixed(2)}</span>
+                          </div>
+                        </div>
+
+                        {/* Route Box */}
+                        <div className="p-2 bg-blue-50/50 border border-blue-100/50 rounded text-4xs text-blue-800 leading-normal flex items-start gap-1.5">
+                          <MapPin className="h-3.5 w-3.5 shrink-0 text-blue-500 mt-0.5" />
+                          <div>
+                            <strong>Ruta Logística:</strong> {calculatedQuote.route}
+                          </div>
+                        </div>
+
+                        {/* Action Row */}
+                        <div className="grid grid-cols-2 gap-2 pt-2 border-t border-gray-150/60">
+                          <button
+                            type="button"
+                            onClick={handleCopyShareLink}
+                            className="flex items-center justify-center gap-1 py-1.5 px-2 bg-gray-100 hover:bg-gray-200 text-gray-600 text-4xs font-bold rounded transition duration-150 uppercase tracking-wider cursor-pointer"
+                          >
+                            <Share2 className="h-3 w-3" />
+                            {copyLinkSuccess ? '¡Copiado!' : 'Copiar Enlace'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleDownloadPDF}
+                            className="flex items-center justify-center gap-1 py-1.5 px-2 bg-brand-orange hover:bg-brand-orange-hover text-white text-4xs font-bold rounded transition duration-150 uppercase tracking-wider cursor-pointer shadow-xs"
+                          >
+                            <FileDown className="h-3 w-3" />
+                            Descargar PDF
+                          </button>
+                        </div>
+                        
+                        {copyLinkSuccess && (
+                          <div className="text-center text-5xs text-green-600 font-bold bg-green-50 py-1 rounded border border-green-100/50 animate-fade-in">
+                            ✓ ¡El enlace de esta cotización ha sido copiado al portapapeles!
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
