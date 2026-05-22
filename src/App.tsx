@@ -1419,12 +1419,7 @@ Para proporcionarle información específica, puede solicitar:
                         Ingresar al Sistema
                       </button>
 
-                      {/* Credentials hint for easy presentation testing */}
-                      <div className="pt-4 mt-2 border-t border-gray-100 text-4xs text-gray-400 space-y-1">
-                        <p className="font-extrabold uppercase text-gray-500">Cuentas de demostración predefinidas:</p>
-                        <div>&bull; <strong>Cliente 1:</strong> SFG0 / Contraseña: 1234</div>
-                        <div>&bull; <strong>Cliente 2:</strong> SFG1 / Contraseña: 1234</div>
-                      </div>
+
                     </form>
                   )}
 
