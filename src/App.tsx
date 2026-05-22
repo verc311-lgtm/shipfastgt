@@ -146,12 +146,18 @@ export default function App() {
   const [quoteDestination, setQuoteDestination] = useState('Quetzaltenango');
   const [quoteService, setQuoteService] = useState<'Express' | 'Estándar' | 'Laredo' | 'Mexico' | 'Shein'>('Express');
   const [quoteWeight, setQuoteWeight] = useState(1);
+  const [quoteProductLink, setQuoteProductLink] = useState('');
+  const [quoteProductPriceUsd, setQuoteProductPriceUsd] = useState<number | ''>('');
   const [calculatedQuote, setCalculatedQuote] = useState<{
     base: number;
     weightCost: number;
+    productPriceUsd?: number;
+    productPriceQts?: number;
+    taxesQts?: number;
     total: number;
     days: string;
     route: string;
+    productLink?: string;
   } | null>(null);
 
   // Shipments state
@@ -484,7 +490,18 @@ export default function App() {
       weightCost = 0;
       days = '4 a 6 Días Hábiles';
     }
-    const total = base + weightCost;
+
+    let productPriceUsd = 0;
+    let productPriceQts = 0;
+    let taxesQts = 0;
+
+    if (quoteProductPriceUsd && Number(quoteProductPriceUsd) > 0) {
+      productPriceUsd = Number(quoteProductPriceUsd);
+      productPriceQts = productPriceUsd * 8;
+      taxesQts = Number((productPriceQts * 0.12).toFixed(2));
+    }
+
+    const total = base + weightCost + productPriceQts + taxesQts;
     
     // Route guidelines
     let route = 'Conexión vial primaria Hub Central';
@@ -499,9 +516,13 @@ export default function App() {
     setCalculatedQuote({
       base,
       weightCost,
+      productPriceUsd,
+      productPriceQts,
+      taxesQts,
       total,
       days,
-      route
+      route,
+      productLink: quoteProductLink
     });
   };
 
@@ -1610,6 +1631,32 @@ Para proporcionarle información específica, puede solicitar:
                             />
                           </div>
                         </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Link del Producto (Opcional)</label>
+                            <input
+                              type="text"
+                              placeholder="https://ejemplo.com/producto"
+                              value={quoteProductLink}
+                              onChange={(e) => setQuoteProductLink(e.target.value)}
+                              className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-brand-orange"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Precio del Producto ($ USD)</label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              placeholder="0.00"
+                              value={quoteProductPriceUsd === '' ? '' : quoteProductPriceUsd}
+                              onChange={(e) => setQuoteProductPriceUsd(e.target.value === '' ? '' : Number(e.target.value))}
+                              className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-brand-orange"
+                            />
+                          </div>
+                        </div>
                       </div>
 
                       <button
@@ -1628,11 +1675,38 @@ Para proporcionarle información específica, puede solicitar:
                           </div>
 
                           <div className="text-4xs text-gray-600 space-y-1">
+                            {calculatedQuote.productLink && (
+                              <div className="flex justify-between items-center truncate max-w-full">
+                                <span>Enlace Producto:</span>
+                                <a href={calculatedQuote.productLink} target="_blank" rel="noopener noreferrer" className="font-semibold text-blue-600 underline hover:text-blue-800 break-all truncate max-w-[150px]">
+                                  {calculatedQuote.productLink}
+                                </a>
+                              </div>
+                            )}
+
+                            {calculatedQuote.productPriceUsd !== undefined && calculatedQuote.productPriceUsd > 0 && (
+                              <>
+                                <div className="flex justify-between">
+                                  <span>Precio Producto ($ USD):</span>
+                                  <span className="font-semibold">${calculatedQuote.productPriceUsd.toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between text-brand-gray-dark font-semibold">
+                                  <span>Valor en Quetzales (Cambio x8):</span>
+                                  <span className="font-bold">Q {calculatedQuote.productPriceQts?.toFixed(2)}</span>
+                                </div>
+                                <div className="flex justify-between text-red-600">
+                                  <span>Impuesto (12% IVA):</span>
+                                  <span className="font-semibold">Q {calculatedQuote.taxesQts?.toFixed(2)}</span>
+                                </div>
+                              </>
+                            )}
+
                             <div className="flex justify-between"><span>Cargo Base ({quoteService}):</span> <span className="font-semibold">Q {calculatedQuote.base.toFixed(2)}</span></div>
                             <div className="flex justify-between"><span>Cargo por Peso ({quoteWeight} Lbs):</span> <span className="font-semibold">Q {calculatedQuote.weightCost.toFixed(2)}</span></div>
-                            <div className="flex justify-between text-2xs font-extrabold text-brand-gray-dark pt-1 border-t border-brand-orange/10">
+                            
+                            <div className="flex justify-between text-2xs font-extrabold text-brand-gray-dark pt-1.5 border-t border-brand-orange/10">
                               <span>TOTAL ESTIMADO:</span>
-                              <span className="text-brand-orange">Q {calculatedQuote.total.toFixed(2)}</span>
+                              <span className="text-brand-orange font-black">Q {calculatedQuote.total.toFixed(2)}</span>
                             </div>
                           </div>
 
@@ -2217,6 +2291,32 @@ Para proporcionarle información específica, puede solicitar:
                         />
                       </div>
                     </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Link del Producto (Opcional)</label>
+                        <input
+                          type="text"
+                          placeholder="https://ejemplo.com/producto"
+                          value={quoteProductLink}
+                          onChange={(e) => setQuoteProductLink(e.target.value)}
+                          className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-brand-orange"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Precio del Producto ($ USD)</label>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="0.00"
+                          value={quoteProductPriceUsd === '' ? '' : quoteProductPriceUsd}
+                          onChange={(e) => setQuoteProductPriceUsd(e.target.value === '' ? '' : Number(e.target.value))}
+                          className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-brand-orange"
+                        />
+                      </div>
+                    </div>
                   </div>
 
                   <button
@@ -2234,11 +2334,38 @@ Para proporcionarle información específica, puede solicitar:
                       </div>
 
                       <div className="text-4xs text-gray-600 space-y-1">
+                        {calculatedQuote.productLink && (
+                          <div className="flex justify-between items-center truncate max-w-full">
+                            <span>Enlace Producto:</span>
+                            <a href={calculatedQuote.productLink} target="_blank" rel="noopener noreferrer" className="font-semibold text-blue-600 underline hover:text-blue-800 break-all truncate max-w-[150px]">
+                              {calculatedQuote.productLink}
+                            </a>
+                          </div>
+                        )}
+
+                        {calculatedQuote.productPriceUsd !== undefined && calculatedQuote.productPriceUsd > 0 && (
+                          <>
+                            <div className="flex justify-between">
+                              <span>Precio Producto ($ USD):</span>
+                              <span className="font-semibold">${calculatedQuote.productPriceUsd.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-brand-gray-dark font-semibold">
+                              <span>Valor en Quetzales (Cambio x8):</span>
+                              <span className="font-bold">Q {calculatedQuote.productPriceQts?.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-red-600">
+                              <span>Impuesto (12% IVA):</span>
+                              <span className="font-semibold">Q {calculatedQuote.taxesQts?.toFixed(2)}</span>
+                            </div>
+                          </>
+                        )}
+
                         <div className="flex justify-between"><span>Cargo Base ({quoteService}):</span> <span className="font-semibold">Q {calculatedQuote.base.toFixed(2)}</span></div>
                         <div className="flex justify-between"><span>Cargo por Peso ({quoteWeight} Lbs):</span> <span className="font-semibold">Q {calculatedQuote.weightCost.toFixed(2)}</span></div>
-                        <div className="flex justify-between text-2xs font-extrabold text-brand-gray-dark pt-1 border-t border-brand-orange/10">
+                        
+                        <div className="flex justify-between text-2xs font-extrabold text-brand-gray-dark pt-1.5 border-t border-brand-orange/10">
                           <span>TOTAL ESTIMADO:</span>
-                          <span className="text-brand-orange">Q {calculatedQuote.total.toFixed(2)}</span>
+                          <span className="text-brand-orange font-black">Q {calculatedQuote.total.toFixed(2)}</span>
                         </div>
                       </div>
 
