@@ -1424,7 +1424,6 @@ Para proporcionarle información específica, puede solicitar:
                         <p className="font-extrabold uppercase text-gray-500">Cuentas de demostración predefinidas:</p>
                         <div>&bull; <strong>Cliente 1:</strong> SFG0 / Contraseña: 1234</div>
                         <div>&bull; <strong>Cliente 2:</strong> SFG1 / Contraseña: 1234</div>
-                        <div>&bull; <strong>Administración:</strong> admin@shipfast.gt / Contraseña: admin</div>
                       </div>
                     </form>
                   )}
