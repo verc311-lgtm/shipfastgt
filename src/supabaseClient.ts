@@ -54,6 +54,16 @@ export const db = {
       return false;
     }
   },
+  async deleteProfile(lockerId: string): Promise<boolean> {
+    try {
+      const { error } = await supabase.from('profiles').delete().eq('locker_id', lockerId);
+      if (error) throw error;
+      return true;
+    } catch (err) {
+      console.error("Supabase: deleteProfile error", err);
+      return false;
+    }
+  },
 
   // Shipments
   async getShipments(): Promise<any[]> {

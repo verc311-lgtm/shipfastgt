@@ -198,6 +198,9 @@ export default function App() {
   const [clientPreAlertInsurance, setClientPreAlertInsurance] = useState('Sin seguro');
   const [clientPreAlertFileName, setClientPreAlertFileName] = useState('');
 
+  // Selected User for Details and Password/Address Edit
+  const [selectedUserForEdit, setSelectedUserForEdit] = useState<UserProfile | null>(null);
+
   // Bulk Upload Mayor States
   const [bulkFileText, setBulkFileText] = useState('');
   const [bulkSender, setBulkSender] = useState('Distribuidora El Quetzal S.A.');
@@ -5328,6 +5331,43 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                         (document.getElementById('opEmailInput') as HTMLInputElement).value = '';
                       };
 
+                      const handleSaveEditedUser = async (e: React.FormEvent) => {
+                        e.preventDefault();
+                        if (!selectedUserForEdit) return;
+
+                        // Phone validation force +502
+                        let phone = selectedUserForEdit.phone.trim();
+                        if (!phone.startsWith('+502')) {
+                          phone = '+502 ' + phone.replace('+502', '').trim();
+                        }
+
+                        const updatedUser = {
+                          ...selectedUserForEdit,
+                          phone
+                        };
+
+                        // Save to Supabase
+                        const success = await db.upsertProfile(updatedUser);
+                        if (success) {
+                          setUsers(users.map(u => u.lockerId === updatedUser.lockerId ? updatedUser : u));
+                          alert(`El perfil del usuario ${updatedUser.name} (${updatedUser.lockerId}) ha sido actualizado con éxito.`);
+                          setSelectedUserForEdit(null);
+                        } else {
+                          alert('Ocurrió un error al intentar guardar los cambios en la base de datos.');
+                        }
+                      };
+
+                      const handleDeleteUser = async (lockerId: string) => {
+                        const success = await db.deleteProfile(lockerId);
+                        if (success) {
+                          setUsers(users.filter(u => u.lockerId !== lockerId));
+                          alert('El usuario ha sido eliminado exitosamente de la base de datos.');
+                          setSelectedUserForEdit(null);
+                        } else {
+                          alert('Ocurrió un error al intentar eliminar el usuario de la base de datos.');
+                        }
+                      };
+
                       return (
                         <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs space-y-6">
                           <div>
@@ -5349,12 +5389,19 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                       <th className="py-2.5 px-3">Nombre Completo</th>
                                       <th className="py-2.5 px-3">Rol / Función</th>
                                       <th className="py-2.5 px-3">Número de Teléfono (+502)</th>
-                                      <th className="py-2.5 px-4">Correo Institucional</th>
+                                      <th className="py-2.5 px-4">Correo</th>
+                                      <th className="py-2.5 px-4 text-center">Acciones</th>
                                     </tr>
                                   </thead>
                                   <tbody className="divide-y divide-gray-100 text-3xs font-semibold text-brand-gray-dark">
                                     {users.map((u, uIdx) => (
-                                      <tr key={uIdx} className="hover:bg-gray-50/50">
+                                      <tr 
+                                        key={uIdx} 
+                                        onClick={() => setSelectedUserForEdit(u)}
+                                        className={`hover:bg-gray-50/70 transition cursor-pointer ${
+                                          selectedUserForEdit?.lockerId === u.lockerId ? 'bg-orange-50/50 hover:bg-orange-50' : ''
+                                        }`}
+                                      >
                                         <td className="py-3 px-4 font-mono font-bold text-gray-400">{u.lockerId}</td>
                                         <td className="py-3 px-3 font-bold">{u.name}</td>
                                         <td className="py-3 px-3">
@@ -5372,6 +5419,15 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                         </td>
                                         <td className="py-3 px-3 font-mono font-bold text-brand-gray-dark">{u.phone}</td>
                                         <td className="py-3 px-4 font-mono text-gray-400">{u.email}</td>
+                                        <td className="py-3 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                                          <button
+                                            type="button"
+                                            onClick={() => setSelectedUserForEdit(u)}
+                                            className="px-2.5 py-1 bg-brand-orange/10 hover:bg-brand-orange text-brand-orange hover:text-white rounded border border-brand-orange/20 text-5xs font-black uppercase tracking-wider transition cursor-pointer"
+                                          >
+                                            Editar
+                                          </button>
+                                        </td>
                                       </tr>
                                     ))}
                                   </tbody>
@@ -5379,64 +5435,184 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                               </div>
                             </div>
 
-                            {/* Operator register - RIGHT */}
-                            <div className="lg:col-span-4 bg-gray-50 border border-gray-200 p-5 rounded-lg space-y-4">
-                              <h4 className="text-3xs font-extrabold text-brand-gray-dark uppercase tracking-wider border-b border-gray-200 pb-1.5">Registrar Nuevo Operador</h4>
-                              
-                              <form onSubmit={handleAddOperator} className="space-y-3">
-                                <div>
-                                  <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Nombre Completo *</label>
-                                  <input
-                                    type="text"
-                                    required
-                                    placeholder="Nombre del conductor/operario"
-                                    id="opNameInput"
-                                    className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark"
-                                  />
-                                </div>
+                            {/* Operator register/edit - RIGHT */}
+                            <div className="lg:col-span-4 bg-gray-50 border border-gray-200 p-5 rounded-lg space-y-4 shadow-xs">
+                              {selectedUserForEdit ? (
+                                <div className="space-y-4 animate-fade-in">
+                                  <div className="flex justify-between items-center border-b border-gray-200 pb-1.5">
+                                    <h4 className="text-3xs font-extrabold text-brand-orange uppercase tracking-wider">Detalles / Editar Perfil</h4>
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedUserForEdit(null)}
+                                      className="text-5xs text-gray-500 hover:text-gray-700 font-bold bg-white border border-gray-250 px-2 py-0.5 rounded cursor-pointer transition shadow-3xs"
+                                    >
+                                      Volver
+                                    </button>
+                                  </div>
 
-                                <div>
-                                  <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Función Operativa *</label>
-                                  <select
-                                    id="opRoleSelect"
-                                    className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white font-semibold"
-                                  >
-                                    <option value="driver">Mensajero Motorizado (Local)</option>
-                                    <option value="pilot">Piloto de Carga Troncal</option>
-                                    <option value="operator">Despachador de Bodega</option>
-                                    <option value="auditor">Auditor Contable</option>
-                                  </select>
-                                </div>
+                                  <form onSubmit={handleSaveEditedUser} className="space-y-3">
+                                    <div>
+                                      <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Identificador (Casillero)</label>
+                                      <input
+                                        type="text"
+                                        disabled
+                                        value={selectedUserForEdit.lockerId}
+                                        className="w-full px-3 py-1.5 text-3xs border border-gray-200 rounded font-bold font-mono text-gray-400 bg-gray-100 cursor-not-allowed"
+                                      />
+                                    </div>
 
-                                <div>
-                                  <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Número de Teléfono (+502) *</label>
-                                  <input
-                                    type="text"
-                                    required
-                                    defaultValue="+502 "
-                                    id="opPhoneInput"
-                                    className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-bold font-mono text-brand-gray-dark"
-                                  />
-                                </div>
+                                    <div>
+                                      <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Nombre Completo *</label>
+                                      <input
+                                        type="text"
+                                        required
+                                        value={selectedUserForEdit.name}
+                                        onChange={(e) => setSelectedUserForEdit({ ...selectedUserForEdit, name: e.target.value })}
+                                        className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark bg-white focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-hidden"
+                                      />
+                                    </div>
 
-                                <div>
-                                  <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Correo Electrónico *</label>
-                                  <input
-                                    type="email"
-                                    required
-                                    placeholder="operador@shipfast.gt"
-                                    id="opEmailInput"
-                                    className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark"
-                                  />
-                                </div>
+                                    <div>
+                                      <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Rol / Función *</label>
+                                      <select
+                                        value={selectedUserForEdit.role}
+                                        onChange={(e) => setSelectedUserForEdit({ ...selectedUserForEdit, role: e.target.value })}
+                                        className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded focus:border-brand-orange focus:ring-1 focus:ring-brand-orange bg-white font-semibold text-brand-gray-dark outline-hidden"
+                                      >
+                                        <option value="client">Cliente</option>
+                                        <option value="admin">Administrador Central</option>
+                                        <option value="driver">Mensajero Motorizado (Local)</option>
+                                        <option value="pilot">Piloto de Carga Troncal</option>
+                                        <option value="operator">Despachador de Bodega</option>
+                                        <option value="auditor">Auditor Contable</option>
+                                      </select>
+                                    </div>
 
-                                <button
-                                  type="submit"
-                                  className="w-full bg-brand-orange hover:bg-brand-orange-hover text-white text-3xs font-extrabold py-2 rounded uppercase tracking-wider transition cursor-pointer"
-                                >
-                                  Registrar Colaborador
-                                </button>
-                              </form>
+                                    <div>
+                                      <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Número de Teléfono (+502) *</label>
+                                      <input
+                                        type="text"
+                                        required
+                                        value={selectedUserForEdit.phone}
+                                        onChange={(e) => setSelectedUserForEdit({ ...selectedUserForEdit, phone: e.target.value })}
+                                        className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-bold font-mono text-brand-gray-dark bg-white focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-hidden"
+                                      />
+                                    </div>
+
+                                    <div>
+                                      <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Correo Electrónico *</label>
+                                      <input
+                                        type="email"
+                                        required
+                                        value={selectedUserForEdit.email}
+                                        onChange={(e) => setSelectedUserForEdit({ ...selectedUserForEdit, email: e.target.value })}
+                                        className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark bg-white focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-hidden"
+                                      />
+                                    </div>
+
+                                    <div>
+                                      <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Dirección Registrada *</label>
+                                      <textarea
+                                        rows={2}
+                                        required
+                                        value={selectedUserForEdit.address || ''}
+                                        onChange={(e) => setSelectedUserForEdit({ ...selectedUserForEdit, address: e.target.value })}
+                                        className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark bg-white resize-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-hidden"
+                                      />
+                                    </div>
+
+                                    <div>
+                                      <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Contraseña de Acceso</label>
+                                      <input
+                                        type="text"
+                                        value={selectedUserForEdit.password || ''}
+                                        onChange={(e) => setSelectedUserForEdit({ ...selectedUserForEdit, password: e.target.value })}
+                                        placeholder="Ingrese contraseña"
+                                        className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-bold font-mono text-brand-gray-dark bg-white focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-hidden"
+                                      />
+                                    </div>
+
+                                    <div className="flex gap-2 pt-2">
+                                      <button
+                                        type="submit"
+                                        className="flex-1 bg-brand-orange hover:bg-brand-orange-hover text-white text-3xs font-extrabold py-2 rounded uppercase tracking-wider transition cursor-pointer text-center"
+                                      >
+                                        Guardar
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (confirm(`¿Está seguro de que desea eliminar al usuario ${selectedUserForEdit.name} (${selectedUserForEdit.lockerId})?`)) {
+                                            handleDeleteUser(selectedUserForEdit.lockerId);
+                                          }
+                                        }}
+                                        className="px-3 bg-red-600 hover:bg-red-700 text-white text-3xs font-extrabold py-2 rounded uppercase tracking-wider transition cursor-pointer text-center"
+                                      >
+                                        Eliminar
+                                      </button>
+                                    </div>
+                                  </form>
+                                </div>
+                              ) : (
+                                <div className="space-y-4">
+                                  <h4 className="text-3xs font-extrabold text-brand-gray-dark uppercase tracking-wider border-b border-gray-200 pb-1.5">Registrar Nuevo Operador</h4>
+                                  
+                                  <form onSubmit={handleAddOperator} className="space-y-3">
+                                    <div>
+                                      <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Nombre Completo *</label>
+                                      <input
+                                        type="text"
+                                        required
+                                        placeholder="Nombre del conductor/operario"
+                                        id="opNameInput"
+                                        className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-hidden"
+                                      />
+                                    </div>
+
+                                    <div>
+                                      <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Función Operativa *</label>
+                                      <select
+                                        id="opRoleSelect"
+                                        className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white font-semibold outline-hidden"
+                                      >
+                                        <option value="driver">Mensajero Motorizado (Local)</option>
+                                        <option value="pilot">Piloto de Carga Troncal</option>
+                                        <option value="operator">Despachador de Bodega</option>
+                                        <option value="auditor">Auditor Contable</option>
+                                      </select>
+                                    </div>
+
+                                    <div>
+                                      <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Número de Teléfono (+502) *</label>
+                                      <input
+                                        type="text"
+                                        required
+                                        defaultValue="+502 "
+                                        id="opPhoneInput"
+                                        className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-bold font-mono text-brand-gray-dark focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-hidden"
+                                      />
+                                    </div>
+
+                                    <div>
+                                      <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Correo Electrónico *</label>
+                                      <input
+                                        type="email"
+                                        required
+                                        placeholder="operador@shipfast.gt"
+                                        id="opEmailInput"
+                                        className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-hidden"
+                                      />
+                                    </div>
+
+                                    <button
+                                      type="submit"
+                                      className="w-full bg-brand-orange hover:bg-brand-orange-hover text-white text-3xs font-extrabold py-2 rounded uppercase tracking-wider transition cursor-pointer"
+                                    >
+                                      Registrar Colaborador
+                                    </button>
+                                  </form>
+                                </div>
+                              )}
                             </div>
 
                           </div>
