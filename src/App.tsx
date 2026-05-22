@@ -142,9 +142,9 @@ export default function App() {
   const [signupSuccessLocker, setSignupSuccessLocker] = useState<string | null>(null);
 
   // Quote Calculator fields
-  const [quoteOrigin, setQuoteOrigin] = useState('Guatemala');
-  const [quoteDestination, setQuoteDestination] = useState('Quetzaltenango');
-  const [quoteService, setQuoteService] = useState<'Express' | 'Estándar' | 'Laredo' | 'Mexico' | 'Shein'>('Express');
+  const [quoteOrigin, setQuoteOrigin] = useState('Texas');
+  const [quoteDestination, setQuoteDestination] = useState('Guatemala');
+
   const [quoteWeight, setQuoteWeight] = useState(1);
   const [quoteProductLink, setQuoteProductLink] = useState('');
   const [quoteProductPriceUsd, setQuoteProductPriceUsd] = useState<number | ''>('');
@@ -465,30 +465,16 @@ export default function App() {
     e.preventDefault();
     
     // Pricing formulas
-    let base = 0;
+    const base = 35; // Servicio de Envío Local Q35
     let weightCost = 0;
-    let days = '48 a 72 Horas';
+    let days = '3 a 5 Días Hábiles';
 
-    if (quoteService === 'Express') {
-      base = ratesSettings.baseExpress;
-      weightCost = quoteWeight * ratesSettings.pesoExpress;
-      days = '24 Horas';
-    } else if (quoteService === 'Estándar') {
-      base = ratesSettings.baseEstandar;
-      weightCost = quoteWeight * ratesSettings.pesoEstandar;
-      days = '48 a 72 Horas';
-    } else if (quoteService === 'Laredo') {
-      base = 0;
-      weightCost = quoteWeight * ratesSettings.laredoRate;
+    if (quoteOrigin === 'Texas') {
+      weightCost = quoteWeight * 60; // Q60 X LB LAREDO (Texas)
       days = '3 a 5 Días Hábiles';
-    } else if (quoteService === 'Mexico') {
-      base = 0;
-      weightCost = quoteWeight * ratesSettings.mexicoRate;
+    } else {
+      weightCost = quoteWeight * 30; // Q30 X LB MEXICO
       days = '2 a 4 Días Hábiles';
-    } else if (quoteService === 'Shein') {
-      base = ratesSettings.sheinRate;
-      weightCost = 0;
-      days = '4 a 6 Días Hábiles';
     }
 
     let productPriceUsd = 0;
@@ -503,14 +489,18 @@ export default function App() {
 
     const total = base + weightCost + productPriceQts + taxesQts;
     
-    // Route guidelines
-    let route = 'Conexión vial primaria Hub Central';
-    if (quoteDestination === 'Quetzaltenango' || quoteDestination === 'Huehuetenango') {
-      route = 'Corredor Occidente (Carretera Interamericana CA-1)';
-    } else if (quoteDestination === 'Cobán' || quoteDestination === 'Zacapa') {
-      route = 'Corredor Atlántico-Verapaz (Ruta CA-9 Norte / CA-14)';
-    } else if (quoteDestination === 'Escuintla') {
-      route = 'Corredor Sur (Autopista CA-9 Sur)';
+    // Route guidelines based on destination department
+    let route = `Ruta Logística Nacional hacia ${quoteDestination}`;
+    if (quoteDestination === 'Guatemala' || quoteDestination === 'Sacatepéquez' || quoteDestination === 'Chimaltenango') {
+      route = `Corredor Central Metropolitano (Destino: ${quoteDestination})`;
+    } else if (['Quetzaltenango', 'Huehuetenango', 'San Marcos', 'Totonicapán', 'Sololá', 'Quiché', 'Retalhuleu', 'Suchitepéquez'].includes(quoteDestination)) {
+      route = `Corredor Occidente CA-1 (Destino: ${quoteDestination})`;
+    } else if (['Escuintla', 'Santa Rosa', 'Jutiapa'].includes(quoteDestination)) {
+      route = `Corredor Sur / Costa Sur CA-9 (Destino: ${quoteDestination})`;
+    } else if (['Zacapa', 'Chiquimula', 'El Progreso', 'Jalapa', 'Izabal'].includes(quoteDestination)) {
+      route = `Corredor Oriental CA-9 Norte (Destino: ${quoteDestination})`;
+    } else if (['Alta Verapaz', 'Baja Verapaz', 'Petén'].includes(quoteDestination)) {
+      route = `Ruta Transversal del Norte / Petén (Destino: ${quoteDestination})`;
     }
 
     setCalculatedQuote({
@@ -1576,12 +1566,8 @@ Para proporcionarle información específica, puede solicitar:
                               onChange={(e) => setQuoteOrigin(e.target.value)}
                               className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-brand-orange"
                             >
-                              <option value="Guatemala">Ciudad de Guatemala</option>
-                              <option value="Antigua">Antigua Guatemala</option>
-                              <option value="Quetzaltenango">Quetzaltenango</option>
-                              <option value="Cobán">Cobán</option>
-                              <option value="Huehuetenango">Huehuetenango</option>
-                              <option value="Escuintla">Escuintla</option>
+                              <option value="Texas">Texas 🇺🇸 (Laredo - Q60/Lb)</option>
+                              <option value="Mexico">México 🇲🇽 (Q30/Lb)</option>
                             </select>
                           </div>
 
@@ -1592,30 +1578,41 @@ Para proporcionarle información específica, puede solicitar:
                               onChange={(e) => setQuoteDestination(e.target.value)}
                               className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-brand-orange"
                             >
-                              <option value="Quetzaltenango">Quetzaltenango</option>
-                              <option value="Guatemala">Ciudad de Guatemala</option>
-                              <option value="Antigua">Antigua Guatemala</option>
-                              <option value="Cobán">Cobán</option>
-                              <option value="Huehuetenango">Huehuetenango</option>
+                              <option value="Alta Verapaz">Alta Verapaz</option>
+                              <option value="Baja Verapaz">Baja Verapaz</option>
+                              <option value="Chimaltenango">Chimaltenango</option>
+                              <option value="Chiquimula">Chiquimula</option>
+                              <option value="El Progreso">El Progreso</option>
                               <option value="Escuintla">Escuintla</option>
+                              <option value="Guatemala">Guatemala</option>
+                              <option value="Huehuetenango">Huehuetenango</option>
+                              <option value="Izabal">Izabal</option>
+                              <option value="Jalapa">Jalapa</option>
+                              <option value="Jutiapa">Jutiapa</option>
+                              <option value="Petén">Petén</option>
+                              <option value="Quetzaltenango">Quetzaltenango</option>
+                              <option value="Quiché">Quiché</option>
+                              <option value="Retalhuleu">Retalhuleu</option>
+                              <option value="Sacatepéquez">Sacatepéquez</option>
+                              <option value="San Marcos">San Marcos</option>
+                              <option value="Santa Rosa">Santa Rosa</option>
+                              <option value="Sololá">Sololá</option>
+                              <option value="Suchitepéquez">Suchitepéquez</option>
+                              <option value="Totonicapán">Totonicapán</option>
+                              <option value="Zacapa">Zacapa</option>
                             </select>
                           </div>
                         </div>
 
                         <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Servicio de Envío</label>
-                            <select
-                              value={quoteService}
-                              onChange={(e) => setQuoteService(e.target.value as any)}
-                              className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-brand-orange"
-                            >
-                              <option value="Express">Express Local (24h)</option>
-                              <option value="Estándar">Estándar Local (48-72h)</option>
-                              <option value="Laredo">Importación Laredo 🇺🇸 (Q{ratesSettings.laredoRate}/Lb)</option>
-                              <option value="Mexico">Importación México 🇲🇽 (Q{ratesSettings.mexicoRate}/Lb)</option>
-                              <option value="Shein">Especial Bolsa Shein 🛍️ (Q{ratesSettings.sheinRate})</option>
-                            </select>
+                            <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Servicio de Envío Local</label>
+                            <input
+                              type="text"
+                              readOnly
+                              value="Envío Local Departamental (Q35.00)"
+                              className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-md bg-gray-50 text-gray-500 font-semibold focus:outline-none"
+                            />
                           </div>
 
                           <div>
@@ -1701,7 +1698,7 @@ Para proporcionarle información específica, puede solicitar:
                               </>
                             )}
 
-                            <div className="flex justify-between"><span>Cargo Base ({quoteService}):</span> <span className="font-semibold">Q {calculatedQuote.base.toFixed(2)}</span></div>
+                            <div className="flex justify-between"><span>Cargo Base (Envío Local):</span> <span className="font-semibold">Q {calculatedQuote.base.toFixed(2)}</span></div>
                             <div className="flex justify-between"><span>Cargo por Peso ({quoteWeight} Lbs):</span> <span className="font-semibold">Q {calculatedQuote.weightCost.toFixed(2)}</span></div>
                             
                             <div className="flex justify-between text-2xs font-extrabold text-brand-gray-dark pt-1.5 border-t border-brand-orange/10">
@@ -2236,12 +2233,8 @@ Para proporcionarle información específica, puede solicitar:
                           onChange={(e) => setQuoteOrigin(e.target.value)}
                           className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-brand-orange"
                         >
-                          <option value="Guatemala">Ciudad de Guatemala</option>
-                          <option value="Antigua">Antigua Guatemala</option>
-                          <option value="Quetzaltenango">Quetzaltenango</option>
-                          <option value="Cobán">Cobán</option>
-                          <option value="Huehuetenango">Huehuetenango</option>
-                          <option value="Escuintla">Escuintla</option>
+                          <option value="Texas">Texas 🇺🇸 (Laredo - Q60/Lb)</option>
+                          <option value="Mexico">México 🇲🇽 (Q30/Lb)</option>
                         </select>
                       </div>
 
@@ -2252,30 +2245,41 @@ Para proporcionarle información específica, puede solicitar:
                           onChange={(e) => setQuoteDestination(e.target.value)}
                           className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-brand-orange"
                         >
-                          <option value="Quetzaltenango">Quetzaltenango</option>
-                          <option value="Guatemala">Ciudad de Guatemala</option>
-                          <option value="Antigua">Antigua Guatemala</option>
-                          <option value="Cobán">Cobán</option>
-                          <option value="Huehuetenango">Huehuetenango</option>
+                          <option value="Alta Verapaz">Alta Verapaz</option>
+                          <option value="Baja Verapaz">Baja Verapaz</option>
+                          <option value="Chimaltenango">Chimaltenango</option>
+                          <option value="Chiquimula">Chiquimula</option>
+                          <option value="El Progreso">El Progreso</option>
                           <option value="Escuintla">Escuintla</option>
+                          <option value="Guatemala">Guatemala</option>
+                          <option value="Huehuetenango">Huehuetenango</option>
+                          <option value="Izabal">Izabal</option>
+                          <option value="Jalapa">Jalapa</option>
+                          <option value="Jutiapa">Jutiapa</option>
+                          <option value="Petén">Petén</option>
+                          <option value="Quetzaltenango">Quetzaltenango</option>
+                          <option value="Quiché">Quiché</option>
+                          <option value="Retalhuleu">Retalhuleu</option>
+                          <option value="Sacatepéquez">Sacatepéquez</option>
+                          <option value="San Marcos">San Marcos</option>
+                          <option value="Santa Rosa">Santa Rosa</option>
+                          <option value="Sololá">Sololá</option>
+                          <option value="Suchitepéquez">Suchitepéquez</option>
+                          <option value="Totonicapán">Totonicapán</option>
+                          <option value="Zacapa">Zacapa</option>
                         </select>
                       </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Servicio de Envío</label>
-                        <select
-                          value={quoteService}
-                          onChange={(e) => setQuoteService(e.target.value as any)}
-                          className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-brand-orange"
-                        >
-                          <option value="Express">Express Local (24h)</option>
-                          <option value="Estándar">Estándar Local (48-72h)</option>
-                          <option value="Laredo">Importación Laredo 🇺🇸 (Q{ratesSettings.laredoRate}/Lb)</option>
-                          <option value="Mexico">Importación México 🇲🇽 (Q{ratesSettings.mexicoRate}/Lb)</option>
-                          <option value="Shein">Especial Bolsa Shein 🛍️ (Q{ratesSettings.sheinRate})</option>
-                        </select>
+                        <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Servicio de Envío Local</label>
+                        <input
+                          type="text"
+                          readOnly
+                          value="Envío Local Departamental (Q35.00)"
+                          className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-md bg-gray-50 text-gray-500 font-semibold focus:outline-none"
+                        />
                       </div>
 
                       <div>
@@ -2360,7 +2364,7 @@ Para proporcionarle información específica, puede solicitar:
                           </>
                         )}
 
-                        <div className="flex justify-between"><span>Cargo Base ({quoteService}):</span> <span className="font-semibold">Q {calculatedQuote.base.toFixed(2)}</span></div>
+                        <div className="flex justify-between"><span>Cargo Base (Envío Local):</span> <span className="font-semibold">Q {calculatedQuote.base.toFixed(2)}</span></div>
                         <div className="flex justify-between"><span>Cargo por Peso ({quoteWeight} Lbs):</span> <span className="font-semibold">Q {calculatedQuote.weightCost.toFixed(2)}</span></div>
                         
                         <div className="flex justify-between text-2xs font-extrabold text-brand-gray-dark pt-1.5 border-t border-brand-orange/10">
