@@ -50,3 +50,12 @@
 .pulse-slow {
   animation: pulseSlow 3s infinite ease-in-out;
 }
+
+/* Hide scrollbars for horizontal swiping containers */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}

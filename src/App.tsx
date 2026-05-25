@@ -2122,7 +2122,7 @@ Para proporcionarle información específica, puede solicitar:
                               />
                             </div>
 
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                               <div>
                                 <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Correo Electrónico *</label>
                                 <input
@@ -2223,7 +2223,7 @@ Para proporcionarle información específica, puede solicitar:
                       </div>
 
                       <div className="space-y-3">
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
                             <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Origen del Envío</label>
                             <select
@@ -2269,7 +2269,7 @@ Para proporcionarle información específica, puede solicitar:
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
                             <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Servicio de Envío Local</label>
                             <input
@@ -2294,7 +2294,7 @@ Para proporcionarle información específica, puede solicitar:
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
                             <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Link del Producto (Opcional)</label>
                             <input
@@ -2487,12 +2487,12 @@ Para proporcionarle información específica, puede solicitar:
               </div>
 
               {/* Navigation Tabs - Role Based */}
-              <nav className="flex space-x-1 bg-gray-800 p-1 rounded-lg border border-gray-700">
+              <nav className="flex overflow-x-auto no-scrollbar space-x-1 bg-gray-800 p-1 rounded-lg border border-gray-700 max-w-full shrink-0">
                 {currentUser.role === 'client' ? (
                   <>
                     <button
                       onClick={() => setActiveTab('my-locker')}
-                      className={`px-4 py-1.5 text-3xs font-bold rounded uppercase tracking-wider transition flex items-center gap-1.5 ${
+                      className={`px-4 py-1.5 text-3xs font-bold rounded uppercase tracking-wider transition flex items-center gap-1.5 whitespace-nowrap ${
                         activeTab === 'my-locker' 
                           ? 'bg-brand-orange text-white' 
                           : 'text-gray-300 hover:text-white hover:bg-gray-700'
@@ -2504,14 +2504,14 @@ Para proporcionarle información específica, puede solicitar:
                     <button
                       type="button"
                       onClick={() => setIsClientPreAlertModalOpen(true)}
-                      className="px-4 py-1.5 text-3xs font-bold rounded uppercase tracking-wider transition flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs cursor-pointer active:scale-98"
+                      className="px-4 py-1.5 text-3xs font-bold rounded uppercase tracking-wider transition flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs cursor-pointer active:scale-98 whitespace-nowrap"
                     >
                       <PlusCircle className="h-3.5 w-3.5 animate-pulse" />
                       Pre-Alertar 🚀
                     </button>
                     <button
                       onClick={() => setActiveTab('pickup-request')}
-                      className={`px-4 py-1.5 text-3xs font-bold rounded uppercase tracking-wider transition flex items-center gap-1.5 ${
+                      className={`px-4 py-1.5 text-3xs font-bold rounded uppercase tracking-wider transition flex items-center gap-1.5 whitespace-nowrap ${
                         activeTab === 'pickup-request' 
                           ? 'bg-brand-orange text-white' 
                           : 'text-gray-300 hover:text-white hover:bg-gray-700'
@@ -2522,7 +2522,7 @@ Para proporcionarle información específica, puede solicitar:
                     </button>
                     <button
                       onClick={() => setActiveTab('quote')}
-                      className={`px-4 py-1.5 text-3xs font-bold rounded uppercase tracking-wider transition flex items-center gap-1.5 ${
+                      className={`px-4 py-1.5 text-3xs font-bold rounded uppercase tracking-wider transition flex items-center gap-1.5 whitespace-nowrap ${
                         activeTab === 'quote' 
                           ? 'bg-brand-orange text-white' 
                           : 'text-gray-300 hover:text-white hover:bg-gray-700'
@@ -2533,7 +2533,7 @@ Para proporcionarle información específica, puede solicitar:
                     </button>
                     <button
                       onClick={() => setActiveTab('ai-support')}
-                      className={`px-4 py-1.5 text-3xs font-bold rounded uppercase tracking-wider transition flex items-center gap-1.5 ${
+                      className={`px-4 py-1.5 text-3xs font-bold rounded uppercase tracking-wider transition flex items-center gap-1.5 whitespace-nowrap ${
                         activeTab === 'ai-support' 
                           ? 'bg-brand-orange text-white' 
                           : 'text-gray-300 hover:text-white hover:bg-gray-700'
@@ -2547,7 +2547,7 @@ Para proporcionarle información específica, puede solicitar:
                   <>
                     <button
                       onClick={() => setActiveTab('admin-dashboard')}
-                      className={`px-4 py-1.5 text-3xs font-bold rounded uppercase tracking-wider transition flex items-center gap-1.5 ${
+                      className={`px-4 py-1.5 text-3xs font-bold rounded uppercase tracking-wider transition flex items-center gap-1.5 whitespace-nowrap ${
                         activeTab === 'admin-dashboard' 
                           ? 'bg-brand-orange text-white' 
                           : 'text-gray-300 hover:text-white hover:bg-gray-700'
@@ -2558,7 +2558,7 @@ Para proporcionarle información específica, puede solicitar:
                     </button>
                     <button
                       onClick={() => setActiveTab('driver-terminal')}
-                      className={`px-4 py-1.5 text-3xs font-bold rounded uppercase tracking-wider transition flex items-center gap-1.5 ${
+                      className={`px-4 py-1.5 text-3xs font-bold rounded uppercase tracking-wider transition flex items-center gap-1.5 whitespace-nowrap ${
                         activeTab === 'driver-terminal' 
                           ? 'bg-brand-orange text-white' 
                           : 'text-gray-300 hover:text-white hover:bg-gray-700'
@@ -2569,7 +2569,7 @@ Para proporcionarle información específica, puede solicitar:
                     </button>
                     <button
                       onClick={() => setActiveTab('ai-chat')}
-                      className={`px-4 py-1.5 text-3xs font-bold rounded uppercase tracking-wider transition flex items-center gap-1.5 ${
+                      className={`px-4 py-1.5 text-3xs font-bold rounded uppercase tracking-wider transition flex items-center gap-1.5 whitespace-nowrap ${
                         activeTab === 'ai-chat' 
                           ? 'bg-brand-orange text-white' 
                           : 'text-gray-300 hover:text-white hover:bg-gray-700'
@@ -2851,7 +2851,7 @@ Para proporcionarle información específica, puede solicitar:
                 )}
 
                 <form onSubmit={handleRequestPickup} className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded border border-gray-200 text-2xs text-brand-gray-dark shrink-0">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-gray-50 p-4 rounded border border-gray-200 text-2xs text-brand-gray-dark shrink-0">
                     <div>
                       <span className="text-4xs font-bold text-gray-400 uppercase block">Remitente (Prefijado)</span>
                       <strong>{currentUser.name}</strong>
@@ -2886,7 +2886,7 @@ Para proporcionarle información específica, puede solicitar:
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Servicio</label>
                       <select
@@ -3322,7 +3322,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                   <div className="bg-white rounded-lg border border-gray-200 shadow-2xs overflow-hidden shrink-0">
                     
                     {/* Level 1: Category Groups */}
-                    <div className="bg-brand-gray-dark px-4 py-2 flex flex-wrap gap-2 border-b border-gray-800">
+                    <div className="bg-brand-gray-dark px-4 py-2 flex overflow-x-auto no-scrollbar space-x-2 border-b border-gray-800 shrink-0">
                       {categories.map(cat => {
                         const CategoryIcon = cat.icon;
                         const isCatActive = activeCategory === cat.id;
@@ -3334,7 +3334,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                               const firstSubTab = subTabsConfig[cat.id][0].id;
                               setAdminSubTab(firstSubTab);
                             }}
-                            className={`flex items-center space-x-2 px-4 py-2 text-2xs font-extrabold uppercase tracking-wider rounded-md transition-all cursor-pointer ${
+                            className={`flex items-center space-x-2 px-4 py-2 text-2xs font-extrabold uppercase tracking-wider rounded-md transition-all cursor-pointer whitespace-nowrap ${
                               isCatActive 
                                 ? 'bg-brand-orange text-white' 
                                 : 'text-gray-400 hover:text-white hover:bg-gray-800'
@@ -3348,7 +3348,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                     </div>
 
                     {/* Level 2: Sub-Tabs for active category */}
-                    <div className="bg-gray-50 px-4 py-2 flex flex-wrap gap-1 border-t border-gray-100">
+                    <div className="bg-gray-50 px-4 py-2 flex overflow-x-auto no-scrollbar space-x-1 border-t border-gray-100 shrink-0">
                       {subTabsConfig[activeCategory].map(tab => {
                         const TabIcon = tab.icon;
                         const isTabActive = adminSubTab === tab.id;
@@ -3356,7 +3356,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                           <button
                             key={tab.id}
                             onClick={() => setAdminSubTab(tab.id)}
-                            className={`flex items-center space-x-1.5 px-3 py-1.5 text-3xs font-extrabold uppercase tracking-widest rounded transition-all cursor-pointer border ${
+                            className={`flex items-center space-x-1.5 px-3 py-1.5 text-3xs font-extrabold uppercase tracking-widest rounded transition-all cursor-pointer border whitespace-nowrap ${
                               isTabActive 
                                 ? 'bg-white border-brand-orange text-brand-orange shadow-3xs' 
                                 : 'bg-transparent border-transparent text-gray-500 hover:text-brand-gray-dark hover:bg-gray-100/50'
