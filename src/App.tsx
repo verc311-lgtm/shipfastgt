@@ -5458,7 +5458,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                         const firstName = nameParts[0] || '';
                         const lastName = nameParts.slice(1).join(' ') || '';
                         
-                        const emailBodyText = `¡Bienvenido/a a ShipFast GT! 🇬🇹🚀
+                        const emailBodyTextPlain = `¡Bienvenido/a a ShipFast GT! 🇬🇹🚀
 
 Estimado/a ${selectedUserForEdit.name},
 
@@ -5526,6 +5526,113 @@ Recuerda que estamos para apoyarte en cada paso de tus envíos. Si tienes alguna
 Atentamente,
 El Equipo de ShipFast GT`;
 
+                        const emailBodyTextHtml = `<div style="font-family: 'Segoe UI', Arial, sans-serif; background-color: #f3f4f6; padding: 40px 20px; color: #1f2937; line-height: 1.6; margin: 0;">
+  <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); border-top: 6px solid #ea580c;">
+    
+    <!-- Header -->
+    <div style="padding: 30px; text-align: center; background-color: #ffffff; border-bottom: 1px solid #f3f4f6;">
+      <img src="https://app.shipfastgt.com/logo.png" alt="ShipFast GT" style="max-width: 220px; height: auto;" />
+    </div>
+
+    <!-- Content Body -->
+    <div style="padding: 40px 30px;">
+      <h2 style="margin-top: 0; color: #111827; font-size: 20px; font-weight: 800; text-align: center; text-transform: uppercase; letter-spacing: 0.5px;">¡Bienvenido/a a la familia ShipFast GT! 🇬🇹🚀</h2>
+      
+      <p style="font-size: 15px; color: #4b5563; margin-top: 25px;">
+        Estimado/a <strong>${selectedUserForEdit.name}</strong>,
+      </p>
+      
+      <p style="font-size: 14px; color: #4b5563;">
+        Nos complace darte la más cordial bienvenida a <strong>ShipFast GT</strong>, tu servicio de mensajería y casillero internacional de confianza. A partir de este momento, tienes acceso a nuestras bodegas en Estados Unidos y México para recibir todas tus compras de forma rápida, segura y económica.
+      </p>
+
+      <div style="background-color: #fff7ed; border-left: 4px solid #ea580c; padding: 15px; border-radius: 6px; margin: 25px 0;">
+        <strong style="color: #c2410c; font-size: 13px; display: block; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.5px;">🔑 Tu Código de Casillero Oficial:</strong>
+        <span style="font-size: 22px; font-weight: 800; font-family: monospace; color: #ea580c; letter-spacing: 1px;">${selectedUserForEdit.lockerId}</span>
+      </div>
+
+      <p style="font-size: 14px; color: #4b5563; margin-bottom: 25px;">
+        Al realizar tus compras en tus tiendas favoritas (Amazon, SHEIN, Mercado Libre, etc.), **copia y pega los datos exactamente igual** como se muestran a continuación para evitar cualquier contratiempo en la recepción de tus paquetes:
+      </p>
+
+      <!-- BODEGA EEUU -->
+      <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 25px; margin-bottom: 25px;">
+        <div style="margin-bottom: 15px;">
+          <h3 style="margin: 0; font-size: 15px; font-weight: 800; color: #ea580c; text-transform: uppercase; letter-spacing: 0.5px;">🇺🇸 Tu Dirección de Casillero en EE.UU.</h3>
+        </div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+          <tr style="border-bottom: 1px solid #f3f4f6;"><td style="padding: 8px 0; color: #6b7280; font-weight: bold; width: 120px;">Nombre:</td><td style="padding: 8px 0; color: #1f2937; font-weight: bold;">ShipFast ${firstName}</td></tr>
+          <tr style="border-bottom: 1px solid #f3f4f6;"><td style="padding: 8px 0; color: #6b7280; font-weight: bold;">Apellido:</td><td style="padding: 8px 0; color: #1f2937; font-weight: bold;">${lastName}</td></tr>
+          <tr style="border-bottom: 1px solid #f3f4f6;"><td style="padding: 8px 0; color: #6b7280; font-weight: bold;">Teléfono:</td><td style="padding: 8px 0; color: #1f2937; font-family: monospace;">+1 757-7762319</td></tr>
+          <tr style="border-bottom: 1px solid #f3f4f6;"><td style="padding: 8px 0; color: #6b7280; font-weight: bold;">Dirección 1:</td><td style="padding: 8px 0; color: #1f2937;">1900 Justo Penn St.</td></tr>
+          <tr style="border-bottom: 1px solid #f3f4f6;"><td style="padding: 8px 0; color: #6b7280; font-weight: bold;">Suite / Apt:</td><td style="padding: 8px 0; color: #ea580c; font-weight: bold; font-family: monospace;">${selectedUserForEdit.lockerId}</td></tr>
+          <tr style="border-bottom: 1px solid #f3f4f6;"><td style="padding: 8px 0; color: #6b7280; font-weight: bold;">Ciudad:</td><td style="padding: 8px 0; color: #1f2937;">Laredo</td></tr>
+          <tr style="border-bottom: 1px solid #f3f4f6;"><td style="padding: 8px 0; color: #6b7280; font-weight: bold;">Estado:</td><td style="padding: 8px 0; color: #1f2937;">Texas (TX)</td></tr>
+          <tr><td style="padding: 8px 0; color: #6b7280; font-weight: bold;">Zip Code:</td><td style="padding: 8px 0; color: #1f2937; font-family: monospace;">78041</td></tr>
+        </table>
+      </div>
+
+      <!-- BODEGA MEXICO -->
+      <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 25px; margin-bottom: 25px;">
+        <div style="margin-bottom: 15px;">
+          <h3 style="margin: 0; font-size: 15px; font-weight: 800; color: #374151; text-transform: uppercase; letter-spacing: 0.5px;">🇲🇽 Bodega Compras México</h3>
+        </div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+          <tr style="border-bottom: 1px solid #f3f4f6;"><td style="padding: 8px 0; color: #6b7280; font-weight: bold; width: 120px;">Nombre:</td><td style="padding: 8px 0; color: #1f2937; font-weight: bold;">ShipFast ${firstName}</td></tr>
+          <tr style="border-bottom: 1px solid #f3f4f6;"><td style="padding: 8px 0; color: #6b7280; font-weight: bold;">Apellido:</td><td style="padding: 8px 0; color: #1f2937; font-weight: bold;">${lastName}</td></tr>
+          <tr style="border-bottom: 1px solid #f3f4f6;"><td style="padding: 8px 0; color: #6b7280; font-weight: bold;">Teléfono:</td><td style="padding: 8px 0; color: #1f2937; font-family: monospace;">9621027742</td></tr>
+          <tr style="border-bottom: 1px solid #f3f4f6;"><td style="padding: 8px 0; color: #6b7280; font-weight: bold;">Ubicación:</td><td style="padding: 8px 0; color: #1f2937;">México</td></tr>
+          <tr style="border-bottom: 1px solid #f3f4f6;"><td style="padding: 8px 0; color: #6b7280; font-weight: bold;">Dirección:</td><td style="padding: 8px 0; color: #1f2937;">Libramiento Sur Ote, Parque Logístico Tamarindo</td></tr>
+          <tr style="border-bottom: 1px solid #f3f4f6;"><td style="padding: 8px 0; color: #6b7280; font-weight: bold;">Referencias:</td><td style="padding: 8px 0; color: #ea580c; font-weight: bold;">[${selectedUserForEdit.lockerId}] + Bodega JT Express 320B Jony Maza Blanca Díaz</td></tr>
+          <tr style="border-bottom: 1px solid #f3f4f6;"><td style="padding: 8px 0; color: #6b7280; font-weight: bold;">Estado:</td><td style="padding: 8px 0; color: #1f2937;">Chiapas</td></tr>
+          <tr style="border-bottom: 1px solid #f3f4f6;"><td style="padding: 8px 0; color: #6b7280; font-weight: bold;">Ciudad:</td><td style="padding: 8px 0; color: #1f2937;">Tapachula</td></tr>
+          <tr style="border-bottom: 1px solid #f3f4f6;"><td style="padding: 8px 0; color: #6b7280; font-weight: bold;">Distrito:</td><td style="padding: 8px 0; color: #1f2937;">Tapachula Centro</td></tr>
+          <tr style="border-bottom: 1px solid #f3f4f6;"><td style="padding: 8px 0; color: #6b7280; font-weight: bold;">Código Postal:</td><td style="padding: 8px 0; color: #1f2937; font-family: monospace;">30700</td></tr>
+          <tr><td style="padding: 8px 0; color: #6b7280; font-weight: bold;">CURP:</td><td style="padding: 8px 0; color: #1f2937; font-family: monospace;">GADB000327MCSBZLA7</td></tr>
+        </table>
+      </div>
+
+      <!-- ENVIOS DE SHEIN MEXICO -->
+      <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 25px; margin-bottom: 25px;">
+        <div style="margin-bottom: 15px;">
+          <h3 style="margin: 0; font-size: 15px; font-weight: 800; color: #db2777; text-transform: uppercase; letter-spacing: 0.5px;">👗 Envíos de SHEIN México</h3>
+        </div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+          <tr style="border-bottom: 1px solid #f3f4f6;"><td style="padding: 8px 0; color: #6b7280; font-weight: bold; width: 120px;">Nombre:</td><td style="padding: 8px 0; color: #1f2937; font-weight: bold;">ShipFast ${firstName}</td></tr>
+          <tr style="border-bottom: 1px solid #f3f4f6;"><td style="padding: 8px 0; color: #6b7280; font-weight: bold;">Apellido:</td><td style="padding: 8px 0; color: #1f2937; font-weight: bold;">${lastName}</td></tr>
+          <tr style="border-bottom: 1px solid #f3f4f6;"><td style="padding: 8px 0; color: #6b7280; font-weight: bold;">Teléfono:</td><td style="padding: 8px 0; color: #1f2937; font-family: monospace;">9621027742</td></tr>
+          <tr style="border-bottom: 1px solid #f3f4f6;"><td style="padding: 8px 0; color: #6b7280; font-weight: bold;">Ubicación:</td><td style="padding: 8px 0; color: #1f2937;">México</td></tr>
+          <tr style="border-bottom: 1px solid #f3f4f6;"><td style="padding: 8px 0; color: #6b7280; font-weight: bold;">Dirección:</td><td style="padding: 8px 0; color: #1f2937;">Libramiento Sur Ote, Parque Logístico Tamarindo</td></tr>
+          <tr style="border-bottom: 1px solid #f3f4f6;"><td style="padding: 8px 0; color: #6b7280; font-weight: bold;">Referencias:</td><td style="padding: 8px 0; color: #ea580c; font-weight: bold;">[${selectedUserForEdit.lockerId}] + Bodega JT Express 320B Jony Maza Blanca Díaz</td></tr>
+          <tr style="border-bottom: 1px solid #f3f4f6;"><td style="padding: 8px 0; color: #6b7280; font-weight: bold;">Estado/Provincia:</td><td style="padding: 8px 0; color: #1f2937;">Chiapas</td></tr>
+          <tr style="border-bottom: 1px solid #f3f4f6;"><td style="padding: 8px 0; color: #6b7280; font-weight: bold;">Ciudad:</td><td style="padding: 8px 0; color: #1f2937;">Tapachula</td></tr>
+          <tr style="border-bottom: 1px solid #f3f4f6;"><td style="padding: 8px 0; color: #6b7280; font-weight: bold;">Distrito:</td><td style="padding: 8px 0; color: #1f2937;">La Joya</td></tr>
+          <tr style="border-bottom: 1px solid #f3f4f6;"><td style="padding: 8px 0; color: #6b7280; font-weight: bold;">Código Postal:</td><td style="padding: 8px 0; color: #1f2937; font-family: monospace;">30783</td></tr>
+          <tr><td style="padding: 8px 0; color: #6b7280; font-weight: bold;">CURP:</td><td style="padding: 8px 0; color: #1f2937; font-family: monospace;">GADB000327MCSBZLA7</td></tr>
+        </table>
+      </div>
+
+      <!-- Support and Contact Info -->
+      <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 20px; text-align: center; margin-top: 30px;">
+        <strong style="color: #1e3a8a; font-size: 14px; display: block; margin-bottom: 10px;">💬 ¿Tienes alguna duda o necesitas asistencia?</strong>
+        <p style="font-size: 13px; color: #4b5563; margin: 0 0 15px 0;">Estamos disponibles para apoyarte en cada paso de tus importaciones y mensajería en Guatemala.</p>
+        <a href="https://wa.me/50237268751" target="_blank" style="background-color: #25d366; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 13px; display: inline-block; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          🟢 Contactar por WhatsApp: +502 3726-8751
+        </a>
+      </div>
+
+    </div>
+
+    <!-- Footer -->
+    <div style="background-color: #1f2937; padding: 30px; text-align: center; color: #9ca3af; font-size: 11px; border-top: 1px solid #374151;">
+      <p style="margin: 0 0 8px 0; font-weight: bold; color: #ffffff;">ShipFast Logistics S.A. &copy; 2026</p>
+      <p style="margin: 0 0 8px 0;">El servicio de courier y mensajería express más rápido de Guatemala.</p>
+      <p style="margin: 0; color: #6b7280;">Este es un correo automático. Por favor, no respondas directamente a este mensaje.</p>
+    </div>
+
+  </div>
+</div>`;
+
                         // Send via EmailJS in the background if configured
                         const serviceId = emailJsServiceId.trim();
                         const templateId = emailJsTemplateId.trim();
@@ -5553,7 +5660,7 @@ El Equipo de ShipFast GT`;
                                   first_name: firstName,
                                   last_name: lastName,
                                   subject: `¡Bienvenido a ShipFast GT! - Tu Casillero ${selectedUserForEdit.lockerId}`,
-                                  message: emailBodyText
+                                  message: emailBodyTextHtml
                                 }
                               })
                             });
@@ -5577,7 +5684,7 @@ Se procederá a abrir tu cliente de correo nativo como alternativa de respaldo.`
 
                         // Native mailto fallback
                         const subject = encodeURIComponent(`¡Bienvenido a ShipFast GT! - Tu Casillero ${selectedUserForEdit.lockerId}`);
-                        const body = encodeURIComponent(emailBodyText);
+                        const body = encodeURIComponent(emailBodyTextPlain);
                         window.location.href = `mailto:${selectedUserForEdit.email}?subject=${subject}&body=${body}`;
                       };
 
