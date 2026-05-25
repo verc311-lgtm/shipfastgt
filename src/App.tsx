@@ -5387,6 +5387,165 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                         }
                       };
 
+                      const handleSendWelcomeEmail = () => {
+                        if (!selectedUserForEdit) return;
+                        
+                        const nameParts = selectedUserForEdit.name.trim().split(/\s+/);
+                        const firstName = nameParts[0] || '';
+                        const lastName = nameParts.slice(1).join(' ') || '';
+                        
+                        const emailBodyText = `¡Bienvenido/a a ShipFast GT! 🇬🇹🚀
+
+Estimado/a ${selectedUserForEdit.name},
+
+Nos complace darte la más cordial bienvenida a ShipFast GT, tu servicio de mensajería y casillero internacional de confianza. A partir de este momento, tienes acceso a nuestras bodegas en Estados Unidos y México para recibir todas tus compras de forma rápida, segura y económica.
+
+A continuación, te detallamos la información de tu casillero y las direcciones exactas que debes utilizar al realizar tus compras en tus tiendas favoritas (Amazon, SHEIN, Mercado Libre, etc.).
+
+--------------------------------------------------
+📦 BODEGA EE.UU.
+--------------------------------------------------
+Copia y pega estos datos exactamente igual al hacer tu compra:
+
+Nombre: ShipFast ${firstName}
+Apellido: ${lastName}
+Teléfono: +1 757-7762319
+Dirección 1: 1900 Justo Penn St.
+Suite / Apt: ${selectedUserForEdit.lockerId}
+Ciudad: Laredo
+Estado: Texas (TX)
+Zip Code: 78041
+
+--------------------------------------------------
+🇲🇽 BODEGA COMPRAS MÉXICO
+--------------------------------------------------
+Copia y pega estos datos exactamente igual al hacer tu compra:
+
+Nombre: ShipFast ${firstName}
+Apellido: ${lastName}
+Teléfono: 9621027742
+Ubicación: México
+Dirección: Libramiento Sur Ote, Parque Logístico Tamarindo
+Referencias: [${selectedUserForEdit.lockerId}] + Bodega JT Express 320B Jony Maza Blanca Díaz
+Estado: Chiapas
+Ciudad: Tapachula
+Distrito: Tapachula Centro
+Código Postal: 30700
+CURP: GADB000327MCSBZLA7
+
+--------------------------------------------------
+👗 ENVÍOS DE SHEIN MÉXICO
+--------------------------------------------------
+Utiliza esta dirección específica para tus compras en SHEIN:
+
+Nombre: ShipFast ${firstName}
+Apellido: ${lastName}
+Teléfono: 9621027742
+Ubicación: México
+Dirección: Libramiento Sur Ote, Parque Logístico Tamarindo
+Referencias: [${selectedUserForEdit.lockerId}] + Bodega JT Express 320B Jony Maza Blanca Díaz
+Estado/Provincia: Chiapas
+Ciudad: Tapachula
+Distrito: La Joya
+Código Postal: 30783
+CURP: GADB000327MCSBZLA7
+
+--------------------------------------------------
+📱 INFORMACIÓN DE SOPORTE Y CONTACTO
+--------------------------------------------------
+Recuerda que estamos para apoyarte en cada paso de tus envíos. Si tienes alguna duda, puedes contactarnos directamente a nuestro WhatsApp oficial:
+
+💬 WhatsApp Soporte: +502 3726-8751
+
+¡Gracias por confiar en ShipFast GT! Esperamos servirte muy pronto.
+
+Atentamente,
+El Equipo de ShipFast GT`;
+
+                        const subject = encodeURIComponent(`¡Bienvenido a ShipFast GT! - Tu Casillero ${selectedUserForEdit.lockerId}`);
+                        const body = encodeURIComponent(emailBodyText);
+                        window.location.href = `mailto:${selectedUserForEdit.email}?subject=${subject}&body=${body}`;
+                      };
+
+                      const handleCopyWelcomeEmail = () => {
+                        if (!selectedUserForEdit) return;
+                        
+                        const nameParts = selectedUserForEdit.name.trim().split(/\s+/);
+                        const firstName = nameParts[0] || '';
+                        const lastName = nameParts.slice(1).join(' ') || '';
+                        
+                        const emailBodyText = `¡Bienvenido/a a ShipFast GT! 🇬🇹🚀
+
+Estimado/a ${selectedUserForEdit.name},
+
+Nos complace darte la más cordial bienvenida a ShipFast GT, tu servicio de mensajería y casillero internacional de confianza. A partir de este momento, tienes acceso a nuestras bodegas en Estados Unidos y México para recibir todas tus compras de forma rápida, segura y económica.
+
+A continuación, te detallamos la información de tu casillero y las direcciones exactas que debes utilizar al realizar tus compras en tus tiendas favoritas (Amazon, SHEIN, Mercado Libre, etc.).
+
+--------------------------------------------------
+📦 BODEGA EE.UU.
+--------------------------------------------------
+Copia y pega estos datos exactamente igual al hacer tu compra:
+
+Nombre: ShipFast ${firstName}
+Apellido: ${lastName}
+Teléfono: +1 757-7762319
+Dirección 1: 1900 Justo Penn St.
+Suite / Apt: ${selectedUserForEdit.lockerId}
+Ciudad: Laredo
+Estado: Texas (TX)
+Zip Code: 78041
+
+--------------------------------------------------
+🇲🇽 BODEGA COMPRAS MÉXICO
+--------------------------------------------------
+Copia y pega estos datos exactamente igual al hacer tu compra:
+
+Nombre: ShipFast ${firstName}
+Apellido: ${lastName}
+Teléfono: 9621027742
+Ubicación: México
+Dirección: Libramiento Sur Ote, Parque Logístico Tamarindo
+Referencias: [${selectedUserForEdit.lockerId}] + Bodega JT Express 320B Jony Maza Blanca Díaz
+Estado: Chiapas
+Ciudad: Tapachula
+Distrito: Tapachula Centro
+Código Postal: 30700
+CURP: GADB000327MCSBZLA7
+
+--------------------------------------------------
+👗 ENVÍOS DE SHEIN MÉXICO
+--------------------------------------------------
+Utiliza esta dirección específica para tus compras en SHEIN:
+
+Nombre: ShipFast ${firstName}
+Apellido: ${lastName}
+Teléfono: 9621027742
+Ubicación: México
+Dirección: Libramiento Sur Ote, Parque Logístico Tamarindo
+Referencias: [${selectedUserForEdit.lockerId}] + Bodega JT Express 320B Jony Maza Blanca Díaz
+Estado/Provincia: Chiapas
+Ciudad: Tapachula
+Distrito: La Joya
+Código Postal: 30783
+CURP: GADB000327MCSBZLA7
+
+--------------------------------------------------
+📱 INFORMACIÓN DE SOPORTE Y CONTACTO
+--------------------------------------------------
+Recuerda que estamos para apoyarte en cada paso de tus envíos. Si tienes alguna duda, puedes contactarnos directamente a nuestro WhatsApp oficial:
+
+💬 WhatsApp Soporte: +502 3726-8751
+
+¡Gracias por confiar en ShipFast GT! Esperamos servirte muy pronto.
+
+Atentamente,
+El Equipo de ShipFast GT`;
+
+                        navigator.clipboard.writeText(emailBodyText);
+                        alert(`¡Correo de bienvenida para ${selectedUserForEdit.name} copiado al portapapeles con éxito!`);
+                      };
+
                       return (
                         <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs space-y-6">
                           <div>
@@ -5569,6 +5728,26 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                       >
                                         Eliminar
                                       </button>
+                                    </div>
+
+                                    <div className="border-t border-gray-250 pt-3 mt-3 space-y-2">
+                                      <label className="text-4xs font-bold text-gray-500 uppercase block mb-0.5">Correo de Bienvenida</label>
+                                      <div className="flex gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={handleSendWelcomeEmail}
+                                          className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-4xs font-extrabold py-2 rounded uppercase tracking-wider transition cursor-pointer text-center flex items-center justify-center gap-1"
+                                        >
+                                          ✉️ Enviar Correo
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={handleCopyWelcomeEmail}
+                                          className="flex-1 bg-gray-600 hover:bg-gray-700 text-white text-4xs font-extrabold py-2 rounded uppercase tracking-wider transition cursor-pointer text-center flex items-center justify-center gap-1"
+                                        >
+                                          📋 Copiar Texto
+                                        </button>
+                                      </div>
                                     </div>
                                   </form>
                                 </div>
