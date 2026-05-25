@@ -480,14 +480,14 @@ export default function App() {
     // Pricing formulas
     const base = 35; // Servicio de Envío Local Q35
     let weightCost = 0;
-    let days = '3 a 5 Días Hábiles';
+    let days = '8 a 10 Días Hábiles';
 
     if (quoteOrigin === 'Texas') {
       weightCost = quoteWeight * 60; // Q60 X LB LAREDO (Texas)
-      days = '3 a 5 Días Hábiles';
+      days = '8 a 10 Días Hábiles';
     } else {
       weightCost = quoteWeight * 30; // Q30 X LB MEXICO
-      days = '2 a 4 Días Hábiles';
+      days = '4 a 6 Días Hábiles';
     }
 
     let productPriceUsd = 0;
@@ -532,86 +532,144 @@ export default function App() {
   // Pre-calculate quote if URL has parameters on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    const quoteIdParam = params.get('quote');
     const origin = params.get('origin');
     const destination = params.get('destination');
     const weight = params.get('weight');
     const price = params.get('price');
     const link = params.get('link');
 
-    if (origin || destination || weight || price || link) {
-      const decodedOrigin = origin ? decodeURIComponent(origin) : 'Texas';
-      const decodedDest = destination ? decodeURIComponent(destination) : 'Guatemala';
-      const parsedWeight = weight ? Number(weight) : 1;
-      const parsedPrice = price ? Number(price) : 0;
-      const decodedLink = link ? decodeURIComponent(link) : '';
+    async function parseUrlParams() {
+      if (quoteIdParam) {
+        const savedQuote = await db.getQuote(quoteIdParam);
+        if (savedQuote) {
+          setQuoteOrigin(savedQuote.origin === 'Mexico' || savedQuote.origin === 'México' || savedQuote.origin === 'mexico' ? 'México' : 'Texas');
+          setQuoteDestination(savedQuote.destination);
+          setQuoteWeight(savedQuote.weight);
+          setQuoteProductPriceUsd(savedQuote.productPriceUsd > 0 ? savedQuote.productPriceUsd : '');
+          setQuoteProductLink(savedQuote.productLink || '');
 
-      setQuoteOrigin(decodedOrigin === 'Mexico' || decodedOrigin === 'México' || decodedOrigin === 'mexico' ? 'México' : 'Texas');
-      setQuoteDestination(decodedDest);
-      setQuoteWeight(parsedWeight);
-      setQuoteProductPriceUsd(parsedPrice > 0 ? parsedPrice : '');
-      setQuoteProductLink(decodedLink);
+          setCalculatedQuote({
+            base: 35,
+            weightCost: savedQuote.origin === 'Texas' ? savedQuote.weight * 60 : savedQuote.weight * 30,
+            productPriceUsd: savedQuote.productPriceUsd,
+            productPriceQts: savedQuote.productPriceUsd * 8,
+            taxesQts: Number((savedQuote.productPriceUsd * 8 * 0.12).toFixed(2)),
+            total: savedQuote.total,
+            days: savedQuote.days,
+            route: savedQuote.route,
+            productLink: savedQuote.productLink || undefined
+          });
 
-      // Compute calculations directly
-      const baseVal = 35;
-      let weightCostVal = 0;
-      let daysVal = '3 a 5 Días Hábiles';
-
-      if (decodedOrigin === 'Mexico' || decodedOrigin === 'México' || decodedOrigin === 'mexico') {
-        weightCostVal = parsedWeight * 30;
-        daysVal = '2 a 4 Días Hábiles';
-      } else {
-        weightCostVal = parsedWeight * 60;
-        daysVal = '3 a 5 Días Hábiles';
+          if (!currentUser) {
+            setAccessTab('quote');
+          }
+          return; // successfully loaded from DB!
+        }
       }
 
-      let productPriceQtsVal = 0;
-      let taxesQtsVal = 0;
+      // Standard fallback query parameters parsing
+      if (origin || destination || weight || price || link) {
+        const decodedOrigin = origin ? decodeURIComponent(origin) : 'Texas';
+        const decodedDest = destination ? decodeURIComponent(destination) : 'Guatemala';
+        const parsedWeight = weight ? Number(weight) : 1;
+        const parsedPrice = price ? Number(price) : 0;
+        const decodedLink = link ? decodeURIComponent(link) : '';
 
-      if (parsedPrice > 0) {
-        productPriceQtsVal = parsedPrice * 8;
-        taxesQtsVal = Number((productPriceQtsVal * 0.12).toFixed(2));
-      }
+        setQuoteOrigin(decodedOrigin === 'Mexico' || decodedOrigin === 'México' || decodedOrigin === 'mexico' ? 'México' : 'Texas');
+        setQuoteDestination(decodedDest);
+        setQuoteWeight(parsedWeight);
+        setQuoteProductPriceUsd(parsedPrice > 0 ? parsedPrice : '');
+        setQuoteProductLink(decodedLink);
 
-      const totalVal = baseVal + weightCostVal + productPriceQtsVal + taxesQtsVal;
-      
-      let routeVal = `Ruta Logística Nacional hacia ${decodedDest}`;
-      if (decodedDest === 'Guatemala' || decodedDest === 'Sacatepéquez' || decodedDest === 'Chimaltenango') {
-        routeVal = `Corredor Central Metropolitano (Destino: ${decodedDest})`;
-      } else if (['Quetzaltenango', 'Huehuetenango', 'San Marcos', 'Totonicapán', 'Sololá', 'Quiché', 'Retalhuleu', 'Suchitepéquez'].includes(decodedDest)) {
-        routeVal = `Corredor Occidente CA-1 (Destino: ${decodedDest})`;
-      } else if (['Escuintla', 'Santa Rosa', 'Jutiapa'].includes(decodedDest)) {
-        routeVal = `Corredor Sur / Costa Sur CA-9 (Destino: ${decodedDest})`;
-      } else if (['Zacapa', 'Chiquimula', 'El Progreso', 'Jalapa', 'Izabal'].includes(decodedDest)) {
-        routeVal = `Corredor Oriental CA-9 Norte (Destino: ${decodedDest})`;
-      } else if (['Alta Verapaz', 'Baja Verapaz', 'Petén'].includes(decodedDest)) {
-        routeVal = `Ruta Transversal del Norte / Petén (Destino: ${decodedDest})`;
-      }
+        // Compute calculations directly
+        const baseVal = 35;
+        let weightCostVal = 0;
+        let daysVal = '8 a 10 Días Hábiles';
 
-      setCalculatedQuote({
-        base: baseVal,
-        weightCost: weightCostVal,
-        productPriceUsd: parsedPrice,
-        productPriceQts: productPriceQtsVal,
-        taxesQts: taxesQtsVal,
-        total: totalVal,
-        days: daysVal,
-        route: routeVal,
-        productLink: decodedLink || undefined
-      });
-      
-      if (!currentUser) {
-        setAccessTab('quote');
+        if (decodedOrigin === 'Mexico' || decodedOrigin === 'México' || decodedOrigin === 'mexico') {
+          weightCostVal = parsedWeight * 30;
+          daysVal = '4 a 6 Días Hábiles';
+        } else {
+          weightCostVal = parsedWeight * 60;
+          daysVal = '8 a 10 Días Hábiles';
+        }
+
+        let productPriceQtsVal = 0;
+        let taxesQtsVal = 0;
+
+        if (parsedPrice > 0) {
+          productPriceQtsVal = parsedPrice * 8;
+          taxesQtsVal = Number((productPriceQtsVal * 0.12).toFixed(2));
+        }
+
+        const totalVal = baseVal + weightCostVal + productPriceQtsVal + taxesQtsVal;
+        
+        let routeVal = `Ruta Logística Nacional hacia ${decodedDest}`;
+        if (decodedDest === 'Guatemala' || decodedDest === 'Sacatepéquez' || decodedDest === 'Chimaltenango') {
+          routeVal = `Corredor Central Metropolitano (Destino: ${decodedDest})`;
+        } else if (['Quetzaltenango', 'Huehuetenango', 'San Marcos', 'Totonicapán', 'Sololá', 'Quiché', 'Retalhuleu', 'Suchitepéquez'].includes(decodedDest)) {
+          routeVal = `Corredor Occidente CA-1 (Destino: ${decodedDest})`;
+        } else if (['Escuintla', 'Santa Rosa', 'Jutiapa'].includes(decodedDest)) {
+          routeVal = `Corredor Sur / Costa Sur CA-9 (Destino: ${decodedDest})`;
+        } else if (['Zacapa', 'Chiquimula', 'El Progreso', 'Jalapa', 'Izabal'].includes(decodedDest)) {
+          routeVal = `Corredor Oriental CA-9 Norte (Destino: ${decodedDest})`;
+        } else if (['Alta Verapaz', 'Baja Verapaz', 'Petén'].includes(decodedDest)) {
+          routeVal = `Ruta Transversal del Norte / Petén (Destino: ${decodedDest})`;
+        }
+
+        setCalculatedQuote({
+          base: baseVal,
+          weightCost: weightCostVal,
+          productPriceUsd: parsedPrice,
+          productPriceQts: productPriceQtsVal,
+          taxesQts: taxesQtsVal,
+          total: totalVal,
+          days: daysVal,
+          route: routeVal,
+          productLink: decodedLink || undefined
+        });
+        
+        if (!currentUser) {
+          setAccessTab('quote');
+        }
       }
     }
+
+    parseUrlParams();
   }, [currentUser]);
 
   // Copy shareable link to clipboard
-  const handleCopyShareLink = () => {
+  const handleCopyShareLink = async () => {
     if (!calculatedQuote) return;
     const baseUrl = window.location.origin + window.location.pathname;
-    const priceParam = calculatedQuote.productPriceUsd ? `&price=${calculatedQuote.productPriceUsd}` : '';
-    const linkParam = calculatedQuote.productLink ? `&link=${encodeURIComponent(calculatedQuote.productLink)}` : '';
-    const shareUrl = `${baseUrl}?origin=${quoteOrigin}&destination=${quoteDestination}&weight=${quoteWeight}${priceParam}${linkParam}`;
+    const quoteId = `SF-QT-${Math.floor(100000 + Math.random() * 900000)}`;
+
+    const quoteObj = {
+      id: quoteId,
+      date: new Date().toISOString().split('T')[0],
+      origin: quoteOrigin,
+      destination: quoteDestination,
+      weight: quoteWeight,
+      productPriceUsd: calculatedQuote.productPriceUsd || 0,
+      productLink: calculatedQuote.productLink || '',
+      total: calculatedQuote.total,
+      days: calculatedQuote.days,
+      route: calculatedQuote.route
+    };
+
+    // Save to Supabase (dynamic quotes table)
+    const success = await db.upsertQuote(quoteObj);
+    
+    // Construct database-backed clean URL if successful, otherwise fallback to URL parameters
+    let shareUrl = '';
+    if (success) {
+      shareUrl = `${baseUrl}?quote=${quoteId}`;
+    } else {
+      const priceParam = calculatedQuote.productPriceUsd ? `&price=${calculatedQuote.productPriceUsd}` : '';
+      const linkParam = calculatedQuote.productLink ? `&link=${encodeURIComponent(calculatedQuote.productLink)}` : '';
+      shareUrl = `${baseUrl}?origin=${quoteOrigin}&destination=${quoteDestination}&weight=${quoteWeight}${priceParam}${linkParam}`;
+    }
     
     navigator.clipboard.writeText(shareUrl).then(() => {
       setCopyLinkSuccess(true);

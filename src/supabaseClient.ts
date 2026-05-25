@@ -235,5 +235,28 @@ export const db = {
       console.error("Supabase: upsertBranch error", err);
       return false;
     }
+  },
+
+  // Quotes
+  async getQuote(id: string): Promise<any | null> {
+    try {
+      const { data, error } = await supabase.from('quotes').select('*').eq('id', id).single();
+      if (error) throw error;
+      return toCamel(data);
+    } catch (err) {
+      console.error("Supabase: getQuote error", err);
+      return null;
+    }
+  },
+  async upsertQuote(quote: any): Promise<boolean> {
+    try {
+      const dbObj = toSnake(quote);
+      const { error } = await supabase.from('quotes').upsert(dbObj);
+      if (error) throw error;
+      return true;
+    } catch (err) {
+      console.error("Supabase: upsertQuote error", err);
+      return false;
+    }
   }
 };
