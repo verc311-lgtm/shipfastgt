@@ -237,7 +237,7 @@ export default function App() {
 
   // Expenses
   const [expensesLog, setExpensesLog] = useState<any[]>([]);
-  const [expenseCategory, setExpenseCategory] = useState('Combustible');
+  const [expenseCategory, setExpenseCategory] = useState('Internet');
   const [expenseDescription, setExpenseDescription] = useState('');
   const [expenseAmount, setExpenseAmount] = useState(150.00);
 
@@ -5055,12 +5055,18 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                   onChange={(e) => setExpenseCategory(e.target.value)}
                                   className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white font-semibold"
                                 >
-                                  <option value="Combustible">Combustible Troncales</option>
-                                  <option value="Viáticos">Viáticos / Repartidores</option>
-                                  <option value="Mantenimiento">Mantenimiento Flotilla</option>
-                                  <option value="Servicios">Alquileres / Luz / Internet</option>
-                                  <option value="Papelería">Papelería y Stickers Bodega</option>
-                                  <option value="Otros">Otros Imprevistos</option>
+                                  <option value="Internet">Internet</option>
+                                  <option value="Luz">Luz</option>
+                                  <option value="Renta">Renta</option>
+                                  <option value="Impuestos">Impuestos</option>
+                                  <option value="Salarios">Salarios</option>
+                                  <option value="Gastos Laredo">Gastos Laredo</option>
+                                  <option value="Gastos Tapachula">Gastos Tapachula</option>
+                                  <option value="Gastos Greensboro">Gastos Greensboro</option>
+                                  <option value="Cargo Express">Cargo Express</option>
+                                  <option value="Gastos Oficina">Gastos Oficina</option>
+                                  <option value="Compras Online">Compras Online</option>
+                                  <option value="Otros">Otros</option>
                                 </select>
                               </div>
 
