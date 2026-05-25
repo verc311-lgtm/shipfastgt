@@ -5527,7 +5527,12 @@ Atentamente,
 El Equipo de ShipFast GT`;
 
                         // Send via EmailJS in the background if configured
-                        if (emailJsServiceId && emailJsTemplateId && emailJsPublicKey) {
+                        const serviceId = emailJsServiceId.trim();
+                        const templateId = emailJsTemplateId.trim();
+                        const publicKey = emailJsPublicKey.trim();
+                        const privateKey = emailJsPrivateKey.trim();
+
+                        if (serviceId && templateId && publicKey) {
                           try {
                             const response = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
                               method: "POST",
@@ -5535,10 +5540,10 @@ El Equipo de ShipFast GT`;
                                 "Content-Type": "application/json"
                               },
                               body: JSON.stringify({
-                                service_id: emailJsServiceId,
-                                template_id: emailJsTemplateId,
-                                user_id: emailJsPublicKey,
-                                accessToken: emailJsPrivateKey,
+                                service_id: serviceId,
+                                template_id: templateId,
+                                user_id: publicKey,
+                                accessToken: privateKey,
                                 template_params: {
                                   to_name: selectedUserForEdit.name,
                                   to_email: selectedUserForEdit.email,
@@ -5557,11 +5562,14 @@ El Equipo de ShipFast GT`;
                             } else {
                               const errorText = await response.text();
                               console.error("EmailJS error details:", errorText);
-                              alert(`No se pudo enviar el correo de fondo de forma automática (EmailJS error ${response.status}). Se procederá a abrir tu cliente de correo nativo como alternativa...`);
+                              alert(`No se pudo enviar el correo de forma automática.
+Detalle del servidor (EmailJS): "${errorText}" (Código ${response.status})
+
+Se procederá a abrir tu cliente de correo nativo como alternativa de respaldo.`);
                             }
                           } catch (err) {
                             console.error("EmailJS network error:", err);
-                            alert("Ocurrió un inconveniente de red al conectar con el servidor de correos. Abriendo tu cliente de correo nativo como alternativa...");
+                            alert("Ocurrió un inconveniente de red al conectar con el servidor de correos. Abriendo tu cliente de correo nativo como alternativa de respaldo...");
                           }
                         }
 
