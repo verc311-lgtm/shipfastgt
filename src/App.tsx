@@ -104,7 +104,7 @@ const DEFAULT_USERS: UserProfile[] = [
   {
     lockerId: "ADMIN-01",
     name: "Administrador Central",
-    email: "admin@shipfast.gt",
+    email: "info@shipfastgt.com",
     phone: "+502 2222-0000",
     address: "Hub Central, Guatemala",
     role: "admin",
