@@ -242,6 +242,11 @@ export default function App() {
   const [expenseAmount, setExpenseAmount] = useState(150.00);
   const [expenseDate, setExpenseDate] = useState(() => new Date().toISOString().split('T')[0]);
 
+  // EmailJS Settings
+  const [emailJsServiceId, setEmailJsServiceId] = useState(() => localStorage.getItem('emailJsServiceId') || '');
+  const [emailJsTemplateId, setEmailJsTemplateId] = useState(() => localStorage.getItem('emailJsTemplateId') || '');
+  const [emailJsPublicKey, setEmailJsPublicKey] = useState(() => localStorage.getItem('emailJsPublicKey') || '');
+
   interface RatesSettings {
     baseEstandar: number;
     baseExpress: number;
@@ -3211,6 +3216,60 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                           </div>
                         </div>
 
+                        <div className="bg-gray-50 border border-gray-200 p-6 rounded-lg space-y-4 mt-6">
+                          <span className="text-4xs font-bold text-gray-400 uppercase tracking-widest block border-b border-gray-200 pb-2">📧 Automatización de Correo Electrónico (EmailJS)</span>
+                          <p className="text-4xs text-gray-500">Configure sus credenciales públicas de <strong>EmailJS</strong> para enviar el correo de bienvenida de fondo de forma 100% automática al hacer clic en "Enviar Correo" (sin redirecciones ni ventanas emergentes). Si estos campos están vacíos, el sistema utilizará el enlace de correo nativo (`mailto:`) como respaldo automático.</p>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                              <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Service ID *</label>
+                              <input
+                                type="text"
+                                placeholder="Ej: service_gmail"
+                                className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-mono font-bold text-brand-orange bg-white outline-hidden focus:ring-1 focus:ring-brand-orange focus:border-brand-orange"
+                                value={emailJsServiceId}
+                                onChange={(e) => {
+                                  setEmailJsServiceId(e.target.value);
+                                  localStorage.setItem('emailJsServiceId', e.target.value);
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Template ID *</label>
+                              <input
+                                type="text"
+                                placeholder="Ej: template_welcome"
+                                className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-mono font-bold text-brand-orange bg-white outline-hidden focus:ring-1 focus:ring-brand-orange focus:border-brand-orange"
+                                value={emailJsTemplateId}
+                                onChange={(e) => {
+                                  setEmailJsTemplateId(e.target.value);
+                                  localStorage.setItem('emailJsTemplateId', e.target.value);
+                                }}
+                              />
+                            </div>
+                            <div>
+                              <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Public Key (User ID) *</label>
+                              <input
+                                type="text"
+                                placeholder="Ej: user_abc123xyz"
+                                className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-mono font-bold text-brand-orange bg-white outline-hidden focus:ring-1 focus:ring-brand-orange focus:border-brand-orange"
+                                value={emailJsPublicKey}
+                                onChange={(e) => {
+                                  setEmailJsPublicKey(e.target.value);
+                                  localStorage.setItem('emailJsPublicKey', e.target.value);
+                                }}
+                              />
+                            </div>
+                          </div>
+                          
+                          <div className="bg-orange-50 border border-orange-200 text-brand-gray-dark p-3.5 rounded text-4xs space-y-1">
+                            <strong className="block text-brand-orange">💡 Instrucciones de Configuración en EmailJS:</strong>
+                            <p>1. Regístrese gratis en <a href="https://www.emailjs.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-bold">emailjs.com</a>, conecte su cuenta de correo (Gmail, Outlook, etc.) y obtenga su <strong>Service ID</strong>.</p>
+                            <p>2. Cree una plantilla de correo (Email Template) y copie su <strong>Template ID</strong>. El cuerpo de la plantilla debe contener la variable <code>{"{{message}}"}</code> que recibe el correo completo y personalizado con las bodegas.</p>
+                            <p>3. Vaya a la sección Account (Cuenta) y luego a API Keys para copiar su <strong>Public Key</strong>. Pegue las 3 claves aquí arriba ¡y listo! Los correos se enviarán de forma invisible en segundo plano.</p>
+                          </div>
+                        </div>
+
                       </div>
                     )}
 
@@ -5387,7 +5446,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                         }
                       };
 
-                      const handleSendWelcomeEmail = () => {
+                      const handleSendWelcomeEmail = async () => {
                         if (!selectedUserForEdit) return;
                         
                         const nameParts = selectedUserForEdit.name.trim().split(/\s+/);
@@ -5462,6 +5521,45 @@ Recuerda que estamos para apoyarte en cada paso de tus envíos. Si tienes alguna
 Atentamente,
 El Equipo de ShipFast GT`;
 
+                        // Send via EmailJS in the background if configured
+                        if (emailJsServiceId && emailJsTemplateId && emailJsPublicKey) {
+                          try {
+                            const response = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+                              method: "POST",
+                              headers: {
+                                "Content-Type": "application/json"
+                              },
+                              body: JSON.stringify({
+                                service_id: emailJsServiceId,
+                                template_id: emailJsTemplateId,
+                                user_id: emailJsPublicKey,
+                                template_params: {
+                                  to_name: selectedUserForEdit.name,
+                                  to_email: selectedUserForEdit.email,
+                                  locker_id: selectedUserForEdit.lockerId,
+                                  first_name: firstName,
+                                  last_name: lastName,
+                                  subject: `¡Bienvenido a ShipFast GT! - Tu Casillero ${selectedUserForEdit.lockerId}`,
+                                  message: emailBodyText
+                                }
+                              })
+                            });
+
+                            if (response.ok) {
+                              alert(`📧 ¡Correo de bienvenida enviado automáticamente en segundo plano a ${selectedUserForEdit.name} (${selectedUserForEdit.email})!`);
+                              return;
+                            } else {
+                              const errorText = await response.text();
+                              console.error("EmailJS error details:", errorText);
+                              alert(`No se pudo enviar el correo de fondo de forma automática (EmailJS error ${response.status}). Se procederá a abrir tu cliente de correo nativo como alternativa...`);
+                            }
+                          } catch (err) {
+                            console.error("EmailJS network error:", err);
+                            alert("Ocurrió un inconveniente de red al conectar con el servidor de correos. Abriendo tu cliente de correo nativo como alternativa...");
+                          }
+                        }
+
+                        // Native mailto fallback
                         const subject = encodeURIComponent(`¡Bienvenido a ShipFast GT! - Tu Casillero ${selectedUserForEdit.lockerId}`);
                         const body = encodeURIComponent(emailBodyText);
                         window.location.href = `mailto:${selectedUserForEdit.email}?subject=${subject}&body=${body}`;
