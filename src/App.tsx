@@ -246,6 +246,7 @@ export default function App() {
   const [emailJsServiceId, setEmailJsServiceId] = useState(() => localStorage.getItem('emailJsServiceId') || '');
   const [emailJsTemplateId, setEmailJsTemplateId] = useState(() => localStorage.getItem('emailJsTemplateId') || '');
   const [emailJsPublicKey, setEmailJsPublicKey] = useState(() => localStorage.getItem('emailJsPublicKey') || '');
+  const [emailJsPrivateKey, setEmailJsPrivateKey] = useState(() => localStorage.getItem('emailJsPrivateKey') || 'sNH_mwwk97ff9bPCp');
 
   interface RatesSettings {
     baseEstandar: number;
@@ -5537,6 +5538,7 @@ El Equipo de ShipFast GT`;
                                 service_id: emailJsServiceId,
                                 template_id: emailJsTemplateId,
                                 user_id: emailJsPublicKey,
+                                accessToken: emailJsPrivateKey,
                                 template_params: {
                                   to_name: selectedUserForEdit.name,
                                   to_email: selectedUserForEdit.email,
@@ -6205,7 +6207,7 @@ El Equipo de ShipFast GT`;
                           <span className="text-4xs font-bold text-gray-400 uppercase tracking-widest block border-b border-gray-200 pb-2">📧 Automatización de Correo Electrónico (EmailJS)</span>
                           <p className="text-4xs text-gray-500">Configure sus credenciales públicas de <strong>EmailJS</strong> para enviar el correo de bienvenida de fondo de forma 100% automática al hacer clic en "Enviar Correo" (sin redirecciones ni ventanas emergentes). Si estos campos están vacíos, el sistema utilizará el enlace de correo nativo (`mailto:`) como respaldo automático.</p>
                           
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                             <div>
                               <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Service ID *</label>
                               <input
@@ -6245,13 +6247,26 @@ El Equipo de ShipFast GT`;
                                 }}
                               />
                             </div>
+                            <div>
+                              <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Private Key *</label>
+                              <input
+                                type="password"
+                                placeholder="Ingrese Private Key"
+                                className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-mono font-bold text-brand-orange bg-white outline-hidden focus:ring-1 focus:ring-brand-orange focus:border-brand-orange"
+                                value={emailJsPrivateKey}
+                                onChange={(e) => {
+                                  setEmailJsPrivateKey(e.target.value);
+                                  localStorage.setItem('emailJsPrivateKey', e.target.value);
+                                }}
+                              />
+                            </div>
                           </div>
                           
                           <div className="bg-orange-50 border border-orange-200 text-brand-gray-dark p-3.5 rounded text-4xs space-y-1">
                             <strong className="block text-brand-orange">💡 Instrucciones de Configuración en EmailJS:</strong>
                             <p>1. Regístrese gratis en <a href="https://www.emailjs.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-bold">emailjs.com</a>, conecte su cuenta de correo (Gmail, Outlook, etc.) y obtenga su <strong>Service ID</strong>.</p>
                             <p>2. Cree una plantilla de correo (Email Template) y copie su <strong>Template ID</strong>. El cuerpo de la plantilla debe contener la variable <code>{"{{message}}"}</code> que recibe el correo completo y personalizado con las bodegas.</p>
-                            <p>3. Vaya a la sección Account (Cuenta) y luego a API Keys para copiar su <strong>Public Key</strong>. Pegue las 3 claves aquí arriba ¡y listo! Los correos se enviarán de forma invisible en segundo plano.</p>
+                            <p>3. Vaya a la sección Account (Cuenta) y luego a API Keys para copiar su <strong>Public Key</strong> y su <strong>Private Key</strong>. Pégue las 4 claves aquí arriba ¡y listo! Los correos se enviarán de forma invisible en segundo plano con seguridad mejorada.</p>
                           </div>
                         </div>
 
