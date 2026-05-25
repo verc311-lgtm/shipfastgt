@@ -240,6 +240,7 @@ export default function App() {
   const [expenseCategory, setExpenseCategory] = useState('Internet');
   const [expenseDescription, setExpenseDescription] = useState('');
   const [expenseAmount, setExpenseAmount] = useState(150.00);
+  const [expenseDate, setExpenseDate] = useState(() => new Date().toISOString().split('T')[0]);
 
   interface RatesSettings {
     baseEstandar: number;
@@ -5023,11 +5024,10 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                   return;
                                 }
 
-                                const currentDate = new Date().toISOString().split('T')[0];
                                 const expId = `GTO-${800 + expensesLog.length + 1}`;
                                 const newExpense = {
                                   id: expId,
-                                  date: currentDate,
+                                  date: expenseDate,
                                   category: expenseCategory,
                                   description: expenseDescription,
                                   amount: expenseAmount,
@@ -5045,6 +5045,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                 alert(`Gasto administrativo ${expId} por valor de Q ${expenseAmount.toFixed(2)} registrado en el ledger.`);
                                 setExpenseDescription('');
                                 setExpenseAmount(150.00);
+                                setExpenseDate(new Date().toISOString().split('T')[0]);
                               }}
                               className="space-y-3"
                             >
@@ -5071,6 +5072,17 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                               </div>
 
                               <div>
+                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Fecha del Gasto *</label>
+                                <input
+                                  type="date"
+                                  required
+                                  value={expenseDate}
+                                  onChange={(e) => setExpenseDate(e.target.value)}
+                                  className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark focus:border-brand-orange focus:ring-1 focus:ring-brand-orange bg-white outline-hidden"
+                                />
+                              </div>
+
+                              <div>
                                 <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Detalle / Proveedor Justificación *</label>
                                 <input
                                   type="text"
@@ -5086,7 +5098,8 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                 <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Monto en Quetzales (Q) *</label>
                                 <input
                                   type="number"
-                                  min="1"
+                                  step="0.01"
+                                  min="0.01"
                                   required
                                   value={expenseAmount}
                                   onChange={(e) => setExpenseAmount(Number(e.target.value))}
