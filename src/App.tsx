@@ -5546,7 +5546,9 @@ El Equipo de ShipFast GT`;
                                 accessToken: privateKey,
                                 template_params: {
                                   to_name: selectedUserForEdit.name,
+                                  name: selectedUserForEdit.name,
                                   to_email: selectedUserForEdit.email,
+                                  email: selectedUserForEdit.email,
                                   locker_id: selectedUserForEdit.lockerId,
                                   first_name: firstName,
                                   last_name: lastName,
