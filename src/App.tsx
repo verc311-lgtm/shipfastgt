@@ -243,9 +243,9 @@ export default function App() {
   const [expenseDate, setExpenseDate] = useState(() => new Date().toISOString().split('T')[0]);
 
   // EmailJS Settings
-  const [emailJsServiceId, setEmailJsServiceId] = useState(() => localStorage.getItem('emailJsServiceId') || '');
-  const [emailJsTemplateId, setEmailJsTemplateId] = useState(() => localStorage.getItem('emailJsTemplateId') || '');
-  const [emailJsPublicKey, setEmailJsPublicKey] = useState(() => localStorage.getItem('emailJsPublicKey') || '');
+  const [emailJsServiceId, setEmailJsServiceId] = useState(() => localStorage.getItem('emailJsServiceId') || 'service_raovwem');
+  const [emailJsTemplateId, setEmailJsTemplateId] = useState(() => localStorage.getItem('emailJsTemplateId') || 'template_kuyiz4w');
+  const [emailJsPublicKey, setEmailJsPublicKey] = useState(() => localStorage.getItem('emailJsPublicKey') || 'sNH_mwwk97ff9bPCp');
   const [emailJsPrivateKey, setEmailJsPrivateKey] = useState(() => localStorage.getItem('emailJsPrivateKey') || 'sNH_mwwk97ff9bPCp');
 
   interface RatesSettings {
