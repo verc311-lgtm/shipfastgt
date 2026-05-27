@@ -1236,11 +1236,16 @@ Se procederá a abrir tu cliente de correo nativo como alternativa de respaldo.`
         <style>
           @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
           
+          @page {
+            size: letter;
+            margin: 0.5in;
+          }
+          
           body {
             font-family: 'Inter', sans-serif;
             color: #1F2937;
             margin: 0;
-            padding: 40px;
+            padding: 20px;
             line-height: 1.5;
             background-color: #ffffff;
           }
@@ -1272,7 +1277,7 @@ Se procederá a abrir tu cliente de correo nativo como alternativa de respaldo.`
           }
           .company-info {
             text-align: right;
-            font-size: 12px;
+            font-size: 11px;
             color: #4B5563;
             line-height: 1.6;
           }
@@ -1459,9 +1464,10 @@ Se procederá a abrir tu cliente de correo nativo como alternativa de respaldo.`
             <p style="color: #6B7280; font-size: 11px; margin: 0; font-weight: 500;">Premium Courier & Cargo Service</p>
           </div>
           <div class="company-info">
-            <strong>ShipFast Logistics Guatemala S.A.</strong><br>
-            Ruta Centroamericana, Hub Central GT<br>
-            Soporte: soporte@shipfast.gt | Tel: +502 2222-0000
+            <strong>ShipFast Logistics Quetzaltenango</strong><br>
+            Calle B 22-48 Zona 3, Colonia Minerva<br>
+            Quetzaltenango, Guatemala<br>
+            Soporte: info@shipfastgt.com | Tel: +502 3726-8751
           </div>
         </div>
 
@@ -1473,10 +1479,10 @@ Se procederá a abrir tu cliente de correo nativo como alternativa de respaldo.`
         <div class="info-grid">
           <div class="info-block">
             <h3>EMISOR / PROVEEDOR</h3>
-            <p class="client-name">ShipFast Logistics</p>
-            <p>NIT: 9238472-8</p>
-            <p>Guatemala, Centroamérica</p>
-            <p>Email: contabilidad@shipfast.gt</p>
+            <p class="client-name">ShipFast Quetzaltenango</p>
+            <p><strong>Dirección:</strong> Calle B 22-48 Zona 3, Colonia Minerva, Quetzaltenango, Guatemala</p>
+            <p><strong>Teléfono:</strong> +502 3726-8751</p>
+            <p><strong>Email:</strong> info@shipfastgt.com</p>
           </div>
           <div class="info-block">
             <h3>FACTURADO A</h3>
