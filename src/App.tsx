@@ -117,6 +117,29 @@ const INITIAL_PRE_ALERTS: PreAlert[] = [];
 // Initial state data
 const INITIAL_SHIPMENTS: Shipment[] = [];
 
+function parseInvoiceConcept(conceptStr: string) {
+  try {
+    const trimmed = conceptStr ? conceptStr.trim() : '';
+    if (trimmed.startsWith('{')) {
+      const parsed = JSON.parse(trimmed);
+      return {
+        detail: parsed.detail || '',
+        manualClientName: parsed.manualClientName || '',
+        purchaseLink: parsed.purchaseLink || '',
+        isManual: !!parsed.manualClientName
+      };
+    }
+  } catch (e) {
+    // Treat as raw text
+  }
+  return {
+    detail: conceptStr || '',
+    manualClientName: '',
+    purchaseLink: '',
+    isManual: false
+  };
+}
+
 export default function App() {
   // Session Authentication state
   const [users, setUsers] = useState<UserProfile[]>(DEFAULT_USERS);
@@ -226,6 +249,9 @@ export default function App() {
   const [invoiceLocker, setInvoiceLocker] = useState('');
   const [invoiceConcept, setInvoiceConcept] = useState('');
   const [invoiceAmount, setInvoiceAmount] = useState(120.00);
+  const [invoiceUnregistered, setInvoiceUnregistered] = useState(false);
+  const [invoiceManualName, setInvoiceManualName] = useState('');
+  const [invoicePurchaseLink, setInvoicePurchaseLink] = useState('');
 
   // Payments
   const [paymentsLog, setPaymentsLog] = useState<any[]>([]);
@@ -1174,6 +1200,352 @@ Se procederá a abrir tu cliente de correo nativo como alternativa de respaldo.`
           setTimeout(function() {
             window.print();
           }, 800);
+        </script>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  // Generate professional print-ready HTML Invoice PDF
+  const handlePrintInvoicePDF = (invoice: any) => {
+    const parsed = parseInvoiceConcept(invoice.concept);
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Por favor permite las ventanas emergentes (popups) para descargar el PDF de tu factura.');
+      return;
+    }
+
+    // Find user details if registered
+    const clientUser = users.find(u => u.lockerId === invoice.lockerId);
+    const clientName = invoice.lockerId 
+      ? (clientUser ? clientUser.name : `Cliente (${invoice.lockerId})`)
+      : parsed.manualClientName || 'Cliente No Registrado';
+    const clientEmail = clientUser?.email || 'N/A';
+    const clientPhone = clientUser?.phone || 'N/A';
+    const clientAddress = clientUser?.address || 'Dirección no registrada';
+    
+    const logoUrl = window.location.origin + '/logo.png';
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html lang="es">
+      <head>
+        <meta charset="UTF-8">
+        <title>Factura ${invoice.id} - ShipFast GT</title>
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+          
+          body {
+            font-family: 'Inter', sans-serif;
+            color: #1F2937;
+            margin: 0;
+            padding: 40px;
+            line-height: 1.5;
+            background-color: #ffffff;
+          }
+          .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 2px solid #EA580C;
+            padding-bottom: 25px;
+            margin-bottom: 30px;
+          }
+          .logo-area {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+          }
+          .logo-img {
+            max-height: 55px;
+            width: auto;
+            display: block;
+          }
+          .logo-title {
+            font-size: 26px;
+            font-weight: 800;
+            color: #1F2937;
+          }
+          .logo-title span {
+            color: #EA580C;
+          }
+          .company-info {
+            text-align: right;
+            font-size: 12px;
+            color: #4B5563;
+            line-height: 1.6;
+          }
+          .title-area {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            margin-bottom: 25px;
+          }
+          .title {
+            font-size: 22px;
+            font-weight: 800;
+            color: #111827;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin: 0;
+          }
+          .invoice-id {
+            font-size: 16px;
+            font-weight: 700;
+            color: #EA580C;
+          }
+          .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 35px;
+          }
+          .info-block {
+            background-color: #F9FAFB;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #E5E7EB;
+          }
+          .info-block h3 {
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            color: #9CA3AF;
+            letter-spacing: 0.5px;
+            margin-top: 0;
+            margin-bottom: 12px;
+            border-bottom: 1px solid #E5E7EB;
+            padding-bottom: 6px;
+          }
+          .info-block p {
+            margin: 4px 0;
+            font-size: 13px;
+            color: #374151;
+          }
+          .client-name {
+            font-size: 15px;
+            font-weight: 700;
+            color: #111827;
+            margin-bottom: 6px !important;
+          }
+          .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            border: 1px solid;
+          }
+          .badge-pending {
+            background-color: #FEF2F2;
+            color: #991B1B;
+            border-color: #FCA5A5;
+          }
+          .badge-paid {
+            background-color: #F0FDF4;
+            color: #166534;
+            border-color: #86EFAC;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 35px;
+          }
+          th {
+            background-color: #F3F4F6;
+            color: #374151;
+            font-weight: 700;
+            text-align: left;
+            padding: 12px 16px;
+            font-size: 12px;
+            text-transform: uppercase;
+            border-bottom: 2px solid #E5E7EB;
+          }
+          td {
+            padding: 16px;
+            font-size: 13px;
+            border-bottom: 1px solid #E5E7EB;
+            color: #374151;
+          }
+          .concept-title {
+            font-weight: 600;
+            color: #111827;
+            font-size: 14px;
+          }
+          .concept-link {
+            font-size: 11px;
+            color: #EA580C;
+            text-decoration: none;
+            margin-top: 6px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-weight: 600;
+          }
+          .concept-link:hover {
+            text-decoration: underline;
+          }
+          .text-right {
+            text-align: right;
+          }
+          .summary-container {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 40px;
+          }
+          .summary-box {
+            width: 320px;
+          }
+          .summary-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #F3F4F6;
+            font-size: 13px;
+          }
+          .summary-row.total {
+            border-bottom: none;
+            font-size: 18px;
+            font-weight: 800;
+            color: #EA580C;
+            padding-top: 12px;
+            border-top: 2px solid #FED7AA;
+          }
+          .footer {
+            text-align: center;
+            font-size: 11px;
+            color: #9CA3AF;
+            border-top: 1px solid #E5E7EB;
+            padding-top: 20px;
+            margin-top: 50px;
+          }
+          .btn-print-action {
+            background-color: #EA580C;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 14px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-bottom: 20px;
+            transition: background-color 0.2s;
+          }
+          .btn-print-action:hover {
+            background-color: #C2410C;
+          }
+          @media print {
+            .no-print {
+              display: none !important;
+            }
+            body {
+              padding: 0;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="no-print" style="display: flex; justify-content: space-between; margin-bottom: 20px;">
+          <button class="btn-print-action" onclick="window.print()">🖨️ Imprimir / Guardar como PDF</button>
+          <button class="btn-print-action" style="background-color: #4B5563;" onclick="window.close()">Cerrar Ventana</button>
+        </div>
+
+        <div class="header">
+          <div class="logo-area">
+            <img class="logo-img" src="${logoUrl}" onerror="this.style.display='none'; document.getElementById('alt-logo').style.display='block';" alt="Logo" />
+            <div id="alt-logo" class="logo-title" style="display:none;">ShipFast<span>GT</span></div>
+            <p style="color: #6B7280; font-size: 11px; margin: 0; font-weight: 500;">Premium Courier & Cargo Service</p>
+          </div>
+          <div class="company-info">
+            <strong>ShipFast Logistics Guatemala S.A.</strong><br>
+            Ruta Centroamericana, Hub Central GT<br>
+            Soporte: soporte@shipfast.gt | Tel: +502 2222-0000
+          </div>
+        </div>
+
+        <div class="title-area">
+          <h1 class="title">Factura de Servicio</h1>
+          <span class="invoice-id">Factura No: ${invoice.id}</span>
+        </div>
+
+        <div class="info-grid">
+          <div class="info-block">
+            <h3>EMISOR / PROVEEDOR</h3>
+            <p class="client-name">ShipFast Logistics</p>
+            <p>NIT: 9238472-8</p>
+            <p>Guatemala, Centroamérica</p>
+            <p>Email: contabilidad@shipfast.gt</p>
+          </div>
+          <div class="info-block">
+            <h3>FACTURADO A</h3>
+            <p class="client-name">${clientName}</p>
+            ${invoice.lockerId ? `<p><strong>Casillero:</strong> ${invoice.lockerId}</p>` : '<p><strong>Estado:</strong> Cliente No Registrado (Manual)</p>'}
+            <p><strong>Email:</strong> ${clientEmail}</p>
+            <p><strong>Teléfono:</strong> ${clientPhone}</p>
+            <p><strong>Dirección:</strong> ${clientAddress}</p>
+          </div>
+        </div>
+
+        <table style="width: 100%;">
+          <thead>
+            <tr>
+              <th style="width: 70%;">Descripción del Cargo / Concepto</th>
+              <th style="width: 30%; text-align: right;">Monto</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>
+                <div class="concept-title">${parsed.detail}</div>
+                ${parsed.purchaseLink ? `
+                  <a href="${parsed.purchaseLink}" class="concept-link" target="_blank">
+                    🔗 Enlace de Compra Asoc.
+                  </a>
+                ` : ''}
+              </td>
+              <td class="text-right" style="font-weight: 700;">Q ${invoice.amount.toFixed(2)}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="summary-container">
+          <div class="summary-box">
+            <div class="summary-row">
+              <span style="color: #4B5563;">Subtotal:</span>
+              <span style="font-weight: 600;">Q ${invoice.amount.toFixed(2)}</span>
+            </div>
+            <div class="summary-row">
+              <span style="color: #4B5563;">Impuestos (Exento IVA / Flete):</span>
+              <span style="font-weight: 600;">Q 0.00</span>
+            </div>
+            <div class="summary-row">
+              <span style="color: #4B5563;">Estado de Pago:</span>
+              <span>
+                <span class="badge ${invoice.paymentStatus === 'Pagado' ? 'badge-paid' : 'badge-pending'}">
+                  ${invoice.paymentStatus}
+                </span>
+              </span>
+            </div>
+            <div class="summary-row total">
+              <span>Total a Cancelar:</span>
+              <span>Q ${invoice.amount.toFixed(2)}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="footer">
+          <p>Esta factura ha sido generada digitalmente de forma oficial.</p>
+          <p>© ${new Date().getFullYear()} ShipFast GT. Todos los derechos reservados.</p>
+        </div>
+
+        <script>
+          window.onload = function() {
+            setTimeout(function() {
+              window.print();
+            }, 500);
+          };
         </script>
       </body>
       </html>
@@ -5012,27 +5384,60 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                     <th className="py-2.5 px-3">Concepto Descripción</th>
                                     <th className="py-2.5 px-3 text-right">Importe Cobro</th>
                                     <th className="py-2.5 px-4 text-center">Estado Pago</th>
+                                    <th className="py-2.5 px-4 text-center">Acciones</th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100 text-3xs font-semibold text-brand-gray-dark">
-                                  {invoices.map(invoice => (
-                                    <tr key={invoice.id} className="hover:bg-gray-50/50">
-                                      <td className="py-3 px-4 font-bold text-brand-gray-dark uppercase">{invoice.id}</td>
-                                      <td className="py-3 px-3 font-mono text-gray-500">{invoice.lockerId}</td>
-                                      <td className="py-3 px-3 font-mono">{invoice.date}</td>
-                                      <td className="py-3 px-3 font-bold">{invoice.concept}</td>
-                                      <td className="py-3 px-3 text-right font-mono text-brand-orange font-black">Q {invoice.amount.toFixed(2)}</td>
-                                      <td className="py-3 px-4 text-center">
-                                        <span className={`px-2 py-0.5 rounded text-4xs font-extrabold uppercase border ${
-                                          invoice.paymentStatus === 'Pagado'
-                                            ? 'bg-green-50 border-green-200 text-green-700'
-                                            : 'bg-red-50 border-red-200 text-red-700 font-extrabold animate-pulse'
-                                        }`}>
-                                          {invoice.paymentStatus}
-                                        </span>
-                                      </td>
-                                    </tr>
-                                  ))}
+                                  {invoices.map(invoice => {
+                                    const parsed = parseInvoiceConcept(invoice.concept);
+                                    return (
+                                      <tr key={invoice.id} className="hover:bg-gray-50/50">
+                                        <td className="py-3 px-4 font-bold text-brand-gray-dark uppercase">{invoice.id}</td>
+                                        <td className="py-3 px-3 font-mono text-gray-500">{invoice.lockerId || 'N/R'}</td>
+                                        <td className="py-3 px-3 font-mono">{invoice.date}</td>
+                                        <td className="py-3 px-3">
+                                          <div className="flex flex-col gap-0.5">
+                                            <span className="font-bold text-brand-gray-dark">{parsed.detail}</span>
+                                            {parsed.manualClientName && (
+                                              <span className="text-4xs text-gray-400 font-extrabold uppercase flex items-center gap-1">
+                                                👤 Cliente: {parsed.manualClientName} (No Registrado)
+                                              </span>
+                                            )}
+                                            {parsed.purchaseLink && (
+                                              <a
+                                                href={parsed.purchaseLink}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-4xs text-brand-orange hover:text-brand-orange-hover hover:underline font-extrabold flex items-center gap-0.5"
+                                              >
+                                                🔗 Link Compra
+                                              </a>
+                                            )}
+                                          </div>
+                                        </td>
+                                        <td className="py-3 px-3 text-right font-mono text-brand-orange font-black">Q {invoice.amount.toFixed(2)}</td>
+                                        <td className="py-3 px-4 text-center">
+                                          <span className={`px-2 py-0.5 rounded text-4xs font-extrabold uppercase border ${
+                                            invoice.paymentStatus === 'Pagado'
+                                              ? 'bg-green-50 border-green-200 text-green-700'
+                                              : 'bg-red-50 border-red-200 text-red-700 font-extrabold animate-pulse'
+                                          }`}>
+                                            {invoice.paymentStatus}
+                                          </span>
+                                        </td>
+                                        <td className="py-3 px-4 text-center">
+                                          <button
+                                            type="button"
+                                            onClick={() => handlePrintInvoicePDF(invoice)}
+                                            className="bg-brand-gray-dark hover:bg-brand-gray-dark/80 text-white font-extrabold text-4xs px-2.5 py-1 rounded transition uppercase tracking-wider flex items-center gap-1 mx-auto cursor-pointer"
+                                            title="Generar Factura en PDF profesional"
+                                          >
+                                            🖨️ PDF
+                                          </button>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
                                 </tbody>
                               </table>
                             </div>
@@ -5049,14 +5454,28 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                   alert('Ingrese el concepto del cobro.');
                                   return;
                                 }
+                                if (invoiceUnregistered && !invoiceManualName.trim()) {
+                                  alert('Ingrese el nombre del cliente no registrado.');
+                                  return;
+                                }
 
                                 const currentDate = new Date().toISOString().split('T')[0];
                                 const invoiceId = `FAC-${1000 + invoices.length + 1}`;
+                                const conceptPayload = JSON.stringify({
+                                  detail: invoiceConcept.trim(),
+                                  manualClientName: invoiceUnregistered ? invoiceManualName.trim() : '',
+                                  purchaseLink: invoicePurchaseLink.trim()
+                                });
+
+                                const selectedLockerId = invoiceUnregistered 
+                                  ? null 
+                                  : (invoiceLocker || (users.filter(u => u.role === 'client')[0]?.lockerId || null));
+
                                 const newInvoice = {
                                   id: invoiceId,
-                                  lockerId: invoiceLocker,
+                                  lockerId: selectedLockerId,
                                   date: currentDate,
-                                  concept: invoiceConcept,
+                                  concept: conceptPayload,
                                   amount: invoiceAmount,
                                   paymentStatus: 'Pendiente'
                                 };
@@ -5069,24 +5488,65 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                   ...prev
                                 ]);
 
-                                alert(`Factura manual ${invoiceId} emitida por un valor de Q ${invoiceAmount.toFixed(2)} asociada al casillero ${invoiceLocker}.`);
+                                alert(`Factura manual ${invoiceId} emitida por un valor de Q ${invoiceAmount.toFixed(2)} asociada a ${invoiceUnregistered ? `cliente manual: ${invoiceManualName}` : `casillero ${selectedLockerId}`}.`);
+                                
+                                // Reset fields
                                 setInvoiceConcept('');
                                 setInvoiceAmount(120.00);
+                                setInvoiceManualName('');
+                                setInvoicePurchaseLink('');
+                                setInvoiceUnregistered(false);
+                                setInvoiceLocker('');
                               }}
                               className="space-y-3"
                             >
-                              <div>
-                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Casillero Asignado *</label>
-                                <select
-                                  value={invoiceLocker}
-                                  onChange={(e) => setInvoiceLocker(e.target.value)}
-                                  className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white font-mono text-brand-orange font-bold"
-                                >
-                                  {users.filter(u => u.role === 'client').map(u => (
-                                    <option key={u.lockerId} value={u.lockerId}>{u.lockerId} &mdash; {u.name}</option>
-                                  ))}
-                                </select>
+                              {/* Checkbox Cliente No Registrado */}
+                              <div className="flex items-center gap-2 py-1">
+                                <input
+                                  type="checkbox"
+                                  id="invoiceUnregistered"
+                                  checked={invoiceUnregistered}
+                                  onChange={(e) => {
+                                    setInvoiceUnregistered(e.target.checked);
+                                    if (e.target.checked) {
+                                      setInvoiceLocker('');
+                                    }
+                                  }}
+                                  className="h-3.5 w-3.5 rounded border-gray-300 text-brand-orange focus:ring-brand-orange cursor-pointer"
+                                />
+                                <label htmlFor="invoiceUnregistered" className="text-4xs font-extrabold text-brand-gray-dark uppercase tracking-wider cursor-pointer select-none">
+                                  👤 Cliente No Registrado
+                                </label>
                               </div>
+
+                              {/* Conditionally show select or text input */}
+                              {!invoiceUnregistered ? (
+                                <div>
+                                  <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Casillero Asignado *</label>
+                                  <select
+                                    value={invoiceLocker}
+                                    onChange={(e) => setInvoiceLocker(e.target.value)}
+                                    className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white font-mono text-brand-orange font-bold"
+                                  >
+                                    <option value="">-- Seleccionar Casillero --</option>
+                                    {users.filter(u => u.role === 'client').map(u => (
+                                      <option key={u.lockerId} value={u.lockerId}>{u.lockerId} &mdash; {u.name}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              ) : (
+                                <div>
+                                  <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Nombre del Cliente *</label>
+                                  <input
+                                    type="text"
+                                    required
+                                    placeholder="Nombre de la persona (manual)"
+                                    value={invoiceManualName}
+                                    onChange={(e) => setInvoiceManualName(e.target.value)}
+                                    className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark"
+                                  />
+                                </div>
+                              )}
 
                               <div>
                                 <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Concepto Detalle *</label>
@@ -5097,6 +5557,17 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                   value={invoiceConcept}
                                   onChange={(e) => setInvoiceConcept(e.target.value)}
                                   className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Link de la Compra (Opcional)</label>
+                                <input
+                                  type="url"
+                                  placeholder="https://ejemplo.com/compra/item"
+                                  value={invoicePurchaseLink}
+                                  onChange={(e) => setInvoicePurchaseLink(e.target.value)}
+                                  className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark font-mono text-xs"
                                 />
                               </div>
 
