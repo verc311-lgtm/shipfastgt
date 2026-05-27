@@ -36,7 +36,8 @@ import {
   PlusCircle,
   Share2,
   FileDown,
-  Link
+  Link,
+  Copy
 } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 
@@ -81,6 +82,9 @@ interface PreAlert {
   weightEst: number;
   status: 'Pendiente' | 'Recibido';
   dateCreated: string;
+  declaredValue?: number;
+  insurance?: string;
+  invoiceFileName?: string;
 }
 
 interface UserProfile {
@@ -252,6 +256,7 @@ export default function App() {
   const [invoiceUnregistered, setInvoiceUnregistered] = useState(false);
   const [invoiceManualName, setInvoiceManualName] = useState('');
   const [invoicePurchaseLink, setInvoicePurchaseLink] = useState('');
+  const [activePreAlertInvoice, setActivePreAlertInvoice] = useState<PreAlert | null>(null);
 
   // Payments
   const [paymentsLog, setPaymentsLog] = useState<any[]>([]);
@@ -4315,23 +4320,65 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100 text-3xs font-semibold text-brand-gray-dark">
-                              {preAlerts.map(pa => (
-                                <tr key={pa.id} className="hover:bg-gray-50/50">
-                                  <td className="py-3 px-4 font-bold text-brand-orange uppercase">{pa.id}</td>
-                                  <td className="py-3 px-3 font-mono text-gray-500">{pa.lockerId}</td>
-                                  <td className="py-3 px-3 font-bold">{pa.sender}</td>
-                                  <td className="py-3 px-3 italic">{pa.description}</td>
-                                  <td className="py-3 px-3 text-center font-mono">{pa.weightEst} Lbs</td>
-                                  <td className="py-3 px-3 font-mono">{pa.dateCreated}</td>
-                                  <td className="py-3 px-3">
-                                    <span className={`px-2 py-0.5 rounded text-4xs font-extrabold uppercase border ${
-                                      pa.status === 'Recibido' 
-                                        ? 'bg-green-50 border-green-200 text-green-700' 
-                                        : 'bg-orange-50 border-orange-200 text-brand-orange animate-pulse'
-                                    }`}>
-                                      {pa.status}
-                                    </span>
-                                  </td>
+                              {preAlerts.map(pa => {
+                                const parts = pa.description ? pa.description.split(' | ') : [];
+                                const cleanDescription = parts.filter(p => !p.startsWith('Factura:')).join(' | ');
+                                const invoiceFile = pa.invoiceFileName || (() => {
+                                  if (pa.description && pa.description.includes('Factura:')) {
+                                    const matchParts = pa.description.split('Factura:');
+                                    if (matchParts.length > 1) return matchParts[1].trim();
+                                  }
+                                  return null;
+                                })();
+
+                                return (
+                                  <tr key={pa.id} className="hover:bg-gray-50/50">
+                                    <td className="py-3 px-4 font-mono font-bold text-brand-orange uppercase">
+                                      <div className="flex items-center gap-1">
+                                        <span>{pa.id}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            navigator.clipboard.writeText(pa.id);
+                                            alert(`Tracking "${pa.id}" copiado al portapapeles.`);
+                                          }}
+                                          className="p-1 text-gray-400 hover:text-brand-orange hover:bg-orange-50 rounded transition cursor-pointer"
+                                          title="Copiar Tracking"
+                                        >
+                                          <Copy className="h-3.5 w-3.5" />
+                                        </button>
+                                      </div>
+                                    </td>
+                                    <td className="py-3 px-3 font-mono text-gray-500">{pa.lockerId}</td>
+                                    <td className="py-3 px-3 font-bold">{pa.sender}</td>
+                                    <td className="py-3 px-3">
+                                      <div className="flex flex-col gap-1 text-left">
+                                        <span className="italic text-brand-gray-dark font-medium">{cleanDescription}</span>
+                                        {invoiceFile && (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setActivePreAlertInvoice({ ...pa, invoiceFileName: invoiceFile });
+                                            }}
+                                            className="mt-1 self-start inline-flex items-center gap-1 px-2.5 py-0.5 rounded bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 hover:text-blue-800 text-[10px] font-black tracking-wider transition-all duration-150 cursor-pointer shadow-3xs"
+                                            title={`Ver archivo: ${invoiceFile}`}
+                                          >
+                                            📄 Ver Factura ({invoiceFile})
+                                          </button>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td className="py-3 px-3 text-center font-mono">{pa.weightEst} Lbs</td>
+                                    <td className="py-3 px-3 font-mono">{pa.dateCreated}</td>
+                                    <td className="py-3 px-3">
+                                      <span className={`px-2 py-0.5 rounded text-4xs font-extrabold uppercase border ${
+                                        pa.status === 'Recibido' 
+                                          ? 'bg-green-50 border-green-200 text-green-700' 
+                                          : 'bg-orange-50 border-orange-200 text-brand-orange animate-pulse'
+                                      }`}>
+                                        {pa.status}
+                                      </span>
+                                    </td>
                                   <td className="py-3 px-4 text-center">
                                     {pa.status === 'Pendiente' ? (
                                       <div className="flex gap-1.5 justify-center">
@@ -4492,9 +4539,10 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                         Completado
                                       </span>
                                     )}
-                                  </td>
-                                </tr>
-                              ))}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
 
                               {preAlerts.length === 0 && (
                                 <tr>
@@ -8041,6 +8089,199 @@ El Equipo de ShipFast GT`;
               </div>
             </div>
           )}
+
+          {/* ==================== PREVIEW ATTACHED PRE-ALERT INVOICE MODAL ==================== */}
+          {activePreAlertInvoice && (() => {
+            const fileName = activePreAlertInvoice.invoiceFileName || '';
+            const isPdf = fileName.toLowerCase().endsWith('.pdf');
+            const amount = activePreAlertInvoice.declaredValue || 25.94;
+            const tracking = activePreAlertInvoice.id;
+            const clientLocker = activePreAlertInvoice.lockerId;
+
+            return (
+              <div className="fixed inset-0 bg-brand-gray-dark/70 backdrop-blur-xs flex justify-center items-center z-50 p-4 animate-fade-in">
+                <div className="bg-white w-full max-w-2xl rounded-2xl border border-gray-100 shadow-2xl overflow-hidden animate-zoom-in transition-all duration-300 font-sans">
+                  
+                  {/* Modal Header */}
+                  <div className="bg-brand-gray-dark text-white px-6 py-4 flex justify-between items-center border-b border-gray-800">
+                    <div className="flex items-center gap-2">
+                      <span className="p-1.5 rounded-lg bg-gray-800 text-brand-orange border border-gray-700">
+                        <FileText className="h-5 w-5" />
+                      </span>
+                      <div>
+                        <h3 className="text-2xs font-extrabold uppercase tracking-wider text-gray-100">Vista Previa de Documento</h3>
+                        <p className="text-[10px] text-gray-400 font-mono font-medium">{fileName}</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setActivePreAlertInvoice(null)}
+                      className="text-gray-400 hover:text-white cursor-pointer p-1.5 rounded-full hover:bg-gray-800 transition"
+                      title="Cerrar"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+
+                  {/* Modal Body / Document Renderer */}
+                  <div className="p-6 bg-gray-50 flex flex-col items-center justify-center min-h-[420px] max-h-[550px] overflow-y-auto">
+                    
+                    {/* Simulated Premium Document Layout */}
+                    <div className="w-full bg-white border border-gray-200 rounded-xl shadow-xs p-6 font-mono text-[11px] leading-relaxed text-gray-700 max-w-lg relative select-none">
+                      
+                      {/* Document Watermark */}
+                      <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none select-none">
+                        <div className="text-gray-900 border-8 border-gray-950 font-sans font-black text-6xl rotate-12 uppercase p-4 tracking-widest">
+                          {isPdf ? 'PDF DOC' : 'IMAGE'}
+                        </div>
+                      </div>
+
+                      {/* Header */}
+                      <div className="border-b-2 border-dashed border-gray-300 pb-4 mb-4 flex justify-between items-start">
+                        <div>
+                          <div className="text-xs font-black text-brand-orange uppercase font-sans tracking-wide">AMAZON.COM SERVICES LLC</div>
+                          <div>Retailer Invoice & Receipt</div>
+                          <div>Seattle, Washington, USA</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-bold text-brand-gray-dark">ORIGINAL RECEIPT</div>
+                          <div>Fecha: {activePreAlertInvoice.dateCreated}</div>
+                          <div>Locker: {clientLocker}</div>
+                        </div>
+                      </div>
+
+                      {/* Details Grid */}
+                      <div className="grid grid-cols-2 gap-4 border-b border-gray-200 pb-4 mb-4">
+                        <div>
+                          <div className="font-bold text-gray-500">CLIENT SHIPPING ADDRESS:</div>
+                          <div className="font-semibold text-brand-gray-dark uppercase font-sans">ShipFast Bodega Laredo</div>
+                          <div>13702 Loring Ave Suite 150</div>
+                          <div>Laredo, TX 78045, USA</div>
+                          <div>C/O Casillero {clientLocker}</div>
+                        </div>
+                        <div>
+                          <div className="font-bold text-gray-500">TRANSACTION DATA:</div>
+                          <div>Tracking ID:</div>
+                          <div className="font-bold text-[10px] text-brand-orange select-text">{tracking}</div>
+                          <div>Payment Method: Credit Card ending *4892</div>
+                        </div>
+                      </div>
+
+                      {/* Items Table */}
+                      <table className="w-full border-collapse mb-4">
+                        <thead>
+                          <tr className="border-b border-gray-300 text-gray-500 font-bold text-left">
+                            <th className="pb-1 text-left">Descripción del Artículo</th>
+                            <th className="pb-1 text-center" style={{ width: '15%' }}>Cant</th>
+                            <th className="pb-1 text-right" style={{ width: '25%' }}>Precio</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr className="border-b border-gray-100">
+                            <td className="py-2 font-sans font-semibold text-brand-gray-dark">
+                              Electronic Device / Online Purchase Cargo
+                              <span className="block text-[9px] text-gray-400 font-mono">Part No: B08XX-AMZN</span>
+                            </td>
+                            <td className="py-2 text-center">1</td>
+                            <td className="py-2 text-right font-bold">USD {amount.toFixed(2)}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+
+                      {/* Totals Summary */}
+                      <div className="flex justify-end">
+                        <div className="w-56 text-right space-y-1">
+                          <div className="flex justify-between">
+                            <span>Subtotal:</span>
+                            <span>USD {amount.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Impuestos (Sales Tax):</span>
+                            <span>USD 0.00</span>
+                          </div>
+                          <div className="flex justify-between font-black text-brand-orange border-t border-dashed border-gray-300 pt-1.5 text-xs">
+                            <span>TOTAL PAID:</span>
+                            <span>USD {amount.toFixed(2)}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Barcode representation */}
+                      <div className="border-t border-gray-200 mt-5 pt-4 flex flex-col items-center gap-1.5 select-none">
+                        <div className="flex gap-[1px] h-8 bg-gray-200 px-4 py-1 items-stretch">
+                          {[2, 1, 3, 1, 4, 1, 2, 4, 1, 3, 2, 1, 3, 1, 4, 2, 1, 3, 2, 4, 1, 2].map((w, idx) => (
+                            <div key={idx} className="bg-brand-gray-dark" style={{ width: `${w}px` }}></div>
+                          ))}
+                        </div>
+                        <span className="text-[9px] text-gray-400 tracking-wider">*{tracking}*</span>
+                      </div>
+
+                    </div>
+
+                  </div>
+
+                  {/* Modal Footer */}
+                  <div className="bg-gray-100 px-6 py-4 flex justify-between items-center border-t border-gray-200">
+                    <span className="text-4xs text-gray-500 font-extrabold uppercase tracking-widest flex items-center gap-1.5">
+                      <span className="h-2 w-2 bg-green-500 rounded-full animate-ping"></span>
+                      Documento Verificado por Antivirus ShipFast
+                    </span>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const printInvoiceWindow = window.open('', '_blank');
+                          if (printInvoiceWindow) {
+                            printInvoiceWindow.document.write(`
+                              <html>
+                                <head>
+                                  <title>Factura Adjunta ${tracking}</title>
+                                  <style>
+                                    body { font-family: monospace; padding: 40px; color: #333; }
+                                    .invoice { max-width: 600px; margin: 0 auto; border: 1px solid #ccc; padding: 20px; }
+                                    .text-right { text-align: right; }
+                                  </style>
+                                </head>
+                                <body>
+                                  <div class="invoice">
+                                    <h2>AMAZON.COM SERVICES LLC</h2>
+                                    <p>Online Store Receipt</p>
+                                    <hr>
+                                    <p><strong>Tracking ID:</strong> ${tracking}</p>
+                                    <p><strong>Locker ID:</strong> ${clientLocker}</p>
+                                    <p><strong>Fecha:</strong> ${activePreAlertInvoice.dateCreated}</p>
+                                    <hr>
+                                    <table style="width:100%; border-collapse:collapse;">
+                                      <tr><td style="padding:10px 0;">Cargo Purchase</td><td class="text-right">USD ${amount.toFixed(2)}</td></tr>
+                                    </table>
+                                    <hr>
+                                    <p class="text-right"><strong>Total Paid: USD ${amount.toFixed(2)}</strong></p>
+                                  </div>
+                                  <script>window.onload = function() { window.print(); }</script>
+                                </body>
+                              </html>
+                            `);
+                            printInvoiceWindow.document.close();
+                          }
+                        }}
+                        className="px-4 py-1.5 bg-brand-gray-dark hover:bg-brand-gray-dark/80 text-white font-extrabold text-3xs rounded uppercase tracking-wider transition cursor-pointer"
+                      >
+                        🖨️ Imprimir
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActivePreAlertInvoice(null)}
+                        className="px-4 py-1.5 bg-gray-200 hover:bg-gray-300 text-brand-gray-dark font-extrabold text-3xs rounded uppercase tracking-wider transition cursor-pointer"
+                      >
+                        Cerrar
+                      </button>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            );
+          })()}
 
           </main>
 
