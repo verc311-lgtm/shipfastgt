@@ -4426,17 +4426,32 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                               notes: pa.description
                                             };
 
-                                            const invoiceId = `FAC-${1000 + invoices.length + 1}`;
-                                            const newInvoice = {
-                                              id: invoiceId,
-                                              lockerId: pa.lockerId,
-                                              date: currentDate,
-                                              concept: isShein
-                                                ? `Flete Especial Bolsa Shein ${generatedId}`
-                                                : `Cargo Flete Almacén Laredo ${generatedId} (${pa.weightEst} Lbs)`,
-                                              amount: flete,
-                                              paymentStatus: 'Pendiente'
-                                            };
+                                                const declaredValue = pa.declaredValue || (() => {
+                                                  if (pa.description && pa.description.includes('Valor: $')) {
+                                                    const valParts = pa.description.split('Valor: $');
+                                                    if (valParts.length > 1) {
+                                                      const val = parseFloat(valParts[1].split(' | ')[0]);
+                                                      if (!isNaN(val)) return val;
+                                                    }
+                                                  }
+                                                  return 0;
+                                                })();
+                                                const hasInsurance = pa.insurance === 'Con seguro (5%)' || (pa.description && pa.description.includes('Seguro: Con seguro (5%)'));
+                                                const insuranceFeeUsd = hasInsurance ? (declaredValue * 0.05) : 0;
+                                                const insuranceFeeGtq = insuranceFeeUsd * 8.00;
+                                                const totalCharge = flete + insuranceFeeGtq;
+
+                                                const invoiceId = `FAC-${1000 + invoices.length + 1}`;
+                                                const newInvoice = {
+                                                  id: invoiceId,
+                                                  lockerId: pa.lockerId,
+                                                  date: currentDate,
+                                                  concept: isShein
+                                                    ? `Flete Especial Bolsa Shein ${generatedId}${insuranceFeeGtq > 0 ? ` + Seguro 5% (Q ${insuranceFeeGtq.toFixed(2)})` : ''}`
+                                                    : `Cargo Flete Almacén Laredo ${generatedId} (${pa.weightEst} Lbs)${insuranceFeeGtq > 0 ? ` + Seguro 5% (Q ${insuranceFeeGtq.toFixed(2)})` : ''}`,
+                                                  amount: totalCharge,
+                                                  paymentStatus: 'Pendiente'
+                                                };
 
                                             // Save to Supabase
                                             db.upsertPreAlert({ ...pa, status: 'Recibido' });
@@ -4501,17 +4516,32 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                               notes: pa.description
                                             };
 
-                                            const invoiceId = `FAC-${1000 + invoices.length + 1}`;
-                                            const newInvoice = {
-                                              id: invoiceId,
-                                              lockerId: pa.lockerId,
-                                              date: currentDate,
-                                              concept: isShein
-                                                ? `Flete Especial Bolsa Shein ${generatedId}`
-                                                : `Cargo Flete Almacén México ${generatedId} (${pa.weightEst} Lbs)`,
-                                              amount: flete,
-                                              paymentStatus: 'Pendiente'
-                                            };
+                                                const declaredValue = pa.declaredValue || (() => {
+                                                  if (pa.description && pa.description.includes('Valor: $')) {
+                                                    const valParts = pa.description.split('Valor: $');
+                                                    if (valParts.length > 1) {
+                                                      const val = parseFloat(valParts[1].split(' | ')[0]);
+                                                      if (!isNaN(val)) return val;
+                                                    }
+                                                  }
+                                                  return 0;
+                                                })();
+                                                const hasInsurance = pa.insurance === 'Con seguro (5%)' || (pa.description && pa.description.includes('Seguro: Con seguro (5%)'));
+                                                const insuranceFeeUsd = hasInsurance ? (declaredValue * 0.05) : 0;
+                                                const insuranceFeeGtq = insuranceFeeUsd * 8.00;
+                                                const totalCharge = flete + insuranceFeeGtq;
+
+                                                const invoiceId = `FAC-${1000 + invoices.length + 1}`;
+                                                const newInvoice = {
+                                                  id: invoiceId,
+                                                  lockerId: pa.lockerId,
+                                                  date: currentDate,
+                                                  concept: isShein
+                                                    ? `Flete Especial Bolsa Shein ${generatedId}${insuranceFeeGtq > 0 ? ` + Seguro 5% (Q ${insuranceFeeGtq.toFixed(2)})` : ''}`
+                                                    : `Cargo Flete Almacén México ${generatedId} (${pa.weightEst} Lbs)${insuranceFeeGtq > 0 ? ` + Seguro 5% (Q ${insuranceFeeGtq.toFixed(2)})` : ''}`,
+                                                  amount: totalCharge,
+                                                  paymentStatus: 'Pendiente'
+                                                };
 
                                             // Save to Supabase
                                             db.upsertPreAlert({ ...pa, status: 'Recibido' });
