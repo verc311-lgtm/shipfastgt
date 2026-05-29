@@ -706,6 +706,215 @@ Se procederá a abrir tu cliente de correo nativo como alternativa de respaldo.`
     return false;
   };
 
+  // Send Pre-Alert Received notification email via EmailJS or native mailto fallback
+  const sendPreAlertReceivedEmailHelper = async (
+    pa: PreAlert & { declaredValue?: number; insurance?: string; invoiceFileName?: string },
+    shipmentId: string,
+    fleteBase: number,
+    insuranceFeeGtq: number,
+    totalCharge: number,
+    silent = true
+  ) => {
+    // Find matching profile/client
+    const profile = users.find(u => u.lockerId === pa.lockerId);
+    if (!profile) return false;
+
+    const nameParts = profile.name.trim().split(/\s+/);
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(1).join(' ') || '';
+
+    const isLaredo = !pa.description.toLowerCase().includes('mexico') && !pa.description.toLowerCase().includes('méxico');
+    const warehouseName = isLaredo ? "Bodega de Laredo, Texas (USA) 🇺🇸" : "Bodega de Tapachula, Chiapas (México) 🇲🇽";
+
+    const hasInsurance = pa.insurance === 'Con seguro (5%)' || (pa.description && pa.description.includes('Seguro: Con seguro (5%)'));
+    const declaredValue = pa.declaredValue || 0;
+
+    const emailBodyTextPlain = `Notificación de Recepción de Paquete - ShipFast GT 🇬🇹🚀
+
+Estimado/a ${profile.name},
+
+Nos complace informarle que su paquete pre-alertado ha sido recibido físicamente en nuestras bodegas y ya se encuentra registrado para su importación a Guatemala.
+
+Detalles del Paquete:
+- Guía Asignada: ${shipmentId}
+- Tracking original: ${pa.id}
+- Remitente / Tienda: ${pa.sender}
+- Peso registrado: ${pa.weightEst} Lbs
+- Ubicación de recepción: ${warehouseName}
+- Valor Declarado: $${declaredValue.toFixed(2)} USD
+- Seguro Premium (5%): ${hasInsurance ? `Adquirido (Q ${insuranceFeeGtq.toFixed(2)})` : "No Adquirido (Responsabilidad Limitada a $50 USD)"}
+
+Cargos de Flete y Tarifas Asignadas:
+- Flete Base: Q ${fleteBase.toFixed(2)}
+- Recargo de Seguro: Q ${insuranceFeeGtq.toFixed(2)}
+- Total a Facturar: Q ${totalCharge.toFixed(2)}
+
+¡Gracias por confiar en ShipFast GT! Le mantendremos informado sobre el avance en ruta hacia Guatemala.`;
+
+    const emailBodyTextHtml = `<div style="font-family: 'Segoe UI', Arial, sans-serif; background-color: #f3f4f6; padding: 40px 20px; color: #1f2937; line-height: 1.6; margin: 0;">
+  <div style="max-width: 650px; margin: 0 auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1); border-top: 8px solid #ea580c;">
+    
+    <!-- Header -->
+    <div style="padding: 30px; text-align: center; background-color: #ffffff; border-bottom: 2px solid #f3f4f6;">
+      <img src="https://app.shipfastgt.com/logo.png" alt="ShipFast GT" style="max-width: 220px; height: auto;" />
+    </div>
+
+    <!-- Content Body -->
+    <div style="padding: 40px 30px;">
+      <div style="text-align: center; margin-bottom: 30px;">
+        <span style="background-color: #ffedd5; color: #ea580c; font-size: 10px; font-weight: 900; text-transform: uppercase; tracking-wider; padding: 6px 16px; border-radius: 9999px; display: inline-block; border: 1px solid #fed7aa; margin-bottom: 15px;">
+          📦 Paquete Recibido en Bodega Internacional
+        </span>
+        <h2 style="margin: 0; color: #111827; font-size: 22px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">¡Tu paquete está listo para volar! 🇬🇹🚀</h2>
+      </div>
+
+      <p style="font-size: 15px; color: #4b5563;">
+        Estimado/a <strong>${profile.name}</strong>,
+      </p>
+      
+      <p style="font-size: 14px; color: #4b5563;">
+        Nos complace informarte que hemos recibido físicamente tu paquete en nuestra <strong>${warehouseName}</strong>. A partir de este momento, se ha completado el ingreso logístico y la asignación de su guía para proceder con el tránsito directo hacia Guatemala.
+      </p>
+
+      <!-- Main Receipt Card -->
+      <div style="background-color: #fafafa; border: 1px solid #e5e7eb; border-radius: 12px; padding: 25px; margin: 30px 0;">
+        <h3 style="margin: 0 0 20px 0; font-size: 14px; font-weight: 800; color: #1e3a8a; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #eff6ff; padding-bottom: 10px;">
+          📋 Detalles de la Guía Logística
+        </h3>
+        
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+          <tr style="border-bottom: 1px solid #f3f4f6;">
+            <td style="padding: 10px 0; color: #6b7280; font-weight: bold; width: 150px;">Guía ShipFast:</td>
+            <td style="padding: 10px 0; color: #ea580c; font-weight: 900; font-family: monospace; font-size: 15px;">${shipmentId}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #f3f4f6;">
+            <td style="padding: 10px 0; color: #6b7280; font-weight: bold;">Tracking Original:</td>
+            <td style="padding: 10px 0; color: #1f2937; font-family: monospace;">${pa.id}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #f3f4f6;">
+            <td style="padding: 10px 0; color: #6b7280; font-weight: bold;">Remitente:</td>
+            <td style="padding: 10px 0; color: #1f2937; font-weight: bold;">${pa.sender}</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #f3f4f6;">
+            <td style="padding: 10px 0; color: #6b7280; font-weight: bold;">Peso Registrado:</td>
+            <td style="padding: 10px 0; color: #1f2937; font-weight: bold;">${pa.weightEst} Lbs</td>
+          </tr>
+          <tr style="border-bottom: 1px solid #f3f4f6;">
+            <td style="padding: 10px 0; color: #6b7280; font-weight: bold;">Valor Declarado:</td>
+            <td style="padding: 10px 0; color: #1f2937;">$${declaredValue.toFixed(2)} USD</td>
+          </tr>
+          <tr>
+            <td style="padding: 10px 0; color: #6b7280; font-weight: bold;">Seguro Premium (5%):</td>
+            <td style="padding: 10px 0;">
+              {hasInsurance ? (
+                <span style="color: #16a34a; font-weight: 800;">🛡️ Adquirido (Q ${insuranceFeeGtq.toFixed(2)})</span>
+              ) : (
+                <span style="color: #ea580c; font-weight: bold;">⚠️ No Adquirido (Resp. Máx. $50 USD)</span>
+              )}
+            </td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- Financial Breakdown Card -->
+      <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px; padding: 25px; margin-bottom: 30px;">
+        <h3 style="margin: 0 0 15px 0; font-size: 14px; font-weight: 800; color: #1e3a8a; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #dbeafe; padding-bottom: 8px;">
+          💰 Resumen de Flete y Cargos
+        </h3>
+        
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+          <tr style="border-bottom: 1px solid #dbeafe;">
+            <td style="padding: 8px 0; color: #1e3a8a; font-weight: bold;">Flete por Peso (${pa.weightEst} Lbs):</td>
+            <td style="padding: 8px 0; color: #1e293b; text-align: right; font-weight: bold;">Q ${fleteBase.toFixed(2)}</td>
+          </tr>
+          {insuranceFeeGtq > 0 && (
+            <tr style="border-bottom: 1px solid #dbeafe;">
+              <td style="padding: 8px 0; color: #1e3a8a; font-weight: bold;">Seguro Opcional (5%):</td>
+              <td style="padding: 8px 0; color: #16a34a; text-align: right; font-weight: bold;">Q ${insuranceFeeGtq.toFixed(2)}</td>
+            </tr>
+          )}
+          <tr style="font-size: 16px; font-weight: 900;">
+            <td style="padding: 12px 0 0 0; color: #1e3a8a;">Total a Cobrar:</td>
+            <td style="padding: 12px 0 0 0; color: #ea580c; text-align: right; font-size: 18px;">Q ${totalCharge.toFixed(2)}</td>
+          </tr>
+        </table>
+      </div>
+
+      <!-- Support and WhatsApp Quick Action -->
+      <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 20px; text-align: center;">
+        <strong style="color: #166534; font-size: 14px; display: block; margin-bottom: 8px;">💬 ¿Deseas coordinar tu entrega o entrega local en Guatemala?</strong>
+        <p style="font-size: 13px; color: #4b5563; margin: 0 0 15px 0;">Contáctanos de inmediato para programar tu entrega a domicilio.</p>
+        <a href="https://wa.me/50237268751" target="_blank" style="background-color: #25d366; color: white; padding: 10px 24px; text-decoration: none; border-radius: 8px; font-weight: 900; font-size: 13px; display: inline-block; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.08); text-transform: uppercase;">
+          🟢 Coordinar por WhatsApp
+        </a>
+      </div>
+
+    </div>
+
+    <!-- Footer -->
+    <div style="background-color: #1f2937; padding: 30px; text-align: center; color: #9ca3af; font-size: 11px; border-top: 1px solid #374151;">
+      <p style="margin: 0 0 8px 0; font-weight: bold; color: #ffffff;">ShipFast Logistics S.A. &copy; 2026</p>
+      <p style="margin: 0 0 8px 0;">El servicio de courier y mensajería express más rápido de Guatemala.</p>
+      <p style="margin: 0; color: #6b7280;">Este es un correo automático. Por favor, no respondas directamente a este mensaje.</p>
+    </div>
+
+  </div>
+</div>`;
+
+    const serviceId = emailJsServiceId.trim();
+    const templateId = emailJsTemplateId.trim();
+    const publicKey = emailJsPublicKey.trim();
+    const privateKey = emailJsPrivateKey.trim();
+
+    if (serviceId && templateId && publicKey) {
+      try {
+        const response = await fetch("https://api.emailjs.com/api/v1.0/email/send", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            service_id: serviceId,
+            template_id: templateId,
+            user_id: publicKey,
+            accessToken: privateKey,
+            template_params: {
+              to_name: profile.name,
+              name: profile.name,
+              to_email: profile.email,
+              email: profile.email,
+              locker_id: profile.lockerId,
+              first_name: firstName,
+              last_name: lastName,
+              subject: `📦 Paquete Recibido en Bodega Internacional - Guía ${shipmentId}`,
+              message: emailBodyTextHtml
+            }
+          })
+        });
+
+        if (response.ok) {
+          if (!silent) {
+            alert(`📧 ¡Notificación de recepción enviada con éxito a ${profile.name} (${profile.email})!`);
+          }
+          return true;
+        } else {
+          const errorText = await response.text();
+          console.error("EmailJS pre-alert notification error:", errorText);
+        }
+      } catch (err) {
+        console.error("EmailJS network error for pre-alert notification:", err);
+      }
+    }
+
+    if (!silent) {
+      // Native mailto fallback
+      const subject = encodeURIComponent(`📦 Paquete Recibido en Bodega - Guía ${shipmentId}`);
+      const body = encodeURIComponent(emailBodyTextPlain);
+      window.location.href = `mailto:${profile.email}?subject=${subject}&body=${body}`;
+    }
+    return false;
+  };
+
   // Handle Registration
   const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -4466,6 +4675,9 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                               ...prev
                                             ]);
 
+                                            // Trigger background receipt email to client!
+                                            sendPreAlertReceivedEmailHelper(pa, generatedId, flete, insuranceFeeGtq, totalCharge, true);
+
                                             alert(`Paquete pre-alertado registrado como recibido en Bodega Laredo. Se ha asignado la guía: ${generatedId} y se ha creado una factura de flete por Q ${flete.toFixed(2)}.`);
                                           }}
                                           className="bg-brand-orange hover:bg-brand-orange-hover text-white px-2 py-0.5 rounded text-4xs font-black uppercase transition cursor-pointer shadow-3xs flex items-center gap-0.5"
@@ -4555,6 +4767,9 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                               newInvoice,
                                               ...prev
                                             ]);
+
+                                            // Trigger background receipt email to client!
+                                            sendPreAlertReceivedEmailHelper(pa, generatedId, flete, insuranceFeeGtq, totalCharge, false);
 
                                             alert(`Paquete pre-alertado registrado como recibido en Bodega México. Se ha asignado la guía: ${generatedId} y se ha creado una factura de flete por Q ${flete.toFixed(2)}.`);
                                           }}
