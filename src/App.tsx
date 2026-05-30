@@ -3206,6 +3206,55 @@ Para proporcionarle información específica, puede solicitar:
                     </div>
                   </div>
 
+                  {/* Bodegas de Envío / Direcciones Oficiales */}
+                  <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-xs space-y-4">
+                    <div>
+                      <h4 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display flex items-center gap-1.5">
+                        <MapPin className="h-4 w-4 text-brand-orange animate-bounce" />
+                        Direcciones de Bodega (Casillero)
+                      </h4>
+                      <p className="text-[10px] text-gray-400 font-semibold uppercase mt-0.5">Usa estas direcciones para tus compras en tiendas online</p>
+                    </div>
+
+                    <div className="space-y-4">
+                      {/* BODEGA USA */}
+                      <div className="p-3.5 bg-slate-50 border border-slate-200/60 rounded-xl space-y-2 relative overflow-hidden group hover:shadow-xs transition duration-200">
+                        <div className="absolute top-0 right-0 bg-brand-orange text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-bl-lg">
+                          USA 🇺🇸
+                        </div>
+                        <h5 className="text-[10px] font-black text-slate-700 uppercase tracking-wider">Bodega Miami / Laredo (EE.UU.)</h5>
+                        <div className="text-[10px] text-slate-600 space-y-1 font-mono">
+                          <div><span className="text-slate-400 font-sans uppercase font-bold text-[8px] block">Nombre / First Name</span> ShipFast {currentUser.name.split(' ')[0]}</div>
+                          <div><span className="text-slate-400 font-sans uppercase font-bold text-[8px] block">Apellido / Last Name</span> {currentUser.name.split(' ').slice(1).join(' ') || 'Logistics'}</div>
+                          <div><span className="text-slate-400 font-sans uppercase font-bold text-[8px] block">Dirección / Address Line 1</span> 1900 Justo Penn St.</div>
+                          <div><span className="text-slate-400 font-sans uppercase font-bold text-[8px] block">Apt/Suite / Address Line 2</span> <strong className="text-brand-orange select-all">{currentUser.lockerId}</strong></div>
+                          <div><span className="text-slate-400 font-sans uppercase font-bold text-[8px] block">Ciudad / City</span> Laredo</div>
+                          <div><span className="text-slate-400 font-sans uppercase font-bold text-[8px] block">Estado / State</span> Texas (TX)</div>
+                          <div><span className="text-slate-400 font-sans uppercase font-bold text-[8px] block">Zip Code</span> 78041</div>
+                          <div><span className="text-slate-400 font-sans uppercase font-bold text-[8px] block">Teléfono / Phone</span> +1 757-7762319</div>
+                        </div>
+                      </div>
+
+                      {/* BODEGA MEXICO */}
+                      <div className="p-3.5 bg-slate-50 border border-slate-200/60 rounded-xl space-y-2 relative overflow-hidden group hover:shadow-xs transition duration-200">
+                        <div className="absolute top-0 right-0 bg-indigo-600 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-bl-lg">
+                          MEX 🇲🇽
+                        </div>
+                        <h5 className="text-[10px] font-black text-slate-700 uppercase tracking-wider">Bodega Tapachula (México)</h5>
+                        <div className="text-[10px] text-slate-600 space-y-1 font-mono">
+                          <div><span className="text-slate-400 font-sans uppercase font-bold text-[8px] block">Nombre / First Name</span> ShipFast {currentUser.name.split(' ')[0]}</div>
+                          <div><span className="text-slate-400 font-sans uppercase font-bold text-[8px] block">Apellido / Last Name</span> {currentUser.name.split(' ').slice(1).join(' ') || 'Logistics'}</div>
+                          <div><span className="text-slate-400 font-sans uppercase font-bold text-[8px] block">Dirección / Address</span> Libramiento Sur Ote, Parque Logístico Tamarindo</div>
+                          <div><span className="text-slate-400 font-sans uppercase font-bold text-[8px] block">Referencias / Suite</span> <strong className="text-brand-orange select-all">{currentUser.lockerId}</strong> + Bodega JT Express 320B Jony Maza Blanca Díaz</div>
+                          <div><span className="text-slate-400 font-sans uppercase font-bold text-[8px] block">Estado / State</span> Chiapas</div>
+                          <div><span className="text-slate-400 font-sans uppercase font-bold text-[8px] block">Ciudad / City</span> Tapachula</div>
+                          <div><span className="text-slate-400 font-sans uppercase font-bold text-[8px] block">Zip Code</span> 30700</div>
+                          <div><span className="text-slate-400 font-sans uppercase font-bold text-[8px] block">Teléfono / Phone</span> 9621027742</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Tracking lookup form */}
                   <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-xs">
                     <h4 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display mb-3 flex items-center gap-1.5">
