@@ -3222,7 +3222,7 @@ Para proporcionarle información específica, puede solicitar:
                         <div className="absolute top-0 right-0 bg-brand-orange text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-bl-lg">
                           USA 🇺🇸
                         </div>
-                        <h5 className="text-[10px] font-black text-slate-700 uppercase tracking-wider">Bodega Miami / Laredo (EE.UU.)</h5>
+                        <h5 className="text-[10px] font-black text-slate-700 uppercase tracking-wider">Bodega Laredo (Texas, EE.UU.)</h5>
                         <div className="text-[10px] text-slate-600 space-y-1 font-mono">
                           <div><span className="text-slate-400 font-sans uppercase font-bold text-[8px] block">Nombre / First Name</span> ShipFast {currentUser.name.split(' ')[0]}</div>
                           <div><span className="text-slate-400 font-sans uppercase font-bold text-[8px] block">Apellido / Last Name</span> {currentUser.name.split(' ').slice(1).join(' ') || 'Logistics'}</div>
