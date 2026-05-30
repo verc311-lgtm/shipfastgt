@@ -224,6 +224,7 @@ export default function App() {
   const [clientPreAlertValue, setClientPreAlertValue] = useState('');
   const [clientPreAlertInsurance, setClientPreAlertInsurance] = useState('Sin seguro');
   const [clientPreAlertFileName, setClientPreAlertFileName] = useState('');
+  const [activeWarehouseModal, setActiveWarehouseModal] = useState<'USA' | 'MEX' | null>(null);
 
   // Selected User for Details and Password/Address Edit
   const [selectedUserForEdit, setSelectedUserForEdit] = useState<UserProfile | null>(null);
@@ -3223,16 +3224,16 @@ Para proporcionarle información específica, puede solicitar:
                           USA 🇺🇸
                         </div>
                         <h5 className="text-[10px] font-black text-slate-700 uppercase tracking-wider">Bodega Laredo (Texas, EE.UU.)</h5>
-                        <div className="text-[10px] text-slate-600 space-y-1 font-mono">
-                          <div><span className="text-slate-400 font-sans uppercase font-bold text-[8px] block">Nombre / First Name</span> ShipFast {currentUser.name.split(' ')[0]}</div>
-                          <div><span className="text-slate-400 font-sans uppercase font-bold text-[8px] block">Apellido / Last Name</span> {currentUser.name.split(' ').slice(1).join(' ') || 'Logistics'}</div>
-                          <div><span className="text-slate-400 font-sans uppercase font-bold text-[8px] block">Dirección / Address Line 1</span> 1900 Justo Penn St.</div>
-                          <div><span className="text-slate-400 font-sans uppercase font-bold text-[8px] block">Apt/Suite / Address Line 2</span> <strong className="text-brand-orange select-all">{currentUser.lockerId}</strong></div>
-                          <div><span className="text-slate-400 font-sans uppercase font-bold text-[8px] block">Ciudad / City</span> Laredo</div>
-                          <div><span className="text-slate-400 font-sans uppercase font-bold text-[8px] block">Estado / State</span> Texas (TX)</div>
-                          <div><span className="text-slate-400 font-sans uppercase font-bold text-[8px] block">Zip Code</span> 78041</div>
-                          <div><span className="text-slate-400 font-sans uppercase font-bold text-[8px] block">Teléfono / Phone</span> +1 757-7762319</div>
+                        <div className="text-[9px] text-slate-500 font-medium leading-relaxed pb-1.5 border-b border-slate-200/40">
+                          Dirección americana para recibir compras de EE.UU. y el resto del mundo.
                         </div>
+                        <button
+                          type="button"
+                          onClick={() => setActiveWarehouseModal('USA')}
+                          className="w-full bg-brand-orange hover:bg-brand-orange-hover text-white text-5xs font-black py-2 rounded-lg uppercase tracking-widest transition flex items-center justify-center gap-1 cursor-pointer active:scale-95 shadow-3xs"
+                        >
+                          🔍 Ver Dirección en Grande
+                        </button>
                       </div>
 
                       {/* BODEGA MEXICO */}
@@ -3241,16 +3242,16 @@ Para proporcionarle información específica, puede solicitar:
                           MEX 🇲🇽
                         </div>
                         <h5 className="text-[10px] font-black text-slate-700 uppercase tracking-wider">Bodega Tapachula (México)</h5>
-                        <div className="text-[10px] text-slate-600 space-y-1 font-mono">
-                          <div><span className="text-slate-400 font-sans uppercase font-bold text-[8px] block">Nombre / First Name</span> ShipFast {currentUser.name.split(' ')[0]}</div>
-                          <div><span className="text-slate-400 font-sans uppercase font-bold text-[8px] block">Apellido / Last Name</span> {currentUser.name.split(' ').slice(1).join(' ') || 'Logistics'}</div>
-                          <div><span className="text-slate-400 font-sans uppercase font-bold text-[8px] block">Dirección / Address</span> Libramiento Sur Ote, Parque Logístico Tamarindo</div>
-                          <div><span className="text-slate-400 font-sans uppercase font-bold text-[8px] block">Referencias / Suite</span> <strong className="text-brand-orange select-all">{currentUser.lockerId}</strong> + Bodega JT Express 320B Jony Maza Blanca Díaz</div>
-                          <div><span className="text-slate-400 font-sans uppercase font-bold text-[8px] block">Estado / State</span> Chiapas</div>
-                          <div><span className="text-slate-400 font-sans uppercase font-bold text-[8px] block">Ciudad / City</span> Tapachula</div>
-                          <div><span className="text-slate-400 font-sans uppercase font-bold text-[8px] block">Zip Code</span> 30700</div>
-                          <div><span className="text-slate-400 font-sans uppercase font-bold text-[8px] block">Teléfono / Phone</span> 9621027742</div>
+                        <div className="text-[9px] text-slate-500 font-medium leading-relaxed pb-1.5 border-b border-slate-200/40">
+                          Ideal para tus compras en Mercado Libre México, SHEIN nacional y más.
                         </div>
+                        <button
+                          type="button"
+                          onClick={() => setActiveWarehouseModal('MEX')}
+                          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-5xs font-black py-2 rounded-lg uppercase tracking-widest transition flex items-center justify-center gap-1 cursor-pointer active:scale-95 shadow-3xs"
+                        >
+                          🔍 Ver Dirección en Grande
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -8217,6 +8218,147 @@ El Equipo de ShipFast GT`;
                         Imprimir
                       </>
                     )}
+                  </button>
+                </div>
+
+              </div>
+            </div>
+          )}
+
+          {/* ==================== BODEGA INTERNACIONAL ZOOM OVERLAY ==================== */}
+          {activeWarehouseModal && (
+            <div className="fixed inset-0 bg-brand-gray-dark/65 backdrop-blur-sm flex justify-center items-center z-50 p-4 animate-fade-in">
+              <div className="bg-white w-full max-w-lg rounded-3xl border border-slate-100 shadow-2xl overflow-hidden relative animate-zoom-in transition-all duration-300 font-sans">
+                
+                {/* Header Flag / Title */}
+                <div className={`p-6 text-white relative ${activeWarehouseModal === 'USA' ? 'bg-gradient-to-r from-brand-orange to-amber-600' : 'bg-gradient-to-r from-indigo-600 to-indigo-800'}`}>
+                  <button
+                    type="button"
+                    onClick={() => setActiveWarehouseModal(null)}
+                    className="absolute top-4 right-4 text-white/80 hover:text-white cursor-pointer p-1.5 rounded-full hover:bg-white/10 transition"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                  <div className="flex items-center gap-3">
+                    <span className="text-3xl leading-none">
+                      {activeWarehouseModal === 'USA' ? '🇺🇸' : '🇲🇽'}
+                    </span>
+                    <div>
+                      <span className="text-[10px] font-black tracking-widest uppercase text-white/80 block">Dirección Oficial Completa</span>
+                      <h3 className="text-lg font-black tracking-tight uppercase">
+                        {activeWarehouseModal === 'USA' ? 'Bodega Laredo (Texas, EE.UU.)' : 'Bodega Tapachula (México)'}
+                      </h3>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Details list */}
+                <div className="p-6 space-y-5">
+                  <div className="bg-slate-50 border border-slate-200/50 rounded-2xl p-5 space-y-4">
+                    <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-200/40 pb-2">
+                      Datos a Ingresar en Tiendas Online (Amazon, SHEIN, etc.)
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                      {activeWarehouseModal === 'USA' ? (
+                        <>
+                          <div className="p-3 bg-white border border-slate-100 rounded-xl">
+                            <span className="text-slate-400 uppercase font-black text-[9px] block mb-0.5">Nombre / First Name</span>
+                            <span className="font-extrabold text-slate-800">ShipFast {currentUser.name.split(' ')[0]}</span>
+                          </div>
+                          <div className="p-3 bg-white border border-slate-100 rounded-xl">
+                            <span className="text-slate-400 uppercase font-black text-[9px] block mb-0.5">Apellido / Last Name</span>
+                            <span className="font-extrabold text-slate-800">{currentUser.name.split(' ').slice(1).join(' ') || 'Logistics'}</span>
+                          </div>
+                          <div className="p-3 bg-white border border-slate-100 rounded-xl md:col-span-2">
+                            <span className="text-slate-400 uppercase font-black text-[9px] block mb-0.5">Dirección Línea 1 / Address 1</span>
+                            <span className="font-extrabold text-slate-800">1900 Justo Penn St.</span>
+                          </div>
+                          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl md:col-span-2 flex justify-between items-center">
+                            <div>
+                              <span className="text-amber-800 uppercase font-black text-[9px] block mb-0.5">Suite / Address 2 *</span>
+                              <span className="font-black text-brand-orange text-sm tracking-wider font-mono">{currentUser.lockerId}</span>
+                            </div>
+                            <span className="text-[8px] font-black text-amber-700 bg-amber-100 px-2 py-0.5 rounded-md uppercase">Requerido</span>
+                          </div>
+                          <div className="p-3 bg-white border border-slate-100 rounded-xl">
+                            <span className="text-slate-400 uppercase font-black text-[9px] block mb-0.5">Ciudad / City</span>
+                            <span className="font-extrabold text-slate-800">Laredo</span>
+                          </div>
+                          <div className="p-3 bg-white border border-slate-100 rounded-xl">
+                            <span className="text-slate-400 uppercase font-black text-[9px] block mb-0.5">Estado / State</span>
+                            <span className="font-extrabold text-slate-800">Texas (TX)</span>
+                          </div>
+                          <div className="p-3 bg-white border border-slate-100 rounded-xl">
+                            <span className="text-slate-400 uppercase font-black text-[9px] block mb-0.5">Código Postal / Zip Code</span>
+                            <span className="font-black text-slate-800 font-mono">78041</span>
+                          </div>
+                          <div className="p-3 bg-white border border-slate-100 rounded-xl">
+                            <span className="text-slate-400 uppercase font-black text-[9px] block mb-0.5">Teléfono / Phone</span>
+                            <span className="font-black text-slate-800 font-mono">+1 757-7762319</span>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="p-3 bg-white border border-slate-100 rounded-xl">
+                            <span className="text-slate-400 uppercase font-black text-[9px] block mb-0.5">Nombre / First Name</span>
+                            <span className="font-extrabold text-slate-800">ShipFast {currentUser.name.split(' ')[0]}</span>
+                          </div>
+                          <div className="p-3 bg-white border border-slate-100 rounded-xl">
+                            <span className="text-slate-400 uppercase font-black text-[9px] block mb-0.5">Apellido / Last Name</span>
+                            <span className="font-extrabold text-slate-800">{currentUser.name.split(' ').slice(1).join(' ') || 'Logistics'}</span>
+                          </div>
+                          <div className="p-3 bg-white border border-slate-100 rounded-xl md:col-span-2">
+                            <span className="text-slate-400 uppercase font-black text-[9px] block mb-0.5">Dirección / Address</span>
+                            <span className="font-extrabold text-slate-800">Libramiento Sur Ote, Parque Logístico Tamarindo</span>
+                          </div>
+                          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl md:col-span-2 flex justify-between items-center">
+                            <div>
+                              <span className="text-amber-800 uppercase font-black text-[9px] block mb-0.5">Referencias / Suite *</span>
+                              <span className="font-black text-brand-orange text-xs tracking-wider leading-tight block">
+                                <strong className="text-sm font-mono">{currentUser.lockerId}</strong> + Bodega JT Express 320B Jony Maza Blanca Díaz
+                              </span>
+                            </div>
+                            <span className="text-[8px] font-black text-amber-700 bg-amber-100 px-2 py-0.5 rounded-md uppercase self-start">Requerido</span>
+                          </div>
+                          <div className="p-3 bg-white border border-slate-100 rounded-xl">
+                            <span className="text-slate-400 uppercase font-black text-[9px] block mb-0.5">Estado / State</span>
+                            <span className="font-extrabold text-slate-800">Chiapas</span>
+                          </div>
+                          <div className="p-3 bg-white border border-slate-100 rounded-xl">
+                            <span className="text-slate-400 uppercase font-black text-[9px] block mb-0.5">Ciudad / City</span>
+                            <span className="font-extrabold text-slate-800">Tapachula</span>
+                          </div>
+                          <div className="p-3 bg-white border border-slate-100 rounded-xl">
+                            <span className="text-slate-400 uppercase font-black text-[9px] block mb-0.5">Código Postal / Zip Code</span>
+                            <span className="font-black text-slate-800 font-mono">30700</span>
+                          </div>
+                          <div className="p-3 bg-white border border-slate-100 rounded-xl">
+                            <span className="text-slate-400 uppercase font-black text-[9px] block mb-0.5">Teléfono / Phone</span>
+                            <span className="font-black text-slate-800 font-mono">9621027742</span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Copy Alert Warning */}
+                  <div className="p-4 bg-blue-50 border border-blue-200 rounded-2xl flex items-start gap-3">
+                    <AlertTriangle className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
+                    <p className="text-[10px] text-blue-700 font-medium leading-normal">
+                      <strong>IMPORTANTE:</strong> Asegúrate de copiar el identificador de casillero <strong>{currentUser.lockerId}</strong> tal y como se muestra arriba. Si omites esta referencia, las bodegas internacionales no podrán identificar a quién pertenece tu carga y habrá demoras en su asignación.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Footer close button */}
+                <div className="bg-slate-50 px-6 py-4 border-t border-slate-100 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setActiveWarehouseModal(null)}
+                    className="bg-slate-800 hover:bg-slate-900 text-white font-extrabold text-xs py-2 px-6 rounded-xl active:scale-95 transition cursor-pointer shadow-sm"
+                  >
+                    Entendido, Cerrar
                   </button>
                 </div>
 
