@@ -178,6 +178,7 @@ export default function App() {
   const [quoteWeight, setQuoteWeight] = useState(1);
   const [quoteProductLink, setQuoteProductLink] = useState('');
   const [quoteProductPriceUsd, setQuoteProductPriceUsd] = useState<number | ''>('');
+  const [quoteWhoPurchases, setQuoteWhoPurchases] = useState<'Nosotros' | 'Cliente'>('Nosotros');
   const [calculatedQuote, setCalculatedQuote] = useState<{
     base: number;
     weightCost: number;
@@ -989,7 +990,9 @@ Cargos de Flete y Tarifas Asignadas:
       taxesQts = Number((productPriceQts * 0.12).toFixed(2));
     }
 
-    const total = base + weightCost + productPriceQts + taxesQts;
+    const total = quoteWhoPurchases === 'Nosotros' 
+      ? (base + weightCost + productPriceQts + taxesQts)
+      : (base + weightCost);
     
     // Route guidelines based on destination department
     let route = `Ruta Logística Nacional hacia ${quoteDestination}`;
@@ -1008,14 +1011,15 @@ Cargos de Flete y Tarifas Asignadas:
     setCalculatedQuote({
       base,
       weightCost,
-      productPriceUsd,
-      productPriceQts,
-      taxesQts,
+      productPriceUsd: quoteWhoPurchases === 'Nosotros' ? productPriceUsd : 0,
+      productPriceQts: quoteWhoPurchases === 'Nosotros' ? productPriceQts : 0,
+      taxesQts: quoteWhoPurchases === 'Nosotros' ? taxesQts : 0,
       total,
       days,
       route,
-      productLink: quoteProductLink
-    });
+      productLink: quoteProductLink,
+      whoPurchases: quoteWhoPurchases
+    } as any);
   };
 
   // Pre-calculate quote if URL has parameters on mount
@@ -2862,6 +2866,35 @@ Para proporcionarle información específica, puede solicitar:
                           </div>
                         </div>
 
+                        {/* ¿Quién compra? Selector */}
+                        <div>
+                          <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">¿Quién realiza la compra?</label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setQuoteWhoPurchases('Nosotros')}
+                              className={`py-1.5 px-3 rounded-lg text-xs font-bold transition uppercase tracking-wider cursor-pointer ${
+                                quoteWhoPurchases === 'Nosotros'
+                                  ? 'bg-brand-orange text-white shadow-3xs'
+                                  : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                              }`}
+                            >
+                              🛒 ShipFast realiza la compra
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setQuoteWhoPurchases('Cliente')}
+                              className={`py-1.5 px-3 rounded-lg text-xs font-bold transition uppercase tracking-wider cursor-pointer ${
+                                quoteWhoPurchases === 'Cliente'
+                                  ? 'bg-brand-orange text-white shadow-3xs'
+                                  : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                              }`}
+                            >
+                              👤 Yo realizo mi propia compra
+                            </button>
+                          </div>
+                        </div>
+
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                           <div>
                             <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Servicio de Envío Local</label>
@@ -2887,31 +2920,33 @@ Para proporcionarle información específica, puede solicitar:
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div>
-                            <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Link del Producto (Opcional)</label>
-                            <input
-                              type="text"
-                              placeholder="https://ejemplo.com/producto"
-                              value={quoteProductLink}
-                              onChange={(e) => setQuoteProductLink(e.target.value)}
-                              className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-brand-orange"
-                            />
-                          </div>
+                        {quoteWhoPurchases === 'Nosotros' && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 animate-fade-in">
+                            <div>
+                              <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Link del Producto (Opcional)</label>
+                              <input
+                                type="text"
+                                placeholder="https://ejemplo.com/producto"
+                                value={quoteProductLink}
+                                onChange={(e) => setQuoteProductLink(e.target.value)}
+                                className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-brand-orange"
+                              />
+                            </div>
 
-                          <div>
-                            <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Precio del Producto ($ USD)</label>
-                            <input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              placeholder="0.00"
-                              value={quoteProductPriceUsd === '' ? '' : quoteProductPriceUsd}
-                              onChange={(e) => setQuoteProductPriceUsd(e.target.value === '' ? '' : Number(e.target.value))}
-                              className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-brand-orange"
-                            />
+                            <div>
+                              <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Precio del Producto ($ USD)</label>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                placeholder="0.00"
+                                value={quoteProductPriceUsd === '' ? '' : quoteProductPriceUsd}
+                                onChange={(e) => setQuoteProductPriceUsd(e.target.value === '' ? '' : Number(e.target.value))}
+                                className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-brand-orange"
+                              />
+                            </div>
                           </div>
-                        </div>
+                        )}
                       </div>
 
                       <button
@@ -2983,7 +3018,11 @@ Para proporcionarle información específica, puede solicitar:
                             <div className="bg-gradient-to-r from-orange-50 to-orange-100/50 p-3 rounded-lg border border-orange-100/50 flex justify-between items-center">
                               <div>
                                 <span className="text-5xs font-bold text-gray-400 uppercase tracking-widest block">TOTAL ESTIMADO</span>
-                                <span className="text-5xs text-gray-400">Impuestos y envío local incluidos</span>
+                                <span className="text-5xs text-gray-400">
+                                  {(calculatedQuote as any).whoPurchases === 'Cliente' 
+                                    ? 'Únicamente flete internacional y envío local' 
+                                    : 'Impuestos y envío local incluidos'}
+                                </span>
                               </div>
                               <div className="text-right">
                                 <span className="text-sm font-black text-brand-orange tracking-tight block">Q {calculatedQuote.total.toFixed(2)}</span>
@@ -3633,6 +3672,35 @@ Para proporcionarle información específica, puede solicitar:
                       </div>
                     </div>
 
+                    {/* ¿Quién compra? Selector */}
+                    <div className="mt-3">
+                      <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">¿Quién realiza la compra?</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setQuoteWhoPurchases('Nosotros')}
+                          className={`py-1.5 px-3 rounded-lg text-xs font-bold transition uppercase tracking-wider cursor-pointer ${
+                            quoteWhoPurchases === 'Nosotros'
+                              ? 'bg-brand-orange text-white shadow-3xs'
+                              : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                          }`}
+                        >
+                          🛒 ShipFast realiza la compra
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setQuoteWhoPurchases('Cliente')}
+                          className={`py-1.5 px-3 rounded-lg text-xs font-bold transition uppercase tracking-wider cursor-pointer ${
+                            quoteWhoPurchases === 'Cliente'
+                              ? 'bg-brand-orange text-white shadow-3xs'
+                              : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                          }`}
+                        >
+                          👤 Yo realizo mi propia compra
+                        </button>
+                      </div>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Servicio de Envío Local</label>
@@ -3658,31 +3726,33 @@ Para proporcionarle información específica, puede solicitar:
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Link del Producto (Opcional)</label>
-                        <input
-                          type="text"
-                          placeholder="https://ejemplo.com/producto"
-                          value={quoteProductLink}
-                          onChange={(e) => setQuoteProductLink(e.target.value)}
-                          className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-brand-orange"
-                        />
-                      </div>
+                    {quoteWhoPurchases === 'Nosotros' && (
+                      <div className="grid grid-cols-2 gap-3 animate-fade-in">
+                        <div>
+                          <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Link del Producto (Opcional)</label>
+                          <input
+                            type="text"
+                            placeholder="https://ejemplo.com/producto"
+                            value={quoteProductLink}
+                            onChange={(e) => setQuoteProductLink(e.target.value)}
+                            className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-brand-orange"
+                          />
+                        </div>
 
-                      <div>
-                        <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Precio del Producto ($ USD)</label>
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          placeholder="0.00"
-                          value={quoteProductPriceUsd === '' ? '' : quoteProductPriceUsd}
-                          onChange={(e) => setQuoteProductPriceUsd(e.target.value === '' ? '' : Number(e.target.value))}
-                          className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-brand-orange"
-                        />
+                        <div>
+                          <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Precio del Producto ($ USD)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={quoteProductPriceUsd === '' ? '' : quoteProductPriceUsd}
+                            onChange={(e) => setQuoteProductPriceUsd(e.target.value === '' ? '' : Number(e.target.value))}
+                            className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-brand-orange"
+                          />
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
 
                   <button
@@ -3753,7 +3823,11 @@ Para proporcionarle información específica, puede solicitar:
                         <div className="bg-gradient-to-r from-orange-50 to-orange-100/50 p-3 rounded-lg border border-orange-100/50 flex justify-between items-center">
                           <div>
                             <span className="text-5xs font-bold text-gray-400 uppercase tracking-widest block">TOTAL ESTIMADO</span>
-                            <span className="text-5xs text-gray-400">Impuestos y envío local incluidos</span>
+                            <span className="text-5xs text-gray-400">
+                              {(calculatedQuote as any).whoPurchases === 'Cliente' 
+                                ? 'Únicamente flete internacional y envío local' 
+                                : 'Impuestos y envío local incluidos'}
+                            </span>
                           </div>
                           <div className="text-right">
                             <span className="text-sm font-black text-brand-orange tracking-tight block">Q {calculatedQuote.total.toFixed(2)}</span>
