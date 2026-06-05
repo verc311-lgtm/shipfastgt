@@ -3331,10 +3331,10 @@ Para proporcionarle información específica, puede solicitar:
                       */}
                       
                       <div className="p-4 bg-orange-50 border border-orange-200 rounded-xl text-center space-y-1">
-                        <span className="text-lg">🛠️</span>
-                        <h5 className="text-[10px] font-black text-amber-800 uppercase tracking-wider">Bodega EE.UU. en Actualización</h5>
-                        <p className="text-[9px] text-amber-700/80 font-semibold leading-normal">
-                          Estamos actualizando la dirección de nuestra bodega de Laredo para ofrecerte un mejor servicio. Muy pronto estará disponible.
+                        <span className="text-lg">🇺🇸</span>
+                        <h5 className="text-[10px] font-black text-amber-800 uppercase tracking-wider">EEUU envíos</h5>
+                        <p className="text-[9px] text-amber-700/80 font-bold leading-normal uppercase tracking-wider">
+                          Pronto dirección disponible
                         </p>
                       </div>
 
