@@ -3310,7 +3310,8 @@ Para proporcionarle información específica, puede solicitar:
                     </div>
 
                     <div className="space-y-4">
-                      {/* BODEGA USA */}
+                      {/* BODEGA USA (TEMPORARILY HIDDEN FOR UPDATES) */}
+                      {/*
                       <div className="p-3.5 bg-slate-50 border border-slate-200/60 rounded-xl space-y-2 relative overflow-hidden group hover:shadow-xs transition duration-200">
                         <div className="absolute top-0 right-0 bg-brand-orange text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-bl-lg">
                           USA 🇺🇸
@@ -3326,6 +3327,15 @@ Para proporcionarle información específica, puede solicitar:
                         >
                           🔍 Ver Dirección en Grande
                         </button>
+                      </div>
+                      */}
+                      
+                      <div className="p-4 bg-orange-50 border border-orange-200 rounded-xl text-center space-y-1">
+                        <span className="text-lg">🛠️</span>
+                        <h5 className="text-[10px] font-black text-amber-800 uppercase tracking-wider">Bodega EE.UU. en Actualización</h5>
+                        <p className="text-[9px] text-amber-700/80 font-semibold leading-normal">
+                          Estamos actualizando la dirección de nuestra bodega de Laredo para ofrecerte un mejor servicio. Muy pronto estará disponible.
+                        </p>
                       </div>
 
                       {/* BODEGA MEXICO */}
