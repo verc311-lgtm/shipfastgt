@@ -3313,55 +3313,18 @@ Para proporcionarle información específica, puede solicitar:
                         <MapPin className="h-4 w-4 text-brand-orange animate-bounce" />
                         Direcciones de Bodega (Casillero)
                       </h4>
-                      <p className="text-[10px] text-gray-400 font-semibold uppercase mt-0.5">Usa estas direcciones para tus compras en tiendas online</p>
+                      <p className="text-[10px] text-gray-400 font-semibold uppercase mt-0.5">Información sobre direcciones de recepción internacional</p>
                     </div>
 
-                    <div className="space-y-4">
-                      {/* BODEGA USA (TEMPORARILY HIDDEN FOR UPDATES) */}
-                      {/*
-                      <div className="p-3.5 bg-slate-50 border border-slate-200/60 rounded-xl space-y-2 relative overflow-hidden group hover:shadow-xs transition duration-200">
-                        <div className="absolute top-0 right-0 bg-brand-orange text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-bl-lg">
-                          USA 🇺🇸
-                        </div>
-                        <h5 className="text-[10px] font-black text-slate-700 uppercase tracking-wider">Bodega Laredo (Texas, EE.UU.)</h5>
-                        <div className="text-[9px] text-slate-500 font-medium leading-relaxed pb-1.5 border-b border-slate-200/40">
-                          Dirección americana para recibir compras de EE.UU. y el resto del mundo.
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setActiveWarehouseModal('USA')}
-                          className="w-full bg-brand-orange hover:bg-brand-orange-hover text-white text-5xs font-black py-2 rounded-lg uppercase tracking-widest transition flex items-center justify-center gap-1 cursor-pointer active:scale-95 shadow-3xs"
-                        >
-                          🔍 Ver Dirección en Grande
-                        </button>
-                      </div>
-                      */}
-                      
-                      <div className="p-4 bg-orange-50 border border-orange-200 rounded-xl text-center space-y-1">
-                        <span className="text-lg">🇺🇸</span>
-                        <h5 className="text-[10px] font-black text-amber-800 uppercase tracking-wider">EEUU envíos</h5>
-                        <p className="text-[9px] text-amber-700/80 font-bold leading-normal uppercase tracking-wider">
-                          Pronto dirección disponible
-                        </p>
-                      </div>
-
-                      {/* BODEGA MEXICO */}
-                      <div className="p-3.5 bg-slate-50 border border-slate-200/60 rounded-xl space-y-2 relative overflow-hidden group hover:shadow-xs transition duration-200">
-                        <div className="absolute top-0 right-0 bg-indigo-600 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-bl-lg">
-                          MEX 🇲🇽
-                        </div>
-                        <h5 className="text-[10px] font-black text-slate-700 uppercase tracking-wider">Bodega Tapachula (México)</h5>
-                        <div className="text-[9px] text-slate-500 font-medium leading-relaxed pb-1.5 border-b border-slate-200/40">
-                          Ideal para tus compras en Mercado Libre México, SHEIN nacional y más.
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setActiveWarehouseModal('MEX')}
-                          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-5xs font-black py-2 rounded-lg uppercase tracking-widest transition flex items-center justify-center gap-1 cursor-pointer active:scale-95 shadow-3xs"
-                        >
-                          🔍 Ver Dirección en Grande
-                        </button>
-                      </div>
+                    <div className="p-4 bg-orange-50 border border-orange-200 rounded-xl text-center space-y-2">
+                      <span className="text-xl">📞</span>
+                      <h5 className="text-[10px] font-black text-amber-800 uppercase tracking-wider">Verificación de Bodegas Requerida</h5>
+                      <p className="text-[9.5px] text-amber-700 font-bold leading-normal uppercase tracking-wide">
+                        contáctanos primero para verificar las direcciones de Bodegas
+                      </p>
+                      <p className="text-[8.5px] text-slate-500 font-medium">
+                        Por motivos de actualización de seguridad y logística, todas nuestras direcciones de recepción internacional (EE.UU. y México) se encuentran temporalmente resguardadas. Ponte en contacto directo con soporte para habilitar tu despacho.
+                      </p>
                     </div>
                   </div>
 
