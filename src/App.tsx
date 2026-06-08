@@ -225,6 +225,7 @@ export default function App() {
   const [clientPreAlertTracking, setClientPreAlertTracking] = useState('');
   const [clientPreAlertBodega, setClientPreAlertBodega] = useState('Sin bodega');
   const [clientPreAlertValue, setClientPreAlertValue] = useState('');
+  const [clientPreAlertWeight, setClientPreAlertWeight] = useState('1.0');
   const [clientPreAlertInsurance, setClientPreAlertInsurance] = useState('Sin seguro');
   const [clientPreAlertFileName, setClientPreAlertFileName] = useState('');
   const [activeWarehouseModal, setActiveWarehouseModal] = useState<'USA' | 'MEX' | null>(null);
@@ -1879,12 +1880,14 @@ Cargos de Flete y Tarifas Asignadas:
       return;
     }
 
+    const weightVal = parseFloat(clientPreAlertWeight) || 1.0;
+
     const newPreAlert: PreAlert & { declaredValue?: number; insurance?: string; invoiceFileName?: string } = {
       id: clientPreAlertTracking.trim().toUpperCase(),
       lockerId: currentUser.lockerId,
       sender: 'Compra Online',
       description: `Origen: ${clientPreAlertBodega} | Valor: $${declaredVal.toFixed(2)} | Seguro: ${clientPreAlertInsurance}${clientPreAlertFileName ? ` | Factura: ${clientPreAlertFileName}` : ''}`,
-      weightEst: 1.0,
+      weightEst: weightVal,
       status: 'Pendiente',
       dateCreated: new Date().toISOString().split('T')[0],
       declaredValue: declaredVal,
@@ -1901,6 +1904,7 @@ Cargos de Flete y Tarifas Asignadas:
     setClientPreAlertTracking('');
     setClientPreAlertBodega('Sin bodega');
     setClientPreAlertValue('');
+    setClientPreAlertWeight('1.0');
     setClientPreAlertInsurance('Sin seguro');
     setClientPreAlertFileName('');
     setIsClientPreAlertModalOpen(false);
@@ -1926,6 +1930,8 @@ Cargos de Flete y Tarifas Asignadas:
       return;
     }
 
+    const weightVal = parseFloat(clientPreAlertWeight) || 1.0;
+
     const targetUser = users.find(u => u.lockerId === adminPreAlertLockerId.toUpperCase());
     const clientName = targetUser ? targetUser.name : 'Cliente';
 
@@ -1934,7 +1940,7 @@ Cargos de Flete y Tarifas Asignadas:
       lockerId: adminPreAlertLockerId.toUpperCase(),
       sender: 'Compra Online (Pre-alertado por Admin)',
       description: `Origen: ${clientPreAlertBodega} | Valor: $${declaredVal.toFixed(2)} | Seguro: ${clientPreAlertInsurance}${clientPreAlertFileName ? ` | Factura: ${clientPreAlertFileName}` : ''}`,
-      weightEst: 1.0,
+      weightEst: weightVal,
       status: 'Pendiente',
       dateCreated: new Date().toISOString().split('T')[0],
       declaredValue: declaredVal,
@@ -1951,6 +1957,7 @@ Cargos de Flete y Tarifas Asignadas:
     setClientPreAlertTracking('');
     setClientPreAlertBodega('Sin bodega');
     setClientPreAlertValue('');
+    setClientPreAlertWeight('1.0');
     setClientPreAlertInsurance('Sin seguro');
     setClientPreAlertFileName('');
     setAdminPreAlertLockerId('');
@@ -8523,31 +8530,33 @@ El Equipo de ShipFast GT`;
 
           {/* ==================== NUEVA PRE-ALERTA MANUAL CLIENT OVERLAY ==================== */}
           {isClientPreAlertModalOpen && (
-            <div className="fixed inset-0 bg-brand-gray-dark/60 backdrop-blur-xs flex justify-center items-center z-50 p-4 animate-fade-in">
-              <div className="bg-white w-full max-w-md rounded-2xl border border-gray-100 shadow-2xl p-6 relative animate-zoom-in transition-all duration-300 font-sans">
+            <div className="fixed inset-0 bg-brand-gray-dark/65 backdrop-blur-xs flex justify-center items-center z-50 p-4 animate-fade-in">
+              <div className="bg-white w-full max-w-lg rounded-3xl border border-slate-100 shadow-2xl overflow-hidden relative animate-zoom-in transition-all duration-300 font-sans">
                 
                 {/* Close Button X */}
                 <button
                   type="button"
                   onClick={() => setIsClientPreAlertModalOpen(false)}
-                  className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 cursor-pointer p-1 rounded-full hover:bg-gray-100 transition"
+                  className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 cursor-pointer p-1.5 rounded-full hover:bg-slate-50 transition"
                 >
-                  <X className="h-4 w-4" />
+                  <X className="h-5 w-5" />
                 </button>
 
                 {/* Header Section */}
-                <div className="flex items-center gap-3 border-b border-gray-100 pb-4 mb-5">
-                  <div className="bg-blue-50 text-blue-600 p-2.5 rounded-xl flex items-center justify-center w-11 h-11 border border-blue-100 animate-pulse">
-                    <PlusCircle className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-extrabold text-brand-gray-dark tracking-tight uppercase">Nueva Pre-Alerta Manual</h3>
-                    <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mt-0.5">Registrar una pre-alerta para tus paquetes</p>
+                <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-6 text-white relative">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-white/10 text-white p-2.5 rounded-xl flex items-center justify-center w-11 h-11 border border-white/10 animate-pulse">
+                      <PlusCircle className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-black tracking-widest uppercase text-white/80 block">Servicio del Cliente</span>
+                      <h3 className="text-md font-black tracking-tight uppercase">Nueva Pre-Alerta Manual</h3>
+                    </div>
                   </div>
                 </div>
 
                 {/* Form */}
-                <form onSubmit={handleCreateClientPreAlert} className="space-y-4">
+                <form onSubmit={handleCreateClientPreAlert} className="p-6 space-y-4">
                   
                   {/* CLIENTE (CASILLERO) * */}
                   <div>
@@ -8563,14 +8572,14 @@ El Equipo de ShipFast GT`;
                     </div>
                   </div>
 
-                  {/* 2-Column fields: TRACKING and BODEGA */}
-                  <div className="grid grid-cols-2 gap-4">
+                  {/* 3-Column fields: TRACKING, BODEGA and PESO */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">TRACKING *</label>
                       <input
                         type="text"
                         required
-                        placeholder="Ej: 1Z999AA10123456784"
+                        placeholder="Ej: 1Z999AA1012"
                         value={clientPreAlertTracking}
                         onChange={(e) => setClientPreAlertTracking(e.target.value)}
                         className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none font-mono font-bold text-brand-gray-dark placeholder-gray-300"
@@ -8588,6 +8597,20 @@ El Equipo de ShipFast GT`;
                         <option value="Laredo">Laredo 🇺🇸</option>
                         <option value="Mexico">México 🇲🇽</option>
                       </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">PESO EST. (LBS) *</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        required
+                        min="0.1"
+                        placeholder="1.0"
+                        value={clientPreAlertWeight}
+                        onChange={(e) => setClientPreAlertWeight(e.target.value)}
+                        className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none font-bold text-brand-gray-dark"
+                      />
                     </div>
                   </div>
 
@@ -8620,6 +8643,14 @@ El Equipo de ShipFast GT`;
                     </div>
                   </div>
 
+                  {/* Insurance/Liability Warning Disclaimer */}
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-[10px] leading-relaxed flex items-start gap-2">
+                    <span className="text-sm shrink-0">⚠️</span>
+                    <div>
+                      <strong>Político de Responsabilidad y Seguro:</strong> Si el paquete se declara <strong>Sin seguro</strong>, la empresa responderá por un límite máximo de hasta <strong>$50.00 USD</strong> en caso de pérdida o siniestro.
+                    </div>
+                  </div>
+
                   {/* FACTURA (IMAGEN O PDF) */}
                   <div>
                     <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">FACTURA (IMAGEN O PDF)</label>
@@ -8637,7 +8668,7 @@ El Equipo de ShipFast GT`;
                     />
                     <label
                       htmlFor="clientPreAlertFile"
-                      className="border-2 border-dashed border-gray-200 hover:border-indigo-400 bg-gray-50 hover:bg-indigo-50/10 rounded-xl p-5 text-center cursor-pointer transition flex flex-col items-center justify-center gap-1.5"
+                      className="border-2 border-dashed border-slate-200 hover:border-indigo-400 bg-slate-50 hover:bg-indigo-50/10 rounded-2xl p-4 text-center cursor-pointer transition flex flex-col items-center justify-center gap-1.5"
                     >
                       <UploadCloud className="h-6 w-6 text-gray-400 hover:text-indigo-500 transition-colors animate-bounce" />
                       <span className="text-[10px] font-bold text-gray-500 select-none">
@@ -8653,24 +8684,22 @@ El Equipo de ShipFast GT`;
                   </div>
 
                   {/* Footer Actions */}
-                  <div className="flex justify-end gap-3 border-t border-gray-100 pt-4 mt-6">
+                  <div className="flex justify-end gap-3 border-t border-slate-100 pt-4 mt-2">
                     <button
                       type="button"
                       onClick={() => {
                         setClientPreAlertFileName('');
                         setIsClientPreAlertModalOpen(false);
                       }}
-                      className="px-5 py-2 text-xs font-bold text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition active:scale-95 cursor-pointer"
+                      className="px-5 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition active:scale-95 cursor-pointer"
                     >
                       Cancelar
                     </button>
                     <button
                       type="submit"
-                      className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold text-xs py-2.5 px-5 rounded-lg flex items-center justify-center gap-2 shadow-md shadow-indigo-100 hover:shadow-indigo-200 active:scale-98 transition cursor-pointer"
+                      className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-extrabold text-xs py-2.5 px-6 rounded-xl flex items-center justify-center gap-2 shadow-md shadow-indigo-100 hover:shadow-indigo-200 active:scale-98 transition cursor-pointer"
                     >
-                      <span className="inline-flex items-center justify-center border border-white/40 rounded-full p-0.5">
-                        <Plus className="h-3 w-3" />
-                      </span>
+                      <Plus className="h-4 w-4" />
                       Crear Pre-Alerta
                     </button>
                   </div>
@@ -8683,31 +8712,33 @@ El Equipo de ShipFast GT`;
 
           {/* ==================== NUEVA PRE-ALERTA MANUAL ADMINISTRADOR OVERLAY ==================== */}
           {isAdminPreAlertModalOpen && (
-            <div className="fixed inset-0 bg-brand-gray-dark/60 backdrop-blur-xs flex justify-center items-center z-50 p-4 animate-fade-in">
-              <div className="bg-white w-full max-w-md rounded-2xl border border-gray-100 shadow-2xl p-6 relative animate-zoom-in transition-all duration-300 font-sans">
+            <div className="fixed inset-0 bg-brand-gray-dark/65 backdrop-blur-xs flex justify-center items-center z-50 p-4 animate-fade-in">
+              <div className="bg-white w-full max-w-lg rounded-3xl border border-slate-100 shadow-2xl overflow-hidden relative animate-zoom-in transition-all duration-300 font-sans">
                 
                 {/* Close Button X */}
                 <button
                   type="button"
                   onClick={() => setIsAdminPreAlertModalOpen(false)}
-                  className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 cursor-pointer p-1 rounded-full hover:bg-gray-100 transition"
+                  className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 cursor-pointer p-1.5 rounded-full hover:bg-slate-50 transition"
                 >
-                  <X className="h-4 w-4" />
+                  <X className="h-5 w-5" />
                 </button>
 
                 {/* Header Section */}
-                <div className="flex items-center gap-3 border-b border-gray-100 pb-4 mb-5">
-                  <div className="bg-orange-50 text-brand-orange p-2.5 rounded-xl flex items-center justify-center w-11 h-11 border border-orange-100 animate-pulse">
-                    <PlusCircle className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-extrabold text-brand-gray-dark tracking-tight uppercase">Pre-Alerta Administrativa</h3>
-                    <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mt-0.5">Asignar y declarar pre-alerta en nombre de un cliente</p>
+                <div className="bg-gradient-to-r from-brand-orange to-amber-600 p-6 text-white relative">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-white/10 text-white p-2.5 rounded-xl flex items-center justify-center w-11 h-11 border border-white/10">
+                      <PlusCircle className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-black tracking-widest uppercase text-white/80 block">Acción Operativa</span>
+                      <h3 className="text-md font-black tracking-tight uppercase">Pre-Alerta Administrativa</h3>
+                    </div>
                   </div>
                 </div>
 
                 {/* Form */}
-                <form onSubmit={handleCreateAdminPreAlert} className="space-y-4">
+                <form onSubmit={handleCreateAdminPreAlert} className="p-6 space-y-4">
                   
                   {/* CLIENTE (CASILLERO) SELECT * */}
                   <div>
@@ -8727,14 +8758,14 @@ El Equipo de ShipFast GT`;
                     </select>
                   </div>
 
-                  {/* 2-Column fields: TRACKING and BODEGA */}
-                  <div className="grid grid-cols-2 gap-4">
+                  {/* 3-Column fields: TRACKING, BODEGA and PESO */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">TRACKING *</label>
                       <input
                         type="text"
                         required
-                        placeholder="Ej: 1Z999AA10123456784"
+                        placeholder="Ej: 1Z999AA1012"
                         value={clientPreAlertTracking}
                         onChange={(e) => setClientPreAlertTracking(e.target.value)}
                         className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-orange focus:border-brand-orange focus:outline-none font-mono font-bold text-brand-gray-dark placeholder-gray-300"
@@ -8752,6 +8783,20 @@ El Equipo de ShipFast GT`;
                         <option value="Laredo">Laredo 🇺🇸</option>
                         <option value="Mexico">México 🇲🇽</option>
                       </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">PESO EST. (LBS) *</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        required
+                        min="0.1"
+                        placeholder="1.0"
+                        value={clientPreAlertWeight}
+                        onChange={(e) => setClientPreAlertWeight(e.target.value)}
+                        className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-orange focus:border-brand-orange focus:outline-none font-bold text-brand-gray-dark"
+                      />
                     </div>
                   </div>
 
@@ -8784,6 +8829,14 @@ El Equipo de ShipFast GT`;
                     </div>
                   </div>
 
+                  {/* Insurance/Liability Warning Disclaimer */}
+                  <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-[10px] leading-relaxed flex items-start gap-2">
+                    <span className="text-sm shrink-0">⚠️</span>
+                    <div>
+                      <strong>Político de Responsabilidad y Seguro:</strong> Si el paquete se declara <strong>Sin seguro</strong>, la empresa responderá por un límite máximo de hasta <strong>$50.00 USD</strong> en caso de pérdida o siniestro.
+                    </div>
+                  </div>
+
                   {/* FACTURA (IMAGEN O PDF) */}
                   <div>
                     <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">FACTURA (IMAGEN O PDF)</label>
@@ -8801,7 +8854,7 @@ El Equipo de ShipFast GT`;
                     />
                     <label
                       htmlFor="adminPreAlertFile"
-                      className="border-2 border-dashed border-gray-200 hover:border-brand-orange bg-gray-50 hover:bg-orange-50/10 rounded-xl p-5 text-center cursor-pointer transition flex flex-col items-center justify-center gap-1.5"
+                      className="border-2 border-dashed border-slate-200 hover:border-brand-orange bg-slate-50 hover:bg-orange-50/10 rounded-2xl p-4 text-center cursor-pointer transition flex flex-col items-center justify-center gap-1.5"
                     >
                       <UploadCloud className="h-6 w-6 text-gray-400 hover:text-brand-orange transition-colors animate-bounce" />
                       <span className="text-[10px] font-bold text-gray-500 select-none">
@@ -8817,7 +8870,7 @@ El Equipo de ShipFast GT`;
                   </div>
 
                   {/* Footer Actions */}
-                  <div className="flex justify-end gap-3 border-t border-gray-150 pt-4 mt-6">
+                  <div className="flex justify-end gap-3 border-t border-slate-100 pt-4 mt-2">
                     <button
                       type="button"
                       onClick={() => {
@@ -8825,17 +8878,15 @@ El Equipo de ShipFast GT`;
                         setAdminPreAlertLockerId('');
                         setIsAdminPreAlertModalOpen(false);
                       }}
-                      className="px-5 py-2 text-xs font-bold text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition active:scale-95 cursor-pointer"
+                      className="px-5 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition active:scale-95 cursor-pointer"
                     >
                       Cancelar
                     </button>
                     <button
                       type="submit"
-                      className="bg-brand-orange hover:bg-brand-orange-hover text-white font-bold text-xs py-2.5 px-5 rounded-lg flex items-center justify-center gap-2 shadow-md shadow-orange-100 hover:shadow-orange-200 active:scale-98 transition cursor-pointer"
+                      className="bg-brand-orange hover:bg-brand-orange-hover text-white font-extrabold text-xs py-2.5 px-6 rounded-xl flex items-center justify-center gap-2 shadow-md shadow-orange-100 hover:shadow-orange-200 active:scale-98 transition cursor-pointer"
                     >
-                      <span className="inline-flex items-center justify-center border border-white/40 rounded-full p-0.5">
-                        <Plus className="h-3 w-3" />
-                      </span>
+                      <Plus className="h-4 w-4" />
                       Registrar Pre-Alerta
                     </button>
                   </div>
