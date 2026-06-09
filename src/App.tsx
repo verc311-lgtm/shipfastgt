@@ -263,6 +263,19 @@ export default function App() {
   const [invoicePurchaseLink, setInvoicePurchaseLink] = useState('');
   const [activePreAlertInvoice, setActivePreAlertInvoice] = useState<PreAlert | null>(null);
 
+  // Quotation Module States
+  const [quoteClientType, setQuoteClientType] = useState<'registered' | 'manual'>('registered');
+  const [quoteLockerId, setQuoteLockerId] = useState('');
+  const [quoteManualName, setQuoteManualName] = useState('');
+  const [quoteManualNit, setQuoteManualNit] = useState('CF');
+  const [quoteManualCompany, setQuoteManualCompany] = useState('');
+  const [quoteManualEmail, setQuoteManualEmail] = useState('');
+  const [quoteConcept, setQuoteConcept] = useState('Servicios de Flete y Despacho Aduanero Internacional');
+  const [quoteFormWeight, setQuoteFormWeight] = useState('1.0');
+  const [quoteFormWeightRate, setQuoteFormWeightRate] = useState('60');
+  const [quoteExtraCharges, setQuoteExtraCharges] = useState('0');
+  const [quoteObservations, setQuoteObservations] = useState('Cotización válida por 15 días a partir de la fecha de emisión. Precios expresados en Quetzales (Q).');
+
   // Payments
   const [paymentsLog, setPaymentsLog] = useState<any[]>([]);
   const [paymentLocker, setPaymentLocker] = useState('');
@@ -6070,23 +6083,8 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                         </div>
                       </div>
                     )}
-
                     {/* ==================== NUEVO MÓDULO DE COTIZACIONES (`cotizaciones`) ==================== */}
                     {adminSubTab === 'cotizaciones' && (() => {
-                      // Internal Component / State for Quotation Creator
-                      const [quoteClientType, setQuoteClientType] = useState<'registered' | 'manual'>('registered');
-                      const [quoteLockerId, setQuoteLockerId] = useState('');
-                      const [quoteManualName, setQuoteManualName] = useState('');
-                      const [quoteManualNit, setQuoteManualNit] = useState('CF');
-                      const [quoteManualCompany, setQuoteManualCompany] = useState('');
-                      const [quoteManualEmail, setQuoteManualEmail] = useState('');
-                      
-                      const [quoteConcept, setQuoteConcept] = useState('Servicios de Flete y Despacho Aduanero Internacional');
-                      const [quoteWeight, setQuoteWeight] = useState('1.0');
-                      const [quoteWeightRate, setQuoteWeightRate] = useState('60'); // Q60/Lb standard
-                      const [quoteExtraCharges, setQuoteExtraCharges] = useState('0');
-                      const [quoteObservations, setQuoteObservations] = useState('Cotización válida por 15 días a partir de la fecha de emisión. Precios expresados en Quetzales (Q).');
-
                       // Handle SVG PDF generation
                       const handleGenerateQuotationPDF = (e: React.FormEvent) => {
                         e.preventDefault();
@@ -6120,8 +6118,8 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                           clientEmail = quoteManualEmail.trim();
                         }
 
-                        const weightVal = parseFloat(quoteWeight) || 0;
-                        const rateVal = parseFloat(quoteWeightRate) || 0;
+                        const weightVal = parseFloat(quoteFormWeight) || 0;
+                        const rateVal = parseFloat(quoteFormWeightRate) || 0;
                         const extraVal = parseFloat(quoteExtraCharges) || 0;
                         const subtotalWeight = weightVal * rateVal;
                         const totalQuote = subtotalWeight + extraVal;
@@ -6537,8 +6535,8 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                     step="0.1"
                                     required
                                     min="0.1"
-                                    value={quoteWeight}
-                                    onChange={(e) => setQuoteWeight(e.target.value)}
+                                    value={quoteFormWeight}
+                                    onChange={(e) => setQuoteFormWeight(e.target.value)}
                                     className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-orange focus:border-brand-orange focus:outline-none font-mono font-bold text-brand-gray-dark"
                                   />
                                 </div>
@@ -6550,8 +6548,8 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                     step="1"
                                     required
                                     min="1"
-                                    value={quoteWeightRate}
-                                    onChange={(e) => setQuoteWeightRate(e.target.value)}
+                                    value={quoteFormWeightRate}
+                                    onChange={(e) => setQuoteFormWeightRate(e.target.value)}
                                     className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-orange focus:border-brand-orange focus:outline-none font-mono font-bold text-brand-gray-dark"
                                   />
                                 </div>
