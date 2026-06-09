@@ -4005,7 +4005,7 @@ Para proporcionarle información específica, puede solicitar:
                 if (['portal'].includes(subTab)) return 'resumen';
                 if (['registro-paquetes', 'cliente-mayor', 'pre-alertas'].includes(subTab)) return 'logistica';
                 if (['warehouse', 'consolidado'].includes(subTab)) return 'almacen';
-                if (['facturacion', 'pagos', 'gastos'].includes(subTab)) return 'finanzas';
+                if (['facturacion', 'pagos', 'gastos', 'cotizaciones'].includes(subTab)) return 'finanzas';
                 if (['reportes', 'sucursales', 'usuarios', 'tarifas', 'ajustes'].includes(subTab)) return 'sistema';
                 return 'resumen';
               };
@@ -4037,6 +4037,7 @@ Para proporcionarle información específica, puede solicitar:
                 ],
                 finanzas: [
                   { id: 'facturacion', label: 'Facturación / Fletes', icon: FileSpreadsheet },
+                  { id: 'cotizaciones', label: 'Generar Cotización', icon: ClipboardList },
                   { id: 'pagos', label: 'Registro de Pagos', icon: Wallet },
                   { id: 'gastos', label: 'Registro de Gastos', icon: TrendingUp },
                 ],
@@ -6069,6 +6070,545 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                         </div>
                       </div>
                     )}
+
+                    {/* ==================== NUEVO MÓDULO DE COTIZACIONES (`cotizaciones`) ==================== */}
+                    {adminSubTab === 'cotizaciones' && (() => {
+                      // Internal Component / State for Quotation Creator
+                      const [quoteClientType, setQuoteClientType] = useState<'registered' | 'manual'>('registered');
+                      const [quoteLockerId, setQuoteLockerId] = useState('');
+                      const [quoteManualName, setQuoteManualName] = useState('');
+                      const [quoteManualNit, setQuoteManualNit] = useState('CF');
+                      const [quoteManualCompany, setQuoteManualCompany] = useState('');
+                      const [quoteManualEmail, setQuoteManualEmail] = useState('');
+                      
+                      const [quoteConcept, setQuoteConcept] = useState('Servicios de Flete y Despacho Aduanero Internacional');
+                      const [quoteWeight, setQuoteWeight] = useState('1.0');
+                      const [quoteWeightRate, setQuoteWeightRate] = useState('60'); // Q60/Lb standard
+                      const [quoteExtraCharges, setQuoteExtraCharges] = useState('0');
+                      const [quoteObservations, setQuoteObservations] = useState('Cotización válida por 15 días a partir de la fecha de emisión. Precios expresados en Quetzales (Q).');
+
+                      // Handle SVG PDF generation
+                      const handleGenerateQuotationPDF = (e: React.FormEvent) => {
+                        e.preventDefault();
+                        
+                        let clientName = '';
+                        let clientNit = '';
+                        let clientCompany = '';
+                        let clientLocker = '';
+                        let clientEmail = '';
+
+                        if (quoteClientType === 'registered') {
+                          const targetUser = users.find(u => u.lockerId === quoteLockerId.toUpperCase());
+                          if (!targetUser) {
+                            alert('Por favor selecciona un casillero válido.');
+                            return;
+                          }
+                          clientName = targetUser.name;
+                          clientNit = (targetUser as any).nit || 'CF';
+                          clientCompany = (targetUser as any).companyName || 'Particular';
+                          clientLocker = targetUser.lockerId;
+                          clientEmail = targetUser.email || '';
+                        } else {
+                          if (!quoteManualName.trim()) {
+                            alert('Por favor ingresa el nombre del cliente.');
+                            return;
+                          }
+                          clientName = quoteManualName.trim();
+                          clientNit = quoteManualNit.trim() || 'CF';
+                          clientCompany = quoteManualCompany.trim() || 'Particular';
+                          clientLocker = 'MANUAL';
+                          clientEmail = quoteManualEmail.trim();
+                        }
+
+                        const weightVal = parseFloat(quoteWeight) || 0;
+                        const rateVal = parseFloat(quoteWeightRate) || 0;
+                        const extraVal = parseFloat(quoteExtraCharges) || 0;
+                        const subtotalWeight = weightVal * rateVal;
+                        const totalQuote = subtotalWeight + extraVal;
+
+                        const todayStr = new Date().toISOString().split('T')[0];
+                        const quoteNumber = `COT-${Math.floor(1000 + Math.random() * 9000)}`;
+
+                        // Generate print-ready HTML Invoice window containing beautiful SVG & Table styling
+                        const printWindow = window.open('', '_blank');
+                        if (!printWindow) {
+                          alert('Error: Por favor permita las ventanas emergentes (pop-ups) para generar la cotización.');
+                          return;
+                        }
+
+                        printWindow.document.write(`
+                          <html>
+                          <head>
+                            <title>Cotización ${quoteNumber} - ShipFast</title>
+                            <meta charset="utf-8" />
+                            <style>
+                              @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800;900&display=swap');
+                              body {
+                                font-family: 'Outfit', sans-serif;
+                                margin: 0;
+                                padding: 40px;
+                                color: #1e293b;
+                                background-color: #ffffff;
+                                -webkit-print-color-adjust: exact;
+                              }
+                              .header {
+                                display: flex;
+                                justify-content: space-between;
+                                align-items: flex-start;
+                                border-bottom: 2px solid #f1f5f9;
+                                padding-bottom: 30px;
+                                margin-bottom: 30px;
+                              }
+                              .logo-section {
+                                display: flex;
+                                align-items: center;
+                                gap: 15px;
+                              }
+                              .logo-svg {
+                                width: 50px;
+                                height: 50px;
+                              }
+                              .brand-title {
+                                font-size: 24px;
+                                font-weight: 900;
+                                text-transform: uppercase;
+                                color: #f97316;
+                                letter-spacing: -1px;
+                              }
+                              .brand-subtitle {
+                                font-size: 10px;
+                                font-weight: 800;
+                                color: #64748b;
+                                text-transform: uppercase;
+                                tracking: 2px;
+                              }
+                              .doc-info {
+                                text-align: right;
+                              }
+                              .doc-title {
+                                font-size: 26px;
+                                font-weight: 900;
+                                text-transform: uppercase;
+                                color: #0f172a;
+                                margin: 0 0 5px 0;
+                              }
+                              .doc-number {
+                                font-size: 14px;
+                                font-weight: 800;
+                                color: #f97316;
+                                margin-bottom: 10px;
+                              }
+                              .meta-grid {
+                                display: grid;
+                                grid-template-cols: 1fr 1fr;
+                                gap: 40px;
+                                margin-bottom: 40px;
+                              }
+                              .meta-box {
+                                background-color: #f8fafc;
+                                border: 1px solid #e2e8f0;
+                                border-radius: 16px;
+                                padding: 20px;
+                              }
+                              .meta-title {
+                                font-size: 11px;
+                                font-weight: 800;
+                                color: #64748b;
+                                text-transform: uppercase;
+                                letter-spacing: 1px;
+                                margin-bottom: 12px;
+                                border-bottom: 1px solid #e2e8f0;
+                                padding-bottom: 6px;
+                              }
+                              .meta-item {
+                                font-size: 12px;
+                                line-height: 1.6;
+                                margin-bottom: 4px;
+                              }
+                              .meta-item strong {
+                                color: #475569;
+                              }
+                              .table-items {
+                                w-full;
+                                width: 100%;
+                                border-collapse: collapse;
+                                margin-bottom: 40px;
+                              }
+                              .table-items th {
+                                background-color: #0f172a;
+                                color: #ffffff;
+                                text-transform: uppercase;
+                                font-size: 10px;
+                                font-weight: 800;
+                                letter-spacing: 1px;
+                                padding: 12px 16px;
+                                text-align: left;
+                              }
+                              .table-items td {
+                                padding: 16px;
+                                border-bottom: 1px solid #e2e8f0;
+                                font-size: 12px;
+                              }
+                              .table-items tr:last-child td {
+                                border-bottom: 2px solid #0f172a;
+                              }
+                              .summary-section {
+                                display: flex;
+                                justify-content: flex-end;
+                                margin-bottom: 40px;
+                              }
+                              .summary-table {
+                                width: 300px;
+                                border-collapse: collapse;
+                              }
+                              .summary-table td {
+                                padding: 8px 16px;
+                                font-size: 12px;
+                              }
+                              .summary-table .total-row td {
+                                font-size: 16px;
+                                font-weight: 900;
+                                color: #f97316;
+                                border-top: 2px solid #f1f5f9;
+                                padding-top: 12px;
+                              }
+                              .obs-box {
+                                background-color: #fffbeb;
+                                border: 1px solid #fef3c7;
+                                border-radius: 16px;
+                                padding: 20px;
+                                font-size: 11px;
+                                line-height: 1.5;
+                                color: #92400e;
+                                margin-bottom: 50px;
+                              }
+                              .footer {
+                                text-align: center;
+                                font-size: 10px;
+                                color: #94a3b8;
+                                border-top: 1px solid #f1f5f9;
+                                padding-top: 20px;
+                              }
+                              @media print {
+                                body {
+                                  padding: 0;
+                                }
+                                .no-print {
+                                  display: none;
+                                }
+                              }
+                            </style>
+                          </head>
+                          <body>
+                            <div class="header">
+                              <div class="logo-section">
+                                <!-- Vector SVG Logo -->
+                                <svg class="logo-svg" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                  <circle cx="50" cy="50" r="48" fill="#f97316" />
+                                  <path d="M25 50H75M75 50L55 30M75 50L55 70" stroke="white" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
+                                </svg>
+                                <div>
+                                  <div class="brand-title">ShipFast</div>
+                                  <div class="brand-subtitle">Courier & Logistics</div>
+                                </div>
+                              </div>
+                              <div class="doc-info">
+                                <h1 class="doc-title">Cotización</h1>
+                                <div class="doc-number">Referencia: ${quoteNumber}</div>
+                                <div style="font-size: 11px; color: #64748b;">Fecha Emisión: ${todayStr}</div>
+                              </div>
+                            </div>
+
+                            <div class="meta-grid">
+                              <div class="meta-box">
+                                <div class="meta-title">Datos del Cliente</div>
+                                <div class="meta-item"><strong>Nombre:</strong> ${clientName}</div>
+                                <div class="meta-item"><strong>NIT:</strong> ${clientNit}</div>
+                                <div class="meta-item"><strong>Empresa:</strong> ${clientCompany}</div>
+                                ${clientEmail ? `<div class="meta-item"><strong>Email:</strong> ${clientEmail}</div>` : ''}
+                                ${clientLocker !== 'MANUAL' ? `<div class="meta-item"><strong>Casillero Asociado:</strong> ${clientLocker}</div>` : ''}
+                              </div>
+                              <div class="meta-box">
+                                <div class="meta-title">Detalles del Emisor</div>
+                                <div class="meta-item"><strong>ShipFast Guatemala S.A.</strong></div>
+                                <div class="meta-item"><strong>NIT:</strong> 82194819-2</div>
+                                <div class="meta-item"><strong>Dirección:</strong> 15 Calle 12-40 Zona 10, Edificio Géminis</div>
+                                <div class="meta-item"><strong>PBX:</strong> +502 2300-8800</div>
+                                <div class="meta-item"><strong>Email:</strong> cotizaciones@shipfast.com.gt</div>
+                              </div>
+                            </div>
+
+                            <table class="table-items">
+                              <thead>
+                                <tr>
+                                  <th>Descripción del Servicio</th>
+                                  <th style="text-align: center; width: 100px;">Peso (Lbs)</th>
+                                  <th style="text-align: right; width: 120px;">Tarifa unitaria</th>
+                                  <th style="text-align: right; width: 120px;">Subtotal</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                <tr>
+                                  <td>
+                                    <strong>${quoteConcept}</strong>
+                                    <div style="font-size: 10px; color: #64748b; margin-top: 4px;">Servicios logísticos unificados de aduana, importación y manipulación.</div>
+                                  </td>
+                                  <td style="text-align: center; font-weight: bold;">${weightVal.toFixed(1)} Lbs</td>
+                                  <td style="text-align: right; font-family: monospace;">Q ${rateVal.toFixed(2)}</td>
+                                  <td style="text-align: right; font-weight: bold; font-family: monospace;">Q ${subtotalWeight.toFixed(2)}</td>
+                                </tr>
+                                ${extraVal > 0 ? `
+                                <tr>
+                                  <td>
+                                    <strong>Cargos Adicionales y Trámites</strong>
+                                    <div style="font-size: 10px; color: #64748b; margin-top: 4px;">Gastos de despacho aduanal locales o entrega a domicilio.</div>
+                                  </td>
+                                  <td style="text-align: center;">-</td>
+                                  <td style="text-align: right; font-family: monospace;">Q ${extraVal.toFixed(2)}</td>
+                                  <td style="text-align: right; font-weight: bold; font-family: monospace;">Q ${extraVal.toFixed(2)}</td>
+                                </tr>
+                                ` : ''}
+                              </tbody>
+                            </table>
+
+                            <div class="summary-section">
+                              <table class="summary-table">
+                                <tr>
+                                  <td style="color: #64748b; font-weight: 600;">Subtotal:</td>
+                                  <td style="text-align: right; font-family: monospace; font-weight: bold;">Q ${totalQuote.toFixed(2)}</td>
+                                </tr>
+                                <tr>
+                                  <td style="color: #64748b; font-weight: 600;">Impuestos (IVA incl.):</td>
+                                  <td style="text-align: right; font-family: monospace; color: #64748b;">Incluido</td>
+                                </tr>
+                                <tr class="total-row">
+                                  <td>Total Estimado:</td>
+                                  <td style="text-align: right; font-family: monospace;">Q ${totalQuote.toFixed(2)}</td>
+                                </tr>
+                              </table>
+                            </div>
+
+                            <div class="obs-box">
+                              <strong>Términos y Observaciones:</strong><br/>
+                              ${quoteObservations.replace(/\n/g, '<br/>')}
+                            </div>
+
+                            <div class="footer">
+                              <p>Gracias por confiar en ShipFast. Su mejor aliado en soluciones logísticas internacionales.</p>
+                              <p style="font-size: 8px; color: #cbd5e1; margin-top: 10px;">Documento generado automáticamente por ShipFast Management System.</p>
+                            </div>
+
+                            <script>
+                              window.onload = function() {
+                                window.print();
+                              }
+                            </script>
+                          </body>
+                          </html>
+                        `);
+                        printWindow.document.close();
+                      };
+
+                      return (
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start animate-fade-in font-sans">
+                          
+                          {/* Left Form Box */}
+                          <div className="lg:col-span-8 bg-white p-6 rounded-3xl border border-slate-100 shadow-xl space-y-6">
+                            <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+                              <div className="bg-orange-50 text-brand-orange p-3 rounded-2xl flex items-center justify-center w-12 h-12 border border-orange-100">
+                                <ClipboardList className="h-6 w-6" />
+                              </div>
+                              <div>
+                                <h3 className="text-sm font-extrabold text-brand-gray-dark tracking-tight uppercase">Emisión de Cotizaciones Oficiales</h3>
+                                <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider mt-0.5">Genere archivos PDF con el logotipo oficial e importes calculados</p>
+                              </div>
+                            </div>
+
+                            <form onSubmit={handleGenerateQuotationPDF} className="space-y-5">
+                              
+                              {/* Client Type Selector */}
+                              <div>
+                                <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-2">Tipo de Cliente Destinatario</label>
+                                <div className="grid grid-cols-2 gap-4">
+                                  <button
+                                    type="button"
+                                    onClick={() => setQuoteClientType('registered')}
+                                    className={`py-3 px-4 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${quoteClientType === 'registered' ? 'bg-orange-50 border-brand-orange text-brand-orange shadow-2xs' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                                  >
+                                    👤 Cliente con Casillero
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setQuoteClientType('manual')}
+                                    className={`py-3 px-4 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${quoteClientType === 'manual' ? 'bg-orange-50 border-brand-orange text-brand-orange shadow-2xs' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                                  >
+                                    ➕ Agregar Cliente Manual
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Form fields based on client type selection */}
+                              {quoteClientType === 'registered' ? (
+                                <div className="p-4 bg-slate-50 border border-slate-200/50 rounded-2xl animate-fade-in">
+                                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Buscar y Seleccionar Casillero *</label>
+                                  <select
+                                    required
+                                    value={quoteLockerId}
+                                    onChange={(e) => setQuoteLockerId(e.target.value)}
+                                    className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-orange focus:border-brand-orange focus:outline-none font-bold text-brand-gray-dark bg-white"
+                                  >
+                                    <option value="">-- Seleccionar Casillero --</option>
+                                    {users.map(u => (
+                                      <option key={u.lockerId} value={u.lockerId}>
+                                        {u.name} (Locker: {u.lockerId})
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              ) : (
+                                <div className="p-4 bg-slate-50 border border-slate-200/50 rounded-2xl space-y-4 animate-fade-in">
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                      <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Nombre Completo del Cliente *</label>
+                                      <input
+                                        type="text"
+                                        required
+                                        placeholder="Ej: Juan Antonio Pérez"
+                                        value={quoteManualName}
+                                        onChange={(e) => setQuoteManualName(e.target.value)}
+                                        className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-orange focus:border-brand-orange focus:outline-none font-semibold text-brand-gray-dark bg-white"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">NIT Facturación</label>
+                                      <input
+                                        type="text"
+                                        placeholder="Ej: 839210-9 o CF"
+                                        value={quoteManualNit}
+                                        onChange={(e) => setQuoteManualNit(e.target.value)}
+                                        className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-orange focus:border-brand-orange focus:outline-none font-semibold text-brand-gray-dark bg-white"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                      <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Nombre de la Empresa</label>
+                                      <input
+                                        type="text"
+                                        placeholder="Ej: Importaciones del Norte S.A."
+                                        value={quoteManualCompany}
+                                        onChange={(e) => setQuoteManualCompany(e.target.value)}
+                                        className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-orange focus:border-brand-orange focus:outline-none font-semibold text-brand-gray-dark bg-white"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Correo Electrónico</label>
+                                      <input
+                                        type="email"
+                                        placeholder="Ej: juan.perez@empresa.com"
+                                        value={quoteManualEmail}
+                                        onChange={(e) => setQuoteManualEmail(e.target.value)}
+                                        className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-orange focus:border-brand-orange focus:outline-none font-semibold text-brand-gray-dark bg-white"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Quotation concept details */}
+                              <div>
+                                <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Concepto o Descripción General *</label>
+                                <input
+                                  type="text"
+                                  required
+                                  value={quoteConcept}
+                                  onChange={(e) => setQuoteConcept(e.target.value)}
+                                  className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-orange focus:border-brand-orange focus:outline-none font-bold text-brand-gray-dark"
+                                />
+                              </div>
+
+                              {/* Rates and Calculations */}
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Peso en Libras (Lbs) *</label>
+                                  <input
+                                    type="number"
+                                    step="0.1"
+                                    required
+                                    min="0.1"
+                                    value={quoteWeight}
+                                    onChange={(e) => setQuoteWeight(e.target.value)}
+                                    className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-orange focus:border-brand-orange focus:outline-none font-mono font-bold text-brand-gray-dark"
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Tarifa por Libra (Q) *</label>
+                                  <input
+                                    type="number"
+                                    step="1"
+                                    required
+                                    min="1"
+                                    value={quoteWeightRate}
+                                    onChange={(e) => setQuoteWeightRate(e.target.value)}
+                                    className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-orange focus:border-brand-orange focus:outline-none font-mono font-bold text-brand-gray-dark"
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Cargos Adicionales (Q)</label>
+                                  <input
+                                    type="number"
+                                    step="1"
+                                    min="0"
+                                    value={quoteExtraCharges}
+                                    onChange={(e) => setQuoteExtraCharges(e.target.value)}
+                                    className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-orange focus:border-brand-orange focus:outline-none font-mono font-bold text-brand-gray-dark"
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Observations text */}
+                              <div>
+                                <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Términos y Observaciones de la Cotización</label>
+                                <textarea
+                                  rows={3}
+                                  value={quoteObservations}
+                                  onChange={(e) => setQuoteObservations(e.target.value)}
+                                  className="w-full p-3 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-orange focus:border-brand-orange focus:outline-none font-semibold text-brand-gray-dark leading-relaxed"
+                                />
+                              </div>
+
+                              {/* Action Submit */}
+                              <div className="flex justify-end gap-3 border-t border-slate-100 pt-4 mt-2">
+                                <button
+                                  type="submit"
+                                  className="bg-brand-orange hover:bg-brand-orange-hover text-white font-extrabold text-xs py-3 px-8 rounded-xl flex items-center justify-center gap-2 shadow-md shadow-orange-100 hover:shadow-orange-200 active:scale-98 transition cursor-pointer uppercase tracking-wider"
+                                >
+                                  <Printer className="h-4 w-4" />
+                                  Generar PDF / Cotización SVG
+                                </button>
+                              </div>
+
+                            </form>
+                          </div>
+
+                          {/* Info Sidebar Box */}
+                          <div className="lg:col-span-4 bg-slate-50 border border-slate-200/50 p-6 rounded-3xl text-3xs space-y-4 leading-relaxed text-slate-600">
+                            <h4 className="font-extrabold text-brand-gray-dark uppercase tracking-wider border-b border-slate-200/40 pb-2">Instrucciones del Módulo</h4>
+                            <p>Este generador produce cotizaciones unificadas alineadas con la imagen de marca de la empresa.</p>
+                            
+                            <ul className="list-disc pl-4 space-y-2">
+                              <li><strong>Casilleros:</strong> Al cotizar a un casillero registrado se auto-completan los campos del perfil guardados (Empresa, Nombre, Correo).</li>
+                              <li><strong>Cliente Manual:</strong> Utilícelo para cotizar servicios a empresas o personas particulares que aún no tienen una cuenta activa.</li>
+                              <li><strong>Formatos SVG:</strong> El PDF generado integra un logotipo vectorial SVG que garantiza máxima fidelidad visual y nitidez al imprimirse o guardarse.</li>
+                            </ul>
+                          </div>
+
+                        </div>
+                      );
+                    })()}
 
                     {/* ==================== 9. REGISTRO DE PAGOS / COBROS (`pagos`) ==================== */}
                     {adminSubTab === 'pagos' && (
