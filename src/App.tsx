@@ -7461,7 +7461,7 @@ El Equipo de ShipFast GT`;
                                             setMailModalRecipient(selectedUserForEdit);
                                             setMailModalSubject(`¡Bienvenido a ShipFast GT! - Tu Casillero ${selectedUserForEdit.lockerId}`);
                                             
-                                            setMailModalBody(`Hola ${selectedUserForEdit.name},\n\nNos complace darte la más cordial bienvenida a ShipFast GT. A partir de este momento tienes activo tu casillero oficial para compras en EE.UU. y México.\n\n🔑 TU NÚMERO DE CASILLERO: ${selectedUserForEdit.lockerId}\n\nUsa este número de casillero como referencia obligatoria al comprar en Amazon, SHEIN o Mercado Libre.`);
+                                            setMailModalBody(`Hola ${selectedUserForEdit.name},`);
                                             setMailPromoImage('');
                                             setMailPromoImageName('');
                                             setIsMailModalOpen(true);
