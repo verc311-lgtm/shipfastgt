@@ -9872,6 +9872,27 @@ El Equipo de ShipFast GT`;
             </div>
           </footer>
 
+          {/* Floating WhatsApp Support Badge */}
+          <a
+            href="https://wa.me/18028390011?text=Hola%20ShipFast%20GT!%20Necesito%20soporte%20con%20mis%20paquetes."
+            target="_blank"
+            rel="noopener noreferrer"
+            className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-[#25D366] hover:bg-[#20ba56] text-white font-extrabold text-3xs uppercase tracking-wider py-3 px-5 rounded-full shadow-2xl hover:shadow-[#25D366]/40 transition-all hover:scale-105 active:scale-95 duration-300 select-none group border-2 border-white/20"
+            title="Escríbenos por WhatsApp"
+          >
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
+            </span>
+            <svg 
+              className="h-4.5 w-4.5 fill-current transition-transform group-hover:rotate-12" 
+              viewBox="0 0 24 24"
+            >
+              <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.724-1.455L0 24zm6.59-4.846c1.665.988 3.3 1.49c5.362 1.49 10.134-2.548 10.138-8.23.002-5.08-4.079-9.207-9.086-9.207-5.006 0-9.083 4.127-9.085 9.209-.001 2.012.52 3.978 1.512 5.711l-.991 3.616 3.732-.977zm11.336-5.03c-.29-.146-1.718-.848-1.984-.945-.266-.097-.459-.146-.653.146-.193.292-.748.945-.917 1.139-.17.194-.339.219-.63.073-.29-.147-1.229-.453-2.34-1.445-.864-.772-1.448-1.724-1.618-2.016-.17-.29-.018-.447.127-.592.13-.13.29-.34.436-.509.145-.17.193-.292.29-.487.097-.195.049-.365-.024-.511-.073-.146-.653-1.573-.895-2.155-.235-.568-.475-.49-.653-.499-.17-.008-.363-.01-.556-.01-.193 0-.507.073-.772.365-.266.292-1.014.992-1.014 2.42 0 1.428 1.039 2.808 1.184 3.003.145.195 2.046 3.125 4.957 4.38.692.298 1.233.477 1.655.61.696.22 1.33.19 1.83.115.558-.083 1.718-.702 1.96-1.38.242-.678.242-1.26.17-1.38-.073-.12-.266-.195-.556-.342z"/>
+            </svg>
+            <span className="hidden sm:inline">WhatsApp Soporte</span>
+          </a>
+
         </div>
       )}
 
