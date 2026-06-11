@@ -66,9 +66,13 @@ export const db = {
   },
 
   // Shipments
-  async getShipments(): Promise<any[]> {
+  async getShipments(limit?: number, offset?: number): Promise<any[]> {
     try {
-      const { data, error } = await supabase.from('shipments').select('*');
+      let query = supabase.from('shipments').select('*');
+      if (limit !== undefined && offset !== undefined) {
+        query = query.range(offset, offset + limit - 1);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       return toCamel(data) || [];
     } catch (err) {
@@ -146,9 +150,13 @@ export const db = {
   },
 
   // Invoices
-  async getInvoices(): Promise<any[]> {
+  async getInvoices(limit?: number, offset?: number): Promise<any[]> {
     try {
-      const { data, error } = await supabase.from('invoices').select('*');
+      let query = supabase.from('invoices').select('*');
+      if (limit !== undefined && offset !== undefined) {
+        query = query.range(offset, offset + limit - 1);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       return toCamel(data) || [];
     } catch (err) {
