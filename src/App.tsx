@@ -491,7 +491,9 @@ export default function App() {
 
   // Send Welcome Email helper via EmailJS or native mailto fallback
   const sendWelcomeEmailHelper = async (profile: UserProfile, silent = false) => {
-    const nameParts = profile.name.trim().split(/\s+/);
+    // Phase 5: Offload execution from the main thread using setTimeout
+    setTimeout(async () => {
+      const nameParts = profile.name.trim().split(/\s+/);
     const firstName = nameParts[0] || '';
     const lastName = nameParts.slice(1).join(' ') || '';
     
@@ -730,6 +732,7 @@ Se procederá a abrir tu cliente de correo nativo como alternativa de respaldo.`
       const body = encodeURIComponent(emailBodyTextPlain);
       window.location.href = `mailto:${profile.email}?subject=${subject}&body=${body}`;
     }
+    }, 0);
     return false;
   };
 
@@ -746,9 +749,11 @@ Se procederá a abrir tu cliente de correo nativo como alternativa de respaldo.`
     const profile = users.find(u => u.lockerId === pa.lockerId);
     if (!profile) return false;
 
-    const nameParts = profile.name.trim().split(/\s+/);
-    const firstName = nameParts[0] || '';
-    const lastName = nameParts.slice(1).join(' ') || '';
+    // Phase 5: Offload execution from the main thread using setTimeout
+    setTimeout(async () => {
+      const nameParts = profile.name.trim().split(/\s+/);
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
 
     const isLaredo = !pa.description.toLowerCase().includes('mexico') && !pa.description.toLowerCase().includes('méxico');
     const warehouseName = isLaredo ? "Bodega de Laredo, Texas (USA) 🇺🇸" : "Bodega de Tapachula, Chiapas (México) 🇲🇽";
@@ -939,6 +944,7 @@ Cargos de Flete y Tarifas Asignadas:
       const body = encodeURIComponent(emailBodyTextPlain);
       window.location.href = `mailto:${profile.email}?subject=${subject}&body=${body}`;
     }
+    }, 0);
     return false;
   };
 
