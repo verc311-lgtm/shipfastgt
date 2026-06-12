@@ -131,6 +131,7 @@ function parseInvoiceConcept(conceptStr: string) {
         detail: parsed.detail || '',
         manualClientName: parsed.manualClientName || '',
         purchaseLink: parsed.purchaseLink || '',
+        stripeLink: parsed.stripeLink || '',
         isManual: !!parsed.manualClientName
       };
     }
@@ -141,6 +142,7 @@ function parseInvoiceConcept(conceptStr: string) {
     detail: conceptStr || '',
     manualClientName: '',
     purchaseLink: '',
+    stripeLink: '',
     isManual: false
   };
 }
@@ -262,6 +264,7 @@ export default function App() {
   const [invoiceUnregistered, setInvoiceUnregistered] = useState(false);
   const [invoiceManualName, setInvoiceManualName] = useState('');
   const [invoicePurchaseLink, setInvoicePurchaseLink] = useState('');
+  const [invoiceStripeLink, setInvoiceStripeLink] = useState('');
   const [activePreAlertInvoice, setActivePreAlertInvoice] = useState<PreAlert | null>(null);
 
   // Quotation Module States
@@ -1756,8 +1759,13 @@ Cargos de Flete y Tarifas Asignadas:
               <td>
                 <div class="concept-title">${parsed.detail}</div>
                 ${parsed.purchaseLink ? `
-                  <a href="${parsed.purchaseLink}" class="concept-link" target="_blank">
+                  <a href="${parsed.purchaseLink}" class="concept-link" target="_blank" style="margin-right: 15px;">
                     🔗 Enlace de Compra Asoc.
+                  </a>
+                ` : ''}
+                ${parsed.stripeLink ? `
+                  <a href="${parsed.stripeLink}" class="concept-link" target="_blank" style="color: #7c3aed;">
+                    💳 Enlace de Pago Stripe
                   </a>
                 ` : ''}
               </td>
@@ -5916,6 +5924,28 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                                 🔗 Link Compra
                                               </a>
                                             )}
+                                            {parsed.stripeLink && (
+                                              <div className="flex items-center gap-2 mt-1">
+                                                <a
+                                                  href={parsed.stripeLink}
+                                                  target="_blank"
+                                                  rel="noopener noreferrer"
+                                                  className="bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-[9px] px-2 py-0.5 rounded uppercase tracking-wider flex items-center gap-0.5 shadow-sm"
+                                                >
+                                                  💳 Pagar (Stripe)
+                                                </a>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => {
+                                                    navigator.clipboard.writeText(parsed.stripeLink);
+                                                    alert('¡Enlace de pago de Stripe copiado al portapapeles!');
+                                                  }}
+                                                  className="text-[9px] font-bold text-gray-500 hover:text-gray-700 hover:underline uppercase tracking-wide cursor-pointer bg-slate-100 hover:bg-slate-200 px-1.5 py-0.5 rounded border border-slate-200"
+                                                >
+                                                  📋 Copiar Link
+                                                </button>
+                                              </div>
+                                            )}
                                           </div>
                                         </td>
                                         <td className="py-3 px-3 text-right font-mono text-brand-orange font-black">Q {invoice.amount.toFixed(2)}</td>
@@ -5967,7 +5997,8 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                 const conceptPayload = JSON.stringify({
                                   detail: invoiceConcept.trim(),
                                   manualClientName: invoiceUnregistered ? invoiceManualName.trim() : '',
-                                  purchaseLink: invoicePurchaseLink.trim()
+                                  purchaseLink: invoicePurchaseLink.trim(),
+                                  stripeLink: invoiceStripeLink.trim()
                                 });
 
                                 const selectedLockerId = invoiceUnregistered 
@@ -5998,6 +6029,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                 setInvoiceAmount(120.00);
                                 setInvoiceManualName('');
                                 setInvoicePurchaseLink('');
+                                setInvoiceStripeLink('');
                                 setInvoiceUnregistered(false);
                                 setInvoiceLocker('');
                               }}
@@ -6070,6 +6102,17 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                   placeholder="https://ejemplo.com/compra/item"
                                   value={invoicePurchaseLink}
                                   onChange={(e) => setInvoicePurchaseLink(e.target.value)}
+                                  className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark font-mono text-xs"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Link de Pago Stripe (Opcional)</label>
+                                <input
+                                  type="url"
+                                  placeholder="https://buy.stripe.com/..."
+                                  value={invoiceStripeLink}
+                                  onChange={(e) => setInvoiceStripeLink(e.target.value)}
                                   className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark font-mono text-xs"
                                 />
                               </div>
