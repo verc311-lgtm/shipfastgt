@@ -376,6 +376,7 @@ export default function App() {
   const [printStatusText, setPrintStatusText] = useState('');
   const [printSuccess, setPrintSuccess] = useState(false);
   const [updateStatusVal, setUpdateStatusVal] = useState<'Creado' | 'En Tránsito' | 'En Sucursal' | 'En Ruta' | 'Entregado' | 'Retrasado'>('Creado');
+  const [updateWeightVal, setUpdateWeightVal] = useState<number>(0);
   const [updateLocationVal, setUpdateLocationVal] = useState('');
   const [updateDetailsVal, setUpdateDetailsVal] = useState('');
 
@@ -2487,6 +2488,7 @@ Cargos de Flete y Tarifas Asignadas:
         const updatedShip: Shipment = {
           ...s,
           status: updateStatusVal,
+          weight: updateWeightVal,
           lastUpdated: `${currentDate} ${currentTime}`,
           history: [newHistoryEvent, ...s.history]
         };
@@ -2499,7 +2501,7 @@ Cargos de Flete y Tarifas Asignadas:
 
     setUpdateLocationVal('');
     setUpdateDetailsVal('');
-    alert('Bitácora y estado de envío actualizados en tiempo real.');
+    alert('Bitácora, estado y peso de envío actualizados en tiempo real.');
   };
 
   // AI Assistant Chat Handler
@@ -4410,6 +4412,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                           onClick={() => {
                                             setSelectedAdminShipment(s);
                                             setUpdateStatusVal(s.status);
+                                            setUpdateWeightVal(s.weight);
                                           }}
                                           className="border border-gray-300 hover:border-brand-gray-dark hover:bg-gray-800 hover:text-white text-gray-600 px-2 py-0.5 rounded text-4xs font-bold uppercase transition cursor-pointer"
                                         >
@@ -4461,7 +4464,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                 <h5 className="text-3xs font-extrabold text-brand-gray-dark uppercase tracking-wider mb-3">Registrar Bitácora en Ruta</h5>
                                 
                                 <form onSubmit={handleAdminUpdateStatus} className="space-y-3">
-                                  <div className="grid grid-cols-2 gap-2">
+                                  <div className="grid grid-cols-3 gap-2">
                                     <div>
                                       <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Nuevo Estado</label>
                                       <select
@@ -4479,11 +4482,24 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                     </div>
 
                                     <div>
+                                      <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Peso (Lbs)</label>
+                                      <input
+                                        type="number"
+                                        step="0.1"
+                                        min="0.1"
+                                        required
+                                        value={updateWeightVal}
+                                        onChange={(e) => setUpdateWeightVal(Number(e.target.value))}
+                                        className="w-full px-2 py-1 text-3xs border border-gray-300 rounded font-bold font-mono text-brand-gray-dark bg-amber-50/50 focus:ring-1 focus:ring-brand-orange"
+                                      />
+                                    </div>
+
+                                    <div>
                                       <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Ubicación Actual</label>
                                       <input
                                         type="text"
                                         required
-                                        placeholder="Ej: Hub Central, Guatemala"
+                                        placeholder="Ej: Hub Central, Gua"
                                         value={updateLocationVal}
                                         onChange={(e) => setUpdateLocationVal(e.target.value)}
                                         className="w-full px-2 py-1 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark"
