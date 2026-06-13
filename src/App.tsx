@@ -5458,7 +5458,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                             <td className="py-3 px-3">
                                               {g.bodega === 'Laredo' ? (
                                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-4xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                                                  🇺🇸 Laredo US
+                                                  🇺🇸 Texas US
                                                 </span>
                                               ) : (
                                                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-4xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -5751,7 +5751,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                           <td className="py-3 px-3">
                                             {guide.origin === 'Laredo' ? (
                                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-4xs font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                                                🇺🇸 Laredo US
+                                                🇺🇸 Texas US
                                               </span>
                                             ) : (
                                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-4xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
