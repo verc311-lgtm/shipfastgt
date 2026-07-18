@@ -236,6 +236,35 @@ export default function App() {
   const [clientPreAlertFileName, setClientPreAlertFileName] = useState('');
   const [activeWarehouseModal, setActiveWarehouseModal] = useState<'USA' | 'MEX' | null>(null);
 
+  const getOriginalTrackingHelper = (ship: Shipment): string => {
+    if (ship.notes) {
+      const trackingRegex = /(?:tracking\s+original|original\s+tracking|tracking|original)[\s:]+([a-zA-Z0-9_-]+)/i;
+      const match = ship.notes.match(trackingRegex);
+      if (match && match[1]) {
+        const val = match[1].trim();
+        if (val.length > 4) return val;
+      }
+    }
+
+    const isPreAlertCreated = ship.history.some((h: any) => h.details && h.details.includes('pre-alertada'));
+    if (isPreAlertCreated) {
+      const matchingPa = preAlerts.find((pa: any) => 
+        pa.lockerId === ship.lockerId && 
+        (pa.description === ship.notes || (ship.notes && ship.notes.includes(pa.id)))
+      );
+      if (matchingPa) {
+        return matchingPa.id;
+      }
+      
+      const lockerPas = preAlerts.filter((pa: any) => pa.lockerId === ship.lockerId && pa.status === 'Recibido');
+      if (lockerPas.length === 1) {
+        return lockerPas[0].id;
+      }
+    }
+
+    return ship.id;
+  };
+
   // Selected User for Details and Password/Address Edit
   const [selectedUserForEdit, setSelectedUserForEdit] = useState<UserProfile | null>(null);
 
@@ -7346,13 +7375,12 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                                           {childShipments.length > 0 ? (
                                                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                                               {childShipments.map(ship => {
+                                                                const originalTracking = getOriginalTrackingHelper(ship);
                                                                 let displayNotes = ship.notes || 'Sin descripción';
-                                                                let originalTracking = ship.id; // Fallback to SF-ID if no original tracking
                                                                 
-                                                                if (ship.notes && ship.notes.includes('Tracking original:')) {
-                                                                  const parts = ship.notes.split('Tracking original:');
+                                                                if (displayNotes.includes('Tracking original:')) {
+                                                                  const parts = displayNotes.split('Tracking original:');
                                                                   displayNotes = parts[0].replace(/\|\s*$/, '').trim();
-                                                                  originalTracking = parts[1].trim();
                                                                 }
 
                                                                 return (
