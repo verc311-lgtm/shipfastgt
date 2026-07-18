@@ -7349,7 +7349,20 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                                                 <div key={ship.id} className="bg-gray-50/50 border border-gray-150 rounded p-2.5 shadow-4xs space-y-1 text-[9px] font-mono relative overflow-hidden">
                                                                   <div className="absolute left-0 top-0 bottom-0 w-1 bg-brand-orange"></div>
                                                                   <div className="flex justify-between items-center border-b border-gray-100 pb-1">
-                                                                    <strong className="text-brand-orange font-black">{ship.id}</strong>
+                                                                    <div className="flex items-center gap-2">
+                                                                      <strong className="text-brand-orange font-black">{ship.id}</strong>
+                                                                      <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                          setSelectedAdminShipment(ship);
+                                                                          setAdminSubTab('registro-paquetes');
+                                                                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                                                                        }}
+                                                                        className="text-[8px] text-blue-600 hover:text-blue-800 hover:underline font-bold bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200 transition-colors cursor-pointer"
+                                                                      >
+                                                                        Ver Tracking
+                                                                      </button>
+                                                                    </div>
                                                                     <span className={`px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase ${
                                                                       ship.status === 'Entregado' ? 'bg-green-100 text-green-800' :
                                                                       ship.status === 'En Sucursal' ? 'bg-amber-100 text-amber-800' :
