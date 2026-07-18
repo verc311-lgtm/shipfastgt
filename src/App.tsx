@@ -7345,47 +7345,58 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                                           <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest block font-mono">Paquetes Consolidados en esta Guía ({childShipments.length}):</span>
                                                           {childShipments.length > 0 ? (
                                                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                                              {childShipments.map(ship => (
-                                                                <div key={ship.id} className="bg-gray-50/50 border border-gray-150 rounded p-2.5 shadow-4xs space-y-1 text-[9px] font-mono relative overflow-hidden">
-                                                                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-brand-orange"></div>
-                                                                  <div className="flex justify-between items-center border-b border-gray-100 pb-1">
-                                                                    <div className="flex items-center gap-1">
-                                                                      <span className="text-gray-400 font-extrabold uppercase text-[8px] tracking-widest">Tracking:</span>
-                                                                      <strong className="text-brand-orange font-black text-[10px]">{ship.id}</strong>
+                                                              {childShipments.map(ship => {
+                                                                let displayNotes = ship.notes || 'Sin descripción';
+                                                                let originalTracking = ship.id; // Fallback to SF-ID if no original tracking
+                                                                
+                                                                if (ship.notes && ship.notes.includes('Tracking original:')) {
+                                                                  const parts = ship.notes.split('Tracking original:');
+                                                                  displayNotes = parts[0].replace(/\|\s*$/, '').trim();
+                                                                  originalTracking = parts[1].trim();
+                                                                }
+
+                                                                return (
+                                                                  <div key={ship.id} className="bg-gray-50/50 border border-gray-150 rounded p-2.5 shadow-4xs space-y-1 text-[9px] font-mono relative overflow-hidden">
+                                                                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-brand-orange"></div>
+                                                                    <div className="flex justify-between items-center border-b border-gray-100 pb-1">
+                                                                      <div className="flex items-center gap-1">
+                                                                        <span className="text-gray-400 font-extrabold uppercase text-[8px] tracking-widest">Tracking:</span>
+                                                                        <strong className="text-brand-orange font-black text-[10px] truncate max-w-[150px]" title={originalTracking}>{originalTracking}</strong>
+                                                                      </div>
+                                                                      <span className={`px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase ${
+                                                                        ship.status === 'Entregado' ? 'bg-green-100 text-green-800' :
+                                                                        ship.status === 'En Sucursal' ? 'bg-amber-100 text-amber-800' :
+                                                                        'bg-blue-100 text-blue-800'
+                                                                      }`}>
+                                                                        {ship.status}
+                                                                      </span>
                                                                     </div>
-                                                                    <span className={`px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase ${
-                                                                      ship.status === 'Entregado' ? 'bg-green-100 text-green-800' :
-                                                                      ship.status === 'En Sucursal' ? 'bg-amber-100 text-amber-800' :
-                                                                      'bg-blue-100 text-blue-800'
-                                                                    }`}>
-                                                                      {ship.status}
-                                                                    </span>
-                                                                  </div>
-                                                                  <div className="grid grid-cols-2 gap-y-0.5 gap-x-2 text-gray-500 font-medium">
-                                                                    <div>&bull; Casillero: <strong className="text-brand-gray-dark">{ship.lockerId}</strong></div>
-                                                                    <div>&bull; Peso: <strong 
-                                                                      className="cursor-pointer text-brand-orange hover:underline transition-colors bg-orange-50 px-1 py-0.5 rounded border border-orange-200 ml-1"
-                                                                      title="Editar peso del paquete"
-                                                                      onClick={() => {
-                                                                        const newWeightStr = window.prompt(`Ingrese el nuevo peso (Lbs) para el paquete ${ship.id}:`, ship.weight.toString());
-                                                                        if (newWeightStr !== null) {
-                                                                          const newWeight = parseFloat(newWeightStr);
-                                                                          if (!isNaN(newWeight) && newWeight >= 0) {
-                                                                            const updatedShip = { ...ship, weight: newWeight };
-                                                                            db.upsertShipment(updatedShip).then(() => {
-                                                                              setShipments(prev => prev.map(s => s.id === ship.id ? updatedShip : s));
-                                                                            });
-                                                                          } else {
-                                                                            alert('Peso invalido. Ingrese un numero valido.');
+                                                                    <div className="grid grid-cols-2 gap-y-0.5 gap-x-2 text-gray-500 font-medium">
+                                                                      <div>&bull; Casillero: <strong className="text-brand-gray-dark">{ship.lockerId}</strong></div>
+                                                                      <div>&bull; Peso: <strong 
+                                                                        className="cursor-pointer text-brand-orange hover:underline transition-colors bg-orange-50 px-1 py-0.5 rounded border border-orange-200 ml-1"
+                                                                        title="Editar peso del paquete"
+                                                                        onClick={() => {
+                                                                          const newWeightStr = window.prompt(`Ingrese el nuevo peso (Lbs) para el paquete ${ship.id}:`, ship.weight.toString());
+                                                                          if (newWeightStr !== null) {
+                                                                            const newWeight = parseFloat(newWeightStr);
+                                                                            if (!isNaN(newWeight) && newWeight >= 0) {
+                                                                              const updatedShip = { ...ship, weight: newWeight };
+                                                                              db.upsertShipment(updatedShip).then(() => {
+                                                                                setShipments(prev => prev.map(s => s.id === ship.id ? updatedShip : s));
+                                                                              });
+                                                                            } else {
+                                                                              alert('Peso invalido. Ingrese un numero valido.');
+                                                                            }
                                                                           }
-                                                                        }
-                                                                      }}
-                                                                    >{ship.weight.toFixed(1)} Lbs (Editar)</strong></div>
-                                                                    <div className="col-span-2 truncate">&bull; Destino: <strong className="text-brand-gray-dark font-sans">{ship.receiver}</strong></div>
-                                                                    <div className="col-span-2 truncate" title={ship.notes || 'Sin descripción'}>&bull; Contenido: <strong className="text-brand-gray-dark font-sans">{ship.notes || 'Sin descripción'}</strong></div>
+                                                                        }}
+                                                                      >{ship.weight.toFixed(1)} Lbs (Editar)</strong></div>
+                                                                      <div className="col-span-2 truncate">&bull; Destino: <strong className="text-brand-gray-dark font-sans">{ship.receiver}</strong></div>
+                                                                      <div className="col-span-2 truncate" title={displayNotes}>&bull; Contenido: <strong className="text-brand-gray-dark font-sans">{displayNotes}</strong></div>
+                                                                    </div>
                                                                   </div>
-                                                                </div>
-                                                              ))}
+                                                                );
+                                                              })}
                                                             </div>
                                                           ) : (
                                                             <p className="text-4xs text-gray-400 italic">
