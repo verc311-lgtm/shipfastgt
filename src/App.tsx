@@ -7349,7 +7349,10 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                                                 <div key={ship.id} className="bg-gray-50/50 border border-gray-150 rounded p-2.5 shadow-4xs space-y-1 text-[9px] font-mono relative overflow-hidden">
                                                                   <div className="absolute left-0 top-0 bottom-0 w-1 bg-brand-orange"></div>
                                                                   <div className="flex justify-between items-center border-b border-gray-100 pb-1">
-                                                                    <strong className="text-brand-orange font-black">{ship.id}</strong>
+                                                                    <div className="flex items-center gap-1">
+                                                                      <span className="text-gray-400 font-extrabold uppercase text-[8px] tracking-widest">Tracking:</span>
+                                                                      <strong className="text-brand-orange font-black text-[10px]">{ship.id}</strong>
+                                                                    </div>
                                                                     <span className={`px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase ${
                                                                       ship.status === 'Entregado' ? 'bg-green-100 text-green-800' :
                                                                       ship.status === 'En Sucursal' ? 'bg-amber-100 text-amber-800' :
@@ -7379,23 +7382,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                                                       }}
                                                                     >{ship.weight.toFixed(1)} Lbs (Editar)</strong></div>
                                                                     <div className="col-span-2 truncate">&bull; Destino: <strong className="text-brand-gray-dark font-sans">{ship.receiver}</strong></div>
-                                                                    {(() => {
-                                                                      let displayNotes = ship.notes || 'Sin descripción';
-                                                                      let originalTracking = '';
-                                                                      if (displayNotes.includes('Tracking original:')) {
-                                                                        const parts = displayNotes.split('Tracking original:');
-                                                                        displayNotes = parts[0].replace(/\|\s*$/, '').trim();
-                                                                        originalTracking = parts[1].trim();
-                                                                      }
-                                                                      return (
-                                                                        <>
-                                                                          {originalTracking && (
-                                                                            <div className="col-span-2 truncate">&bull; Tracking Orig.: <strong className="text-brand-gray-dark font-mono text-[9px] bg-gray-100 px-1 py-0.5 rounded">{originalTracking}</strong></div>
-                                                                          )}
-                                                                          <div className="col-span-2 truncate">&bull; Contenido: <strong className="text-brand-gray-dark font-sans">{displayNotes || 'Sin descripción'}</strong></div>
-                                                                        </>
-                                                                      );
-                                                                    })()}
+                                                                    <div className="col-span-2 truncate" title={ship.notes || 'Sin descripción'}>&bull; Contenido: <strong className="text-brand-gray-dark font-sans">{ship.notes || 'Sin descripción'}</strong></div>
                                                                   </div>
                                                                 </div>
                                                               ))}
