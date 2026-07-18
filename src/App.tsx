@@ -7360,7 +7360,24 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                                                   </div>
                                                                   <div className="grid grid-cols-2 gap-y-0.5 gap-x-2 text-gray-500 font-medium">
                                                                     <div>&bull; Casillero: <strong className="text-brand-gray-dark">{ship.lockerId}</strong></div>
-                                                                    <div>&bull; Peso: <strong className="text-brand-gray-dark">{ship.weight.toFixed(1)} Lbs</strong></div>
+                                                                    <div>&bull; Peso: <strong 
+                                                                      className="cursor-pointer text-brand-orange hover:underline transition-colors bg-orange-50 px-1 py-0.5 rounded border border-orange-200 ml-1"
+                                                                      title="Editar peso del paquete"
+                                                                      onClick={() => {
+                                                                        const newWeightStr = window.prompt(`Ingrese el nuevo peso (Lbs) para el paquete ${ship.id}:`, ship.weight.toString());
+                                                                        if (newWeightStr !== null) {
+                                                                          const newWeight = parseFloat(newWeightStr);
+                                                                          if (!isNaN(newWeight) && newWeight >= 0) {
+                                                                            const updatedShip = { ...ship, weight: newWeight };
+                                                                            db.upsertShipment(updatedShip).then(() => {
+                                                                              setShipments(prev => prev.map(s => s.id === ship.id ? updatedShip : s));
+                                                                            });
+                                                                          } else {
+                                                                            alert('Peso invalido. Ingrese un numero valido.');
+                                                                          }
+                                                                        }
+                                                                      }}
+                                                                    >{ship.weight.toFixed(1)} Lbs (Editar)</strong></div>
                                                                     <div className="col-span-2 truncate">&bull; Destino: <strong className="text-brand-gray-dark font-sans">{ship.receiver}</strong></div>
                                                                     <div className="col-span-2 truncate">&bull; Contenido: <strong className="text-brand-gray-dark font-sans">{ship.notes || 'Sin descripción'}</strong></div>
                                                                   </div>
