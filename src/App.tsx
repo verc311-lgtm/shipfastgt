@@ -7319,7 +7319,24 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                                           <div className="flex items-center gap-2 text-[9px] font-mono text-gray-500">
                                                             <span>Bultos: <strong>{guide.itemsCount}</strong></span>
                                                             <span>&bull;</span>
-                                                            <span>Peso: <strong>{guide.totalWeight.toFixed(1)} Lbs</strong></span>
+                                                            <span>Peso: <strong 
+                                                              className="cursor-pointer text-brand-orange hover:underline transition-colors bg-orange-50 px-2 py-0.5 rounded border border-orange-200"
+                                                              title="Editar peso del consolidado"
+                                                              onClick={() => {
+                                                                const newWeightStr = window.prompt(`Ingrese el nuevo peso (Lbs) para el consolidado ${guide.id}:`, guide.totalWeight.toString());
+                                                                if (newWeightStr !== null) {
+                                                                  const newWeight = parseFloat(newWeightStr);
+                                                                  if (!isNaN(newWeight) && newWeight >= 0) {
+                                                                    const updatedGuide = { ...guide, totalWeight: newWeight };
+                                                                    db.upsertConsolidatedGuide(updatedGuide).then(() => {
+                                                                      setConsolidatedGuides(prev => prev.map(g => g.id === guide.id ? updatedGuide : g));
+                                                                    });
+                                                                  } else {
+                                                                    alert('Peso invalido. Ingrese un numero valido.');
+                                                                  }
+                                                                }
+                                                              }}
+                                                            >{guide.totalWeight.toFixed(1)} Lbs (Editar)</strong></span>
                                                           </div>
                                                         </div>
 
