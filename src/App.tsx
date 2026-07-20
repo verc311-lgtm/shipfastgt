@@ -11591,6 +11591,7 @@ El Equipo de ShipFast GT`;
                                   <button
                                     type="button"
                                     onClick={() => {
+                                      setSelectedUserForEdit(u);
                                       setAdminSubTab('usuarios');
                                       setIsGlobalSearchOpen(false);
                                     }}
