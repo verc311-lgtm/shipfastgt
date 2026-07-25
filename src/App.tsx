@@ -340,21 +340,22 @@ export default function App() {
   const [paymentNotes, setPaymentNotes] = useState('');
   const [paymentDiscountType, setPaymentDiscountType] = useState<'none' | 'fixed' | 'percentage'>('none');
   const [paymentDiscountValue, setPaymentDiscountValue] = useState<number>(0);
+  const [paymentInsuranceExtra, setPaymentInsuranceExtra] = useState<number>(0);
+  const [paymentLocalDeliveryExtra, setPaymentLocalDeliveryExtra] = useState<number>(0);
 
   const getNetPaymentAmount = () => {
     const selectedInvoice = invoices.find(i => i.id === paymentInvoice);
     if (!selectedInvoice) return 0;
     
     const originalAmount = selectedInvoice.amount;
-    if (paymentDiscountType === 'none') return originalAmount;
+    let base = originalAmount;
     if (paymentDiscountType === 'fixed') {
-      return Math.max(0, originalAmount - paymentDiscountValue);
-    }
-    if (paymentDiscountType === 'percentage') {
+      base = Math.max(0, originalAmount - paymentDiscountValue);
+    } else if (paymentDiscountType === 'percentage') {
       const discount = originalAmount * (paymentDiscountValue / 100);
-      return Math.max(0, originalAmount - discount);
+      base = Math.max(0, originalAmount - discount);
     }
-    return originalAmount;
+    return base + paymentInsuranceExtra + paymentLocalDeliveryExtra;
   };
 
   // Expenses
@@ -8724,21 +8725,41 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
 
                                 const originalAmount = selectedInvoice.amount;
                                 const netAmount = getNetPaymentAmount();
-                                const discountAmount = originalAmount - netAmount;
+                                
+                                // Calculate base after discount (before adding extra charges)
+                                let baseAfterDiscount = originalAmount;
+                                if (paymentDiscountType === 'fixed') {
+                                  baseAfterDiscount = Math.max(0, originalAmount - paymentDiscountValue);
+                                } else if (paymentDiscountType === 'percentage') {
+                                  const discount = originalAmount * (paymentDiscountValue / 100);
+                                  baseAfterDiscount = Math.max(0, originalAmount - discount);
+                                }
+                                const discountAmount = originalAmount - baseAfterDiscount;
 
                                 const currentDate = new Date().toISOString().split('T')[0];
                                 const receiptId = `PAG-${500 + paymentsLog.length + 1}`;
                                 
                                 let auditNotes = paymentNotes || 'Auditado en ventanilla';
+                                let conceptAdditions = '';
+
                                 if (paymentDiscountType !== 'none') {
                                   auditNotes += ` (Descuento: Q ${discountAmount.toFixed(2)} - ${paymentDiscountType === 'fixed' ? 'Monto Fijo' : 'Porcentaje ' + paymentDiscountValue + '%'})`;
+                                  conceptAdditions += ` [Descuento: Q ${discountAmount.toFixed(2)} sobre Q ${originalAmount.toFixed(2)}]`;
+                                }
+                                if (paymentInsuranceExtra > 0) {
+                                  auditNotes += ` (Cargo Seguro: Q ${paymentInsuranceExtra.toFixed(2)})`;
+                                  conceptAdditions += ` [Cargo Seguro: Q ${paymentInsuranceExtra.toFixed(2)}]`;
+                                }
+                                if (paymentLocalDeliveryExtra > 0) {
+                                  auditNotes += ` (Envío Local: Q ${paymentLocalDeliveryExtra.toFixed(2)})`;
+                                  conceptAdditions += ` [Envío Local: Q ${paymentLocalDeliveryExtra.toFixed(2)}]`;
                                 }
 
                                 const updatedInvoice = { 
                                   ...selectedInvoice, 
                                   amount: netAmount,
                                   paymentStatus: 'Pagado',
-                                  concept: selectedInvoice.concept + (paymentDiscountType !== 'none' ? ` [Descuento: Q ${discountAmount.toFixed(2)} sobre Q ${originalAmount.toFixed(2)}]` : '')
+                                  concept: selectedInvoice.concept + conceptAdditions
                                 };
 
                                 const newPayment = {
@@ -8770,6 +8791,8 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                 setPaymentNotes('');
                                 setPaymentDiscountType('none');
                                 setPaymentDiscountValue(0);
+                                setPaymentInsuranceExtra(0);
+                                setPaymentLocalDeliveryExtra(0);
                               }}
                               className="space-y-3"
                             >
@@ -8833,6 +8856,34 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                 )}
                               </div>
 
+                              {/* Cargos Extras (Seguro y Envío Local) */}
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Cargo Seguro (Extra)</label>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="any"
+                                    value={paymentInsuranceExtra || ''}
+                                    onChange={(e) => setPaymentInsuranceExtra(parseFloat(e.target.value) || 0)}
+                                    className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark font-mono text-green-600"
+                                    placeholder="Ej: 10.00"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Envío Local (Extra)</label>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="any"
+                                    value={paymentLocalDeliveryExtra || ''}
+                                    onChange={(e) => setPaymentLocalDeliveryExtra(parseFloat(e.target.value) || 0)}
+                                    className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark font-mono text-green-600"
+                                    placeholder="Ej: 25.00"
+                                  />
+                                </div>
+                              </div>
+
                               <div className="grid grid-cols-1 gap-1 text-4xs bg-slate-50 p-3 rounded-lg border border-slate-200 leading-relaxed text-slate-600">
                                 <div>Locker / Casillero: <strong className="text-brand-gray-dark">{paymentLocker || 'N/R'}</strong></div>
                                 {(() => {
@@ -8841,13 +8892,28 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                   const selectedInvSymbol = selectedInvParsed?.currency === 'USD' ? '$' : 'Q';
                                   const originalAmount = selectedInv ? selectedInv.amount : 0;
                                   const netAmount = getNetPaymentAmount();
-                                  const discountAmount = originalAmount - netAmount;
+                                  
+                                  // Base after discount
+                                  let baseAfterDiscount = originalAmount;
+                                  if (paymentDiscountType === 'fixed') {
+                                    baseAfterDiscount = Math.max(0, originalAmount - paymentDiscountValue);
+                                  } else if (paymentDiscountType === 'percentage') {
+                                    const discount = originalAmount * (paymentDiscountValue / 100);
+                                    baseAfterDiscount = Math.max(0, originalAmount - discount);
+                                  }
+                                  const discountAmount = originalAmount - baseAfterDiscount;
 
                                   return (
                                     <>
                                       <div>Monto Original Factura: <strong>{selectedInvSymbol} {originalAmount.toFixed(2)}</strong></div>
                                       {paymentDiscountType !== 'none' && (
                                         <div className="text-red-600 font-bold">Descuento Aplicado: <strong>- {selectedInvSymbol} {discountAmount.toFixed(2)}</strong></div>
+                                      )}
+                                      {paymentInsuranceExtra > 0 && (
+                                        <div className="text-emerald-650 font-bold">Cargo Seguro Extra: <strong>+ {selectedInvSymbol} {paymentInsuranceExtra.toFixed(2)}</strong></div>
+                                      )}
+                                      {paymentLocalDeliveryExtra > 0 && (
+                                        <div className="text-emerald-650 font-bold">Envío Local Extra: <strong>+ {selectedInvSymbol} {paymentLocalDeliveryExtra.toFixed(2)}</strong></div>
                                       )}
                                       <div className="text-green-700 font-black border-t border-slate-200/60 pt-1 mt-1 text-3xs flex justify-between items-center bg-green-50/50 p-1.5 rounded">
                                         <span>Total Neto a Cobrar:</span>
