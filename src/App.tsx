@@ -134,6 +134,7 @@ function parseInvoiceConcept(conceptStr: string) {
         manualClientName: parsed.manualClientName || '',
         purchaseLink: parsed.purchaseLink || '',
         stripeLink: parsed.stripeLink || '',
+        currency: parsed.currency || 'GTQ',
         isManual: !!parsed.manualClientName
       };
     }
@@ -145,6 +146,7 @@ function parseInvoiceConcept(conceptStr: string) {
     manualClientName: '',
     purchaseLink: '',
     stripeLink: '',
+    currency: 'GTQ',
     isManual: false
   };
 }
@@ -306,6 +308,7 @@ export default function App() {
   const [invoiceManualName, setInvoiceManualName] = useState('');
   const [invoicePurchaseLink, setInvoicePurchaseLink] = useState('');
   const [invoiceStripeLink, setInvoiceStripeLink] = useState('');
+  const [invoiceCurrency, setInvoiceCurrency] = useState<'GTQ' | 'USD'>('GTQ');
   const [activePreAlertInvoice, setActivePreAlertInvoice] = useState<PreAlert | null>(null);
 
   // Quotation Module States
@@ -1668,6 +1671,7 @@ Cargos de Flete y Tarifas Asignadas:
   // Generate professional print-ready HTML Invoice PDF
   const handlePrintInvoicePDF = (invoice: any) => {
     const parsed = parseInvoiceConcept(invoice.concept);
+    const currencySymbol = parsed.currency === 'USD' ? '$' : 'Q';
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
       alert('Por favor permite las ventanas emergentes (popups) para descargar el PDF de tu factura.');
@@ -1974,7 +1978,7 @@ Cargos de Flete y Tarifas Asignadas:
                   </a>
                 ` : ''}
               </td>
-              <td class="text-right" style="font-weight: 700;">Q ${invoice.amount.toFixed(2)}</td>
+              <td class="text-right" style="font-weight: 700;">${currencySymbol} ${invoice.amount.toFixed(2)}</td>
             </tr>
           </tbody>
         </table>
@@ -1983,11 +1987,11 @@ Cargos de Flete y Tarifas Asignadas:
           <div class="summary-box">
             <div class="summary-row">
               <span style="color: #4B5563;">Subtotal:</span>
-              <span style="font-weight: 600;">Q ${invoice.amount.toFixed(2)}</span>
+              <span style="font-weight: 600;">${currencySymbol} ${invoice.amount.toFixed(2)}</span>
             </div>
             <div class="summary-row">
               <span style="color: #4B5563;">Impuestos (Exento IVA / Flete):</span>
-              <span style="font-weight: 600;">Q 0.00</span>
+              <span style="font-weight: 600;">${currencySymbol} 0.00</span>
             </div>
             <div class="summary-row">
               <span style="color: #4B5563;">Estado de Pago:</span>
@@ -1999,7 +2003,7 @@ Cargos de Flete y Tarifas Asignadas:
             </div>
             <div class="summary-row total">
               <span>Total a Cancelar:</span>
-              <span>Q ${invoice.amount.toFixed(2)}</span>
+              <span>${currencySymbol} ${invoice.amount.toFixed(2)}</span>
             </div>
           </div>
         </div>
@@ -3641,6 +3645,17 @@ Para proporcionarle información específica, puede solicitar:
                     >
                       <ClipboardList className="h-3.5 w-3.5" />
                       Repartidores
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('financial-reports')}
+                      className={`px-4 py-1.5 text-3xs font-bold rounded uppercase tracking-wider transition flex items-center gap-1.5 whitespace-nowrap ${
+                        activeTab === 'financial-reports' 
+                          ? 'bg-brand-orange text-white' 
+                          : 'text-gray-300 hover:text-white hover:bg-gray-700'
+                      }`}
+                    >
+                      <Wallet className="h-3.5 w-3.5" />
+                      Finanzas
                     </button>
                     <button
                       onClick={() => setActiveTab('ai-chat')}
@@ -7536,7 +7551,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                             )}
                                           </div>
                                         </td>
-                                        <td className="py-3 px-3 text-right font-mono text-brand-orange font-black">Q {invoice.amount.toFixed(2)}</td>
+                                        <td className="py-3 px-3 text-right font-mono text-brand-orange font-black">{parsed.currency === 'USD' ? '$' : 'Q'} {invoice.amount.toFixed(2)}</td>
                                         <td className="py-3 px-4 text-center">
                                           <span className={`px-2 py-0.5 rounded text-4xs font-extrabold uppercase border ${
                                             invoice.paymentStatus === 'Pagado'
@@ -7566,7 +7581,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
 
                           {/* Invoice form manual creator - RIGHT */}
                           <div className="lg:col-span-4 bg-gray-50 border border-gray-200 p-5 rounded-lg space-y-4">
-                            <h4 className="text-3xs font-extrabold text-brand-gray-dark uppercase tracking-wider border-b border-gray-200 pb-1.5">Emitir Factura Manual (Q)</h4>
+                            <h4 className="text-3xs font-extrabold text-brand-gray-dark uppercase tracking-wider border-b border-gray-200 pb-1.5">Emitir Factura Manual</h4>
                             
                             <form 
                               onSubmit={(e) => {
@@ -7586,7 +7601,8 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                   detail: invoiceConcept.trim(),
                                   manualClientName: invoiceUnregistered ? invoiceManualName.trim() : '',
                                   purchaseLink: invoicePurchaseLink.trim(),
-                                  stripeLink: invoiceStripeLink.trim()
+                                  stripeLink: invoiceStripeLink.trim(),
+                                  currency: invoiceCurrency
                                 });
 
                                 const selectedLockerId = invoiceUnregistered 
@@ -7610,7 +7626,8 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                   ...prev
                                 ]);
 
-                                alert(`Factura manual ${invoiceId} emitida por un valor de Q ${invoiceAmount.toFixed(2)} asociada a ${invoiceUnregistered ? `cliente manual: ${invoiceManualName}` : `casillero ${selectedLockerId}`}.`);
+                                const currencySymbol = invoiceCurrency === 'USD' ? '$' : 'Q';
+                                alert(`Factura manual ${invoiceId} emitida por un valor de ${currencySymbol} ${invoiceAmount.toFixed(2)} asociada a ${invoiceUnregistered ? `cliente manual: ${invoiceManualName}` : `casillero ${selectedLockerId}`}.`);
                                 
                                 // Reset fields
                                 setInvoiceConcept('');
@@ -7620,6 +7637,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                 setInvoiceStripeLink('');
                                 setInvoiceUnregistered(false);
                                 setInvoiceLocker('');
+                                setInvoiceCurrency('GTQ');
                               }}
                               className="space-y-3"
                             >
@@ -7706,7 +7724,21 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                               </div>
 
                               <div>
-                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Importe en Quetzales (Q) *</label>
+                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Divisa *</label>
+                                <select
+                                  value={invoiceCurrency}
+                                  onChange={(e) => setInvoiceCurrency(e.target.value as 'GTQ' | 'USD')}
+                                  className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white font-semibold text-brand-gray-dark"
+                                >
+                                  <option value="GTQ">Quetzales (Q)</option>
+                                  <option value="USD">Dólares ($)</option>
+                                </select>
+                              </div>
+
+                              <div>
+                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">
+                                  Importe en {invoiceCurrency === 'GTQ' ? 'Quetzales (Q)' : 'Dólares ($)'} *
+                                </label>
                                 <input
                                   type="number"
                                   min="1"
@@ -8282,17 +8314,22 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100 text-3xs font-semibold text-brand-gray-dark">
-                                  {paymentsLog.map(pay => (
-                                    <tr key={pay.id} className="hover:bg-gray-50/50">
-                                      <td className="py-3 px-4 font-bold text-brand-gray-dark uppercase">{pay.id}</td>
-                                      <td className="py-3 px-3 font-mono text-gray-500">{pay.lockerId}</td>
-                                      <td className="py-3 px-3 font-bold text-brand-orange uppercase">{pay.invoiceId}</td>
-                                      <td className="py-3 px-3 font-mono">{pay.date}</td>
-                                      <td className="py-3 px-3 font-bold">{pay.method}</td>
-                                      <td className="py-3 px-3 text-right font-mono text-green-700 font-black">Q {pay.amount.toFixed(2)}</td>
-                                      <td className="py-3 px-4 text-gray-400 italic">{pay.notes}</td>
-                                    </tr>
-                                  ))}
+                                  {paymentsLog.map(pay => {
+                                    const associatedInvoice = invoices.find(i => i.id === pay.invoiceId);
+                                    const parsed = associatedInvoice ? parseInvoiceConcept(associatedInvoice.concept) : null;
+                                    const currencySymbol = parsed?.currency === 'USD' ? '$' : 'Q';
+                                    return (
+                                      <tr key={pay.id} className="hover:bg-gray-50/50">
+                                        <td className="py-3 px-4 font-bold text-brand-gray-dark uppercase">{pay.id}</td>
+                                        <td className="py-3 px-3 font-mono text-gray-500">{pay.lockerId}</td>
+                                        <td className="py-3 px-3 font-bold text-brand-orange uppercase">{pay.invoiceId}</td>
+                                        <td className="py-3 px-3 font-mono">{pay.date}</td>
+                                        <td className="py-3 px-3 font-bold">{pay.method}</td>
+                                        <td className="py-3 px-3 text-right font-mono text-green-700 font-black">{currencySymbol} {pay.amount.toFixed(2)}</td>
+                                        <td className="py-3 px-4 text-gray-400 italic">{pay.notes}</td>
+                                      </tr>
+                                    );
+                                  })}
                                 </tbody>
                               </table>
                             </div>
@@ -8360,15 +8397,26 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                   className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white font-mono text-brand-orange font-bold"
                                 >
                                   <option value="">-- Facturas en Cola --</option>
-                                  {invoices.filter(i => i.paymentStatus === 'Pendiente').map(i => (
-                                    <option key={i.id} value={i.id}>{i.id} &mdash; {i.lockerId} (Q {i.amount.toFixed(2)})</option>
-                                  ))}
+                                  {invoices.filter(i => i.paymentStatus === 'Pendiente').map(i => {
+                                    const parsed = parseInvoiceConcept(i.concept);
+                                    const currencySymbol = parsed.currency === 'USD' ? '$' : 'Q';
+                                    return (
+                                      <option key={i.id} value={i.id}>{i.id} &mdash; {i.lockerId} ({currencySymbol} {i.amount.toFixed(2)})</option>
+                                    );
+                                  })}
                                 </select>
                               </div>
 
                               <div className="grid grid-cols-2 gap-2 text-4xs bg-white p-2.5 rounded border border-gray-200">
                                 <div>Locker: <strong>{paymentLocker}</strong></div>
-                                <div>Monto: <strong>Q {paymentAmount.toFixed(2)}</strong></div>
+                                {(() => {
+                                  const selectedInv = invoices.find(i => i.id === paymentInvoice);
+                                  const selectedInvParsed = selectedInv ? parseInvoiceConcept(selectedInv.concept) : null;
+                                  const selectedInvSymbol = selectedInvParsed?.currency === 'USD' ? '$' : 'Q';
+                                  return (
+                                    <div>Monto: <strong>{selectedInvSymbol} {paymentAmount.toFixed(2)}</strong></div>
+                                  );
+                                })()}
                               </div>
 
                               <div>
@@ -10005,6 +10053,189 @@ El Equipo de ShipFast GT`;
                       </div>
                     </div>
                   )}
+
+                </div>
+              );
+            })()}
+
+            {/* ==================== ADMIN: REPORTES FINANCIEROS TAB ==================== */}
+            {currentUser.role === 'admin' && activeTab === 'financial-reports' && (() => {
+              const pendingInvoices = invoices.filter(i => i.paymentStatus === 'Pendiente');
+              const paidInvoices = invoices.filter(i => i.paymentStatus === 'Pagado');
+
+              const totalRevenueGTQ = paymentsLog
+                .filter(p => p.currency === 'GTQ' || !p.currency)
+                .reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
+              const totalRevenueUSD = paymentsLog
+                .filter(p => p.currency === 'USD')
+                .reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
+              
+              const totalExpensesGTQ = expensesLog
+                .filter(e => e.currency === 'GTQ' || !e.currency)
+                .reduce((acc, e) => acc + (parseFloat(e.amount) || 0), 0);
+              const totalExpensesUSD = expensesLog
+                .filter(e => e.currency === 'USD')
+                .reduce((acc, e) => acc + (parseFloat(e.amount) || 0), 0);
+
+              const balanceGTQ = totalRevenueGTQ - totalExpensesGTQ;
+              const balanceUSD = totalRevenueUSD - totalExpensesUSD;
+
+              const pendingTotalGTQ = pendingInvoices.reduce((acc, i) => {
+                const parsed = parseInvoiceConcept(i.concept);
+                if ((parsed?.currency || 'GTQ') === 'GTQ') return acc + (parseFloat(i.amount) || 0);
+                return acc;
+              }, 0);
+              
+              const pendingTotalUSD = pendingInvoices.reduce((acc, i) => {
+                const parsed = parseInvoiceConcept(i.concept);
+                if (parsed?.currency === 'USD') return acc + (parseFloat(i.amount) || 0);
+                return acc;
+              }, 0);
+
+              return (
+                <div className="flex flex-col gap-6 w-full animate-fade-in pb-20">
+                  <div className="flex items-center justify-between bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <div>
+                      <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-3">
+                        <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                          <Wallet className="h-6 w-6" />
+                        </div>
+                        Reportes Financieros
+                      </h2>
+                      <p className="text-sm text-gray-500 mt-1">
+                        Resumen contable, ingresos, gastos y facturación.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* Revenue Card */}
+                    <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-3 relative overflow-hidden group">
+                      <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition">
+                        <TrendingUp className="h-16 w-16 text-green-500" />
+                      </div>
+                      <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Total Ingresos</h3>
+                      <div>
+                        <div className="text-2xl font-black text-gray-800">Q{totalRevenueGTQ.toFixed(2)}</div>
+                        <div className="text-sm font-semibold text-gray-500 mt-1">${totalRevenueUSD.toFixed(2)}</div>
+                      </div>
+                      <div className="text-3xs text-green-600 font-bold bg-green-50 self-start px-2 py-0.5 rounded uppercase mt-auto">Facturas Cobradas: {paidInvoices.length}</div>
+                    </div>
+
+                    {/* Expenses Card */}
+                    <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-3 relative overflow-hidden group">
+                      <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition">
+                        <TrendingUp className="h-16 w-16 text-red-500 rotate-180" />
+                      </div>
+                      <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Total Gastos</h3>
+                      <div>
+                        <div className="text-2xl font-black text-gray-800">Q{totalExpensesGTQ.toFixed(2)}</div>
+                        <div className="text-sm font-semibold text-gray-500 mt-1">${totalExpensesUSD.toFixed(2)}</div>
+                      </div>
+                      <div className="text-3xs text-red-600 font-bold bg-red-50 self-start px-2 py-0.5 rounded uppercase mt-auto">Registros de Gastos: {expensesLog.length}</div>
+                    </div>
+
+                    {/* Net Balance Card */}
+                    <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-3 relative overflow-hidden group">
+                      <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition">
+                        <DollarSign className="h-16 w-16 text-blue-500" />
+                      </div>
+                      <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Balance Neto</h3>
+                      <div>
+                        <div className={`text-2xl font-black ${balanceGTQ >= 0 ? 'text-blue-600' : 'text-red-600'}`}>Q{balanceGTQ.toFixed(2)}</div>
+                        <div className={`text-sm font-semibold mt-1 ${balanceUSD >= 0 ? 'text-blue-500' : 'text-red-500'}`}>${balanceUSD.toFixed(2)}</div>
+                      </div>
+                      <div className="text-3xs text-blue-600 font-bold bg-blue-50 self-start px-2 py-0.5 rounded uppercase mt-auto">Utilidad Calculada</div>
+                    </div>
+
+                    {/* Pending Invoices Card */}
+                    <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-3 relative overflow-hidden group">
+                      <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition">
+                        <AlertTriangle className="h-16 w-16 text-orange-500" />
+                      </div>
+                      <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Pendiente de Cobro</h3>
+                      <div>
+                        <div className="text-2xl font-black text-gray-800">Q{pendingTotalGTQ.toFixed(2)}</div>
+                        <div className="text-sm font-semibold text-gray-500 mt-1">${pendingTotalUSD.toFixed(2)}</div>
+                      </div>
+                      <div className="text-3xs text-orange-600 font-bold bg-orange-50 self-start px-2 py-0.5 rounded uppercase mt-auto">Facturas Pendientes: {pendingInvoices.length}</div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* List of Pending Invoices */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
+                      <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+                        <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                          <ClipboardList className="h-4 w-4 text-orange-500" />
+                          Facturas Pendientes ({pendingInvoices.length})
+                        </h3>
+                      </div>
+                      <div className="p-0 overflow-y-auto max-h-[400px]">
+                        {pendingInvoices.length === 0 ? (
+                          <div className="p-8 text-center text-gray-400 text-sm font-medium">No hay facturas pendientes.</div>
+                        ) : (
+                          <div className="divide-y divide-gray-100">
+                            {pendingInvoices.map(inv => {
+                              const parsed = parseInvoiceConcept(inv.concept);
+                              const curr = parsed?.currency || 'GTQ';
+                              const sym = curr === 'USD' ? '$' : 'Q';
+                              return (
+                                <div key={inv.id} className="p-4 flex items-center justify-between hover:bg-gray-50 transition">
+                                  <div>
+                                    <div className="text-xs font-bold text-gray-800">{inv.id}</div>
+                                    <div className="text-2xs text-gray-500 mt-0.5 line-clamp-1">{parsed?.detail || inv.concept}</div>
+                                    <div className="text-3xs text-gray-400 mt-0.5">{new Date(inv.date).toLocaleDateString()}</div>
+                                  </div>
+                                  <div className="text-right">
+                                    <div className="text-sm font-black text-gray-800">{sym}{parseFloat(inv.amount || '0').toFixed(2)}</div>
+                                    <span className="inline-block mt-1 px-1.5 py-0.5 bg-orange-50 text-orange-600 border border-orange-200 rounded text-[9px] font-bold uppercase">
+                                      Pendiente
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* List of Recent Payments */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
+                      <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+                        <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-green-500" />
+                          Últimos Ingresos ({paymentsLog.length})
+                        </h3>
+                      </div>
+                      <div className="p-0 overflow-y-auto max-h-[400px]">
+                        {paymentsLog.length === 0 ? (
+                          <div className="p-8 text-center text-gray-400 text-sm font-medium">No hay ingresos registrados.</div>
+                        ) : (
+                          <div className="divide-y divide-gray-100">
+                            {[...paymentsLog].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(pay => {
+                              const curr = pay.currency || 'GTQ';
+                              const sym = curr === 'USD' ? '$' : 'Q';
+                              return (
+                                <div key={pay.id} className="p-4 flex items-center justify-between hover:bg-gray-50 transition">
+                                  <div>
+                                    <div className="text-xs font-bold text-gray-800">{pay.id} - {pay.method}</div>
+                                    <div className="text-2xs text-gray-500 mt-0.5">Ref: {pay.reference || 'N/A'}</div>
+                                    <div className="text-3xs text-gray-400 mt-0.5">{new Date(pay.date).toLocaleString()}</div>
+                                  </div>
+                                  <div className="text-right">
+                                    <div className="text-sm font-black text-green-600">+{sym}{parseFloat(pay.amount || '0').toFixed(2)}</div>
+                                    <div className="text-[9px] text-gray-400 uppercase mt-1 font-bold">Cobrado</div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
 
                 </div>
               );
@@ -11693,31 +11924,35 @@ El Equipo de ShipFast GT`;
                               <span className="bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded text-[8px] font-black font-mono">{matchingInvoices.length}</span>
                             </h4>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                              {matchingInvoices.map(i => (
-                                <div key={i.id} className="bg-white border border-slate-150 p-4 rounded-xl shadow-3xs flex justify-between items-center hover:border-brand-orange/45 transition">
-                                  <div className="space-y-0.5 flex-1 min-w-0 pr-4">
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-3xs font-black text-indigo-700 uppercase font-mono">{i.id}</span>
-                                      <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded text-[8px] font-black font-mono">{i.lockerId}</span>
-                                      <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase border ${
-                                        i.paymentStatus === 'Pagado' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'
-                                      }`}>{i.paymentStatus}</span>
+                              {matchingInvoices.map(i => {
+                                const parsed = parseInvoiceConcept(i.concept);
+                                const currencySymbol = parsed.currency === 'USD' ? '$' : 'Q';
+                                return (
+                                  <div key={i.id} className="bg-white border border-slate-150 p-4 rounded-xl shadow-3xs flex justify-between items-center hover:border-brand-orange/45 transition">
+                                    <div className="space-y-0.5 flex-1 min-w-0 pr-4">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-3xs font-black text-indigo-700 uppercase font-mono">{i.id}</span>
+                                        <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded text-[8px] font-black font-mono">{i.lockerId}</span>
+                                        <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase border ${
+                                          i.paymentStatus === 'Pagado' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'
+                                        }`}>{i.paymentStatus}</span>
+                                      </div>
+                                      <p className="text-4xs text-slate-600 font-bold mt-1">Monto: {currencySymbol} {Number(i.amount).toFixed(2)} • Fecha: {i.date}</p>
+                                      <p className="text-4xs text-slate-400 italic mt-0.5 truncate">Concepto: {parsed.detail}</p>
                                     </div>
-                                    <p className="text-4xs text-slate-600 font-bold mt-1">Monto: Q {Number(i.amount).toFixed(2)} • Fecha: {i.date}</p>
-                                    <p className="text-4xs text-slate-400 italic mt-0.5 truncate">Concepto: {i.concept}</p>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setAdminSubTab('facturacion');
+                                        setIsGlobalSearchOpen(false);
+                                      }}
+                                      className="bg-slate-100 hover:bg-brand-orange hover:text-white text-slate-700 text-[8px] font-black px-2.5 py-1.5 rounded uppercase tracking-wider transition cursor-pointer self-center"
+                                    >
+                                      Imprimir
+                                    </button>
                                   </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setAdminSubTab('facturacion');
-                                      setIsGlobalSearchOpen(false);
-                                    }}
-                                    className="bg-slate-100 hover:bg-brand-orange hover:text-white text-slate-700 text-[8px] font-black px-2.5 py-1.5 rounded uppercase tracking-wider transition cursor-pointer self-center"
-                                  >
-                                    Imprimir
-                                  </button>
-                                </div>
-                              ))}
+                                );
+                              })}
                             </div>
                           </div>
                         )}
