@@ -7592,7 +7592,18 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                                                             if (!isNaN(newWeight) && newWeight >= 0) {
                                                                               const updatedShip = { ...ship, weight: newWeight };
                                                                               db.upsertShipment(updatedShip).then(() => {
-                                                                                setShipments(prev => prev.map(s => s.id === ship.id ? updatedShip : s));
+                                                                                const nextShipments = shipments.map(s => s.id === ship.id ? updatedShip : s);
+                                                                                const newChildShipments = nextShipments.filter(s => 
+                                                                                  s.history.some(h => h.details && h.details.includes(guide.id)) ||
+                                                                                  (s.notes && s.notes.includes(guide.id))
+                                                                                );
+                                                                                const calculatedTotalWeight = newChildShipments.reduce((sum, s) => sum + s.weight, 0);
+                                                                                const updatedGuide = { ...guide, totalWeight: calculatedTotalWeight };
+                                                                                
+                                                                                db.upsertConsolidatedGuide(updatedGuide).then(() => {
+                                                                                  setShipments(nextShipments);
+                                                                                  setConsolidatedGuides(prevGuides => prevGuides.map(g => g.id === guide.id ? updatedGuide : g));
+                                                                                });
                                                                               });
                                                                             } else {
                                                                               alert('Peso invalido. Ingrese un numero valido.');
