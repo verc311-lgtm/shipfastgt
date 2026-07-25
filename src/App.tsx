@@ -310,6 +310,14 @@ export default function App() {
   const [invoiceStripeLink, setInvoiceStripeLink] = useState('');
   const [invoiceCurrency, setInvoiceCurrency] = useState<'GTQ' | 'USD'>('GTQ');
   const [activePreAlertInvoice, setActivePreAlertInvoice] = useState<PreAlert | null>(null);
+  
+  // Invoice Editing States
+  const [isEditInvoiceModalOpen, setIsEditInvoiceModalOpen] = useState(false);
+  const [editingInvoice, setEditingInvoice] = useState<any | null>(null);
+  const [editInvoiceConcept, setEditInvoiceConcept] = useState('');
+  const [editInvoiceBaseAmount, setEditInvoiceBaseAmount] = useState<number>(0);
+  const [editInvoiceInsurance, setEditInvoiceInsurance] = useState<number>(0);
+  const [editInvoiceLocalDelivery, setEditInvoiceLocalDelivery] = useState<number>(0);
 
   // Quotation Module States
   const [quoteClientType, setQuoteClientType] = useState<'registered' | 'manual'>('registered');
@@ -1696,6 +1704,101 @@ Cargos de Flete y Tarifas Asignadas:
       alert(`¡Factura ${invoiceId} eliminada exitosamente!`);
     } else {
       alert(`Error: No se pudo eliminar la factura de la base de datos.`);
+    }
+  };
+
+  // Helper parser and editor for invoice additional charges
+  const parseExtraCharges = (conceptStr: string) => {
+    let insurance = 0;
+    let delivery = 0;
+    
+    const insMatch = conceptStr.match(/\[Cargo Seguro:\s*[\$Q]\s*([\d\.]+)\]/i);
+    if (insMatch) {
+      insurance = parseFloat(insMatch[1]) || 0;
+    }
+    
+    const delMatch = conceptStr.match(/\[Envío Local:\s*[\$Q]\s*([\d\.]+)\]/i);
+    if (delMatch) {
+      delivery = parseFloat(delMatch[1]) || 0;
+    }
+    
+    return { insurance, delivery };
+  };
+
+  const cleanConceptDetail = (detail: string) => {
+    return detail
+      .replace(/\[Cargo Seguro:\s*[\$Q]\s*[\d\.]+\]/ig, '')
+      .replace(/\[Envío Local:\s*[\$Q]\s*[\d\.]+\]/ig, '')
+      .replace(/\[Descuento:\s*[\$Q]\s*[\d\.]+.*?\]/ig, '')
+      .trim();
+  };
+
+  const handleOpenEditInvoiceModal = (invoice: any) => {
+    setEditingInvoice(invoice);
+    
+    const parsed = parseInvoiceConcept(invoice.concept);
+    const { insurance, delivery } = parseExtraCharges(parsed.detail);
+    const cleanedDetail = cleanConceptDetail(parsed.detail);
+    const baseAmount = invoice.amount - insurance - delivery;
+
+    setEditInvoiceConcept(cleanedDetail);
+    setEditInvoiceBaseAmount(baseAmount);
+    setEditInvoiceInsurance(insurance);
+    setEditInvoiceLocalDelivery(delivery);
+    setIsEditInvoiceModalOpen(true);
+  };
+
+  const handleSaveEditInvoice = async () => {
+    if (!editingInvoice) return;
+
+    const baseAmount = editInvoiceBaseAmount;
+    const insurance = editInvoiceInsurance;
+    const delivery = editInvoiceLocalDelivery;
+    const finalAmount = baseAmount + insurance + delivery;
+
+    // Build the additions to the concept string
+    let additions = '';
+    const parsed = parseInvoiceConcept(editingInvoice.concept);
+    const currencySymbol = parsed.currency === 'USD' ? '$' : 'Q';
+
+    if (insurance > 0) {
+      additions += ` [Cargo Seguro: ${currencySymbol} ${insurance.toFixed(2)}]`;
+    }
+    if (delivery > 0) {
+      additions += ` [Envío Local: ${currencySymbol} ${delivery.toFixed(2)}]`;
+    }
+
+    // Reconstruct the concept string (supporting JSON format if original was JSON)
+    let newConcept = '';
+    const trimmed = editingInvoice.concept ? editingInvoice.concept.trim() : '';
+    if (trimmed.startsWith('{')) {
+      try {
+        const parsedJson = JSON.parse(trimmed);
+        newConcept = JSON.stringify({
+          ...parsedJson,
+          detail: editInvoiceConcept + additions
+        });
+      } catch (e) {
+        newConcept = editInvoiceConcept + additions;
+      }
+    } else {
+      newConcept = editInvoiceConcept + additions;
+    }
+
+    const updatedInvoice = {
+      ...editingInvoice,
+      amount: finalAmount,
+      concept: newConcept
+    };
+
+    const success = await db.upsertInvoice(updatedInvoice);
+    if (success) {
+      setInvoices(prev => prev.map(inv => inv.id === editingInvoice.id ? updatedInvoice : inv));
+      setIsEditInvoiceModalOpen(false);
+      setEditingInvoice(null);
+      alert(`¡Factura ${editingInvoice.id} actualizada exitosamente!`);
+    } else {
+      alert('Error: No se pudieron guardar los cambios en Supabase.');
     }
   };
 
@@ -7937,6 +8040,14 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                             </button>
                                             <button
                                               type="button"
+                                              onClick={() => handleOpenEditInvoiceModal(invoice)}
+                                              className="bg-brand-orange hover:bg-brand-orange-hover text-white font-extrabold text-4xs px-2.5 py-1 rounded transition uppercase tracking-wider flex items-center gap-1 cursor-pointer"
+                                              title="Editar factura y agregar cargos adicionales"
+                                            >
+                                              ✏️ Editar
+                                            </button>
+                                            <button
+                                              type="button"
                                               onClick={() => handleDeleteInvoice(invoice.id)}
                                               className="bg-red-600 hover:bg-red-700 text-white font-bold text-4xs px-2.5 py-1 rounded transition uppercase tracking-wider flex items-center gap-1 cursor-pointer"
                                               title="Eliminar Factura"
@@ -11987,6 +12098,134 @@ El Equipo de ShipFast GT`;
                     </button>
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* ==================== EDIT INVOICE MODAL ==================== */}
+          {isEditInvoiceModalOpen && editingInvoice && (
+            <div className="fixed inset-0 bg-brand-gray-dark/65 backdrop-blur-xs flex justify-center items-center z-50 p-4 animate-fade-in font-sans">
+              <div className="bg-white w-full max-w-lg rounded-2xl border border-slate-100 shadow-2xl overflow-hidden relative animate-zoom-in">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsEditInvoiceModalOpen(false);
+                    setEditingInvoice(null);
+                  }}
+                  className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 cursor-pointer p-1.5 rounded-full hover:bg-slate-50 transition"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+
+                <div className="bg-slate-900 p-5 text-white">
+                  <div className="flex items-center gap-3">
+                    <span className="bg-slate-800 text-brand-orange p-2 rounded-lg border border-slate-700">
+                      <FileText className="h-5 w-5" />
+                    </span>
+                    <div>
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block font-mono">Modificación Contable</span>
+                      <h3 className="text-xs font-black uppercase text-white">Editar Factura: {editingInvoice.id}</h3>
+                    </div>
+                  </div>
+                </div>
+
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleSaveEditInvoice();
+                  }}
+                  className="p-5 space-y-4"
+                >
+                  <div>
+                    <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Concepto / Descripción Principal *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editInvoiceConcept}
+                      onChange={(e) => setEditInvoiceConcept(e.target.value)}
+                      className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-orange focus:outline-none font-bold text-brand-gray-dark"
+                      placeholder="Ej: Flete Bodega Miami SFG-12"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Importe Base (Flete) *</label>
+                      <input
+                        type="number"
+                        required
+                        min="0"
+                        step="any"
+                        value={editInvoiceBaseAmount || ''}
+                        onChange={(e) => setEditInvoiceBaseAmount(parseFloat(e.target.value) || 0)}
+                        className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-orange focus:outline-none font-bold text-brand-gray-dark font-mono text-brand-orange text-center"
+                        placeholder="0.00"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Cargo Seguro (Extra)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={editInvoiceInsurance || ''}
+                        onChange={(e) => setEditInvoiceInsurance(parseFloat(e.target.value) || 0)}
+                        className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-orange focus:outline-none font-bold text-brand-gray-dark font-mono text-green-600 text-center"
+                        placeholder="0.00"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Envío Local (Extra)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={editInvoiceLocalDelivery || ''}
+                        onChange={(e) => setEditInvoiceLocalDelivery(parseFloat(e.target.value) || 0)}
+                        className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-orange focus:outline-none font-bold text-brand-gray-dark font-mono text-green-600 text-center"
+                        placeholder="0.00"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-1.5 text-4xs text-slate-600">
+                    <div className="font-extrabold uppercase text-slate-400 text-[8px] tracking-wider mb-0.5">Resumen Contable Modificado</div>
+                    <div>Factura ID: <strong className="text-brand-gray-dark uppercase">{editingInvoice.id}</strong></div>
+                    <div>Locker / Casillero: <strong className="text-brand-gray-dark">{editingInvoice.lockerId || 'N/R'}</strong></div>
+                    <div>Importe Base: <strong>Q {editInvoiceBaseAmount.toFixed(2)}</strong></div>
+                    {editInvoiceInsurance > 0 && (
+                      <div className="text-emerald-600 font-bold">Cargo Seguro Extra: <strong>+ Q {editInvoiceInsurance.toFixed(2)}</strong></div>
+                    )}
+                    {editInvoiceLocalDelivery > 0 && (
+                      <div className="text-emerald-600 font-bold">Envío Local Extra: <strong>+ Q {editInvoiceLocalDelivery.toFixed(2)}</strong></div>
+                    )}
+                    <div className="text-green-700 font-black border-t border-slate-200/60 pt-1 mt-1 text-3xs flex justify-between items-center bg-green-50/50 p-1.5 rounded">
+                      <span>Monto Final de la Factura:</span>
+                      <span>Q {(editInvoiceBaseAmount + editInvoiceInsurance + editInvoiceLocalDelivery).toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-3 border-t border-slate-100 pt-4 mt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsEditInvoiceModalOpen(false);
+                        setEditingInvoice(null);
+                      }}
+                      className="px-5 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition active:scale-95 cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      className="bg-brand-orange hover:bg-brand-orange-hover text-white font-extrabold text-xs py-2 px-6 rounded-xl flex items-center justify-center gap-1 shadow-md shadow-orange-100 hover:shadow-orange-200 active:scale-98 transition cursor-pointer"
+                    >
+                      Guardar Cambios
+                    </button>
+                  </div>
+                </form>
               </div>
             </div>
           )}
