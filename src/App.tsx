@@ -6238,13 +6238,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
 
                     {/* ==================== 7. HISTORIAL DE CONSOLIDADOS (`consolidado`) ==================== */}
                     {adminSubTab === 'consolidado' && (() => {
-                      const handleBulkPrintInvoices = (guideIds: string[]) => {
-                        const printWindow = window.open('', '_blank');
-                        if (!printWindow) {
-                          alert('Por favor, permite las ventanas emergentes (popups) para poder imprimir las facturas.');
-                          return;
-                        }
-
+                      const handleBulkPrintInvoices = async (guideIds: string[]) => {
                         const newInvoicesCreated: any[] = [];
                         const invoicesToPrint: any[] = [];
                         const currentDate = new Date().toISOString().split('T')[0];
@@ -6285,13 +6279,23 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
 
                         if (invoicesToPrint.length === 0) {
                           alert('No se encontraron facturas asociadas a las guías seleccionadas.');
-                          printWindow.close();
                           return;
                         }
 
                         if (newInvoicesCreated.length > 0) {
-                          newInvoicesCreated.forEach(inv => db.upsertInvoice(inv));
-                          setInvoices(prev => [...newInvoicesCreated, ...prev]);
+                          try {
+                            await Promise.all(newInvoicesCreated.map(inv => db.upsertInvoice(inv)));
+                            setInvoices(prev => [...newInvoicesCreated, ...prev]);
+                          } catch (err) {
+                            console.error("Error saving bulk invoices:", err);
+                            alert("Ocurrió un error al guardar las nuevas facturas en la base de datos.");
+                          }
+                        }
+
+                        const printWindow = window.open('', '_blank');
+                        if (!printWindow) {
+                          alert('Por favor, permite las ventanas emergentes (popups) para poder imprimir las facturas.');
+                          return;
                         }
 
                         let contentHtml = `
