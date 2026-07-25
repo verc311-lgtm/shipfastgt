@@ -337,8 +337,25 @@ export default function App() {
   const [paymentLocker, setPaymentLocker] = useState('');
   const [paymentInvoice, setPaymentInvoice] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('Transferencia Bancaria');
-  const [paymentAmount, setPaymentAmount] = useState(57.40);
   const [paymentNotes, setPaymentNotes] = useState('');
+  const [paymentDiscountType, setPaymentDiscountType] = useState<'none' | 'fixed' | 'percentage'>('none');
+  const [paymentDiscountValue, setPaymentDiscountValue] = useState<number>(0);
+
+  const getNetPaymentAmount = () => {
+    const selectedInvoice = invoices.find(i => i.id === paymentInvoice);
+    if (!selectedInvoice) return 0;
+    
+    const originalAmount = selectedInvoice.amount;
+    if (paymentDiscountType === 'none') return originalAmount;
+    if (paymentDiscountType === 'fixed') {
+      return Math.max(0, originalAmount - paymentDiscountValue);
+    }
+    if (paymentDiscountType === 'percentage') {
+      const discount = originalAmount * (paymentDiscountValue / 100);
+      return Math.max(0, originalAmount - discount);
+    }
+    return originalAmount;
+  };
 
   // Expenses
   const [expensesLog, setExpensesLog] = useState<any[]>([]);
@@ -8691,17 +8708,33 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                   return;
                                 }
 
+                                const originalAmount = selectedInvoice.amount;
+                                const netAmount = getNetPaymentAmount();
+                                const discountAmount = originalAmount - netAmount;
+
                                 const currentDate = new Date().toISOString().split('T')[0];
                                 const receiptId = `PAG-${500 + paymentsLog.length + 1}`;
-                                const updatedInvoice = { ...selectedInvoice, paymentStatus: 'Pagado' };
+                                
+                                let auditNotes = paymentNotes || 'Auditado en ventanilla';
+                                if (paymentDiscountType !== 'none') {
+                                  auditNotes += ` (Descuento: Q ${discountAmount.toFixed(2)} - ${paymentDiscountType === 'fixed' ? 'Monto Fijo' : 'Porcentaje ' + paymentDiscountValue + '%'})`;
+                                }
+
+                                const updatedInvoice = { 
+                                  ...selectedInvoice, 
+                                  amount: netAmount,
+                                  paymentStatus: 'Pagado',
+                                  concept: selectedInvoice.concept + (paymentDiscountType !== 'none' ? ` [Descuento: Q ${discountAmount.toFixed(2)} sobre Q ${originalAmount.toFixed(2)}]` : '')
+                                };
+
                                 const newPayment = {
                                   id: receiptId,
                                   lockerId: paymentLocker,
                                   date: currentDate,
                                   method: paymentMethod,
                                   invoiceId: paymentInvoice,
-                                  amount: paymentAmount,
-                                  notes: paymentNotes || 'Auditado en ventanilla'
+                                  amount: netAmount,
+                                  notes: auditNotes
                                 };
 
                                 // Save to Supabase
@@ -8721,6 +8754,8 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                 
                                 // Reset fields
                                 setPaymentNotes('');
+                                setPaymentDiscountType('none');
+                                setPaymentDiscountValue(0);
                               }}
                               className="space-y-3"
                             >
@@ -8733,7 +8768,6 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                     const match = invoices.find(i => i.id === e.target.value);
                                     if (match) {
                                       setPaymentLocker(match.lockerId);
-                                      setPaymentAmount(match.amount);
                                     }
                                   }}
                                   className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white font-mono text-brand-orange font-bold"
@@ -8749,14 +8783,63 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                 </select>
                               </div>
 
-                              <div className="grid grid-cols-2 gap-2 text-4xs bg-white p-2.5 rounded border border-gray-200">
-                                <div>Locker: <strong>{paymentLocker}</strong></div>
+                              {/* Descuentos (Cantidad Fija o Porcentaje/Totales) */}
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Tipo de Descuento</label>
+                                  <select
+                                    value={paymentDiscountType}
+                                    onChange={(e) => {
+                                      setPaymentDiscountType(e.target.value as any);
+                                      setPaymentDiscountValue(0);
+                                    }}
+                                    className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white font-semibold text-brand-gray-dark"
+                                  >
+                                    <option value="none">Ninguno</option>
+                                    <option value="fixed">Monto Fijo</option>
+                                    <option value="percentage">Porcentaje (%)</option>
+                                  </select>
+                                </div>
+                                
+                                {paymentDiscountType !== 'none' && (
+                                  <div>
+                                    <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">
+                                      {paymentDiscountType === 'fixed' ? 'Valor Descuento (Cantidad)' : 'Porcentaje (%)'}
+                                    </label>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="any"
+                                      value={paymentDiscountValue}
+                                      onChange={(e) => setPaymentDiscountValue(parseFloat(e.target.value) || 0)}
+                                      className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark font-mono text-brand-orange"
+                                      placeholder={paymentDiscountType === 'fixed' ? 'Ej: 15.50' : 'Ej: 10'}
+                                    />
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="grid grid-cols-1 gap-1 text-4xs bg-slate-50 p-3 rounded-lg border border-slate-200 leading-relaxed text-slate-600">
+                                <div>Locker / Casillero: <strong className="text-brand-gray-dark">{paymentLocker || 'N/R'}</strong></div>
                                 {(() => {
                                   const selectedInv = invoices.find(i => i.id === paymentInvoice);
                                   const selectedInvParsed = selectedInv ? parseInvoiceConcept(selectedInv.concept) : null;
                                   const selectedInvSymbol = selectedInvParsed?.currency === 'USD' ? '$' : 'Q';
+                                  const originalAmount = selectedInv ? selectedInv.amount : 0;
+                                  const netAmount = getNetPaymentAmount();
+                                  const discountAmount = originalAmount - netAmount;
+
                                   return (
-                                    <div>Monto: <strong>{selectedInvSymbol} {paymentAmount.toFixed(2)}</strong></div>
+                                    <>
+                                      <div>Monto Original Factura: <strong>{selectedInvSymbol} {originalAmount.toFixed(2)}</strong></div>
+                                      {paymentDiscountType !== 'none' && (
+                                        <div className="text-red-600 font-bold">Descuento Aplicado: <strong>- {selectedInvSymbol} {discountAmount.toFixed(2)}</strong></div>
+                                      )}
+                                      <div className="text-green-700 font-black border-t border-slate-200/60 pt-1 mt-1 text-3xs flex justify-between items-center bg-green-50/50 p-1.5 rounded">
+                                        <span>Total Neto a Cobrar:</span>
+                                        <span>{selectedInvSymbol} {netAmount.toFixed(2)}</span>
+                                      </div>
+                                    </>
                                   );
                                 })()}
                               </div>
