@@ -4438,7 +4438,7 @@ Para proporcionarle información específica, puede solicitar:
                 if (['portal'].includes(subTab)) return 'resumen';
                 if (['registro-paquetes', 'cliente-mayor', 'pre-alertas'].includes(subTab)) return 'logistica';
                 if (['warehouse', 'consolidado'].includes(subTab)) return 'almacen';
-                if (['facturacion', 'pagos', 'gastos', 'cotizaciones'].includes(subTab)) return 'finanzas';
+                if (['reportes-financieros', 'facturacion', 'pagos', 'gastos', 'cotizaciones'].includes(subTab)) return 'finanzas';
                 if (['reportes', 'sucursales', 'usuarios', 'tarifas', 'ajustes'].includes(subTab)) return 'sistema';
                 return 'resumen';
               };
@@ -7474,7 +7474,190 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                       );
                     })()}
 
-                    {/* ==================== 8. FACTURACIÓN Y COBROS (`facturacion`) ==================== */}
+                                {/* ==================== ADMIN: REPORTES FINANCIEROS TAB ==================== */}
+            {adminSubTab === 'reportes-financieros' && (() => {
+              const pendingInvoices = invoices.filter(i => i.paymentStatus === 'Pendiente');
+              const paidInvoices = invoices.filter(i => i.paymentStatus === 'Pagado');
+
+              const totalRevenueGTQ = paymentsLog
+                .filter(p => p.currency === 'GTQ' || !p.currency)
+                .reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
+              const totalRevenueUSD = paymentsLog
+                .filter(p => p.currency === 'USD')
+                .reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
+              
+              const totalExpensesGTQ = expensesLog
+                .filter(e => e.currency === 'GTQ' || !e.currency)
+                .reduce((acc, e) => acc + (parseFloat(e.amount) || 0), 0);
+              const totalExpensesUSD = expensesLog
+                .filter(e => e.currency === 'USD')
+                .reduce((acc, e) => acc + (parseFloat(e.amount) || 0), 0);
+
+              const balanceGTQ = totalRevenueGTQ - totalExpensesGTQ;
+              const balanceUSD = totalRevenueUSD - totalExpensesUSD;
+
+              const pendingTotalGTQ = pendingInvoices.reduce((acc, i) => {
+                const parsed = parseInvoiceConcept(i.concept);
+                if ((parsed?.currency || 'GTQ') === 'GTQ') return acc + (parseFloat(i.amount) || 0);
+                return acc;
+              }, 0);
+              
+              const pendingTotalUSD = pendingInvoices.reduce((acc, i) => {
+                const parsed = parseInvoiceConcept(i.concept);
+                if (parsed?.currency === 'USD') return acc + (parseFloat(i.amount) || 0);
+                return acc;
+              }, 0);
+
+              return (
+                <div className="flex flex-col gap-6 w-full animate-fade-in pb-20">
+                  <div className="flex items-center justify-between bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <div>
+                      <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-3">
+                        <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                          <Wallet className="h-6 w-6" />
+                        </div>
+                        Reportes Financieros
+                      </h2>
+                      <p className="text-sm text-gray-500 mt-1">
+                        Resumen contable, ingresos, gastos y facturación.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* Revenue Card */}
+                    <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-3 relative overflow-hidden group">
+                      <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition">
+                        <TrendingUp className="h-16 w-16 text-green-500" />
+                      </div>
+                      <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Total Ingresos</h3>
+                      <div>
+                        <div className="text-2xl font-black text-gray-800">Q{totalRevenueGTQ.toFixed(2)}</div>
+                        <div className="text-sm font-semibold text-gray-500 mt-1">${totalRevenueUSD.toFixed(2)}</div>
+                      </div>
+                      <div className="text-3xs text-green-600 font-bold bg-green-50 self-start px-2 py-0.5 rounded uppercase mt-auto">Facturas Cobradas: {paidInvoices.length}</div>
+                    </div>
+
+                    {/* Expenses Card */}
+                    <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-3 relative overflow-hidden group">
+                      <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition">
+                        <TrendingUp className="h-16 w-16 text-red-500 rotate-180" />
+                      </div>
+                      <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Total Gastos</h3>
+                      <div>
+                        <div className="text-2xl font-black text-gray-800">Q{totalExpensesGTQ.toFixed(2)}</div>
+                        <div className="text-sm font-semibold text-gray-500 mt-1">${totalExpensesUSD.toFixed(2)}</div>
+                      </div>
+                      <div className="text-3xs text-red-600 font-bold bg-red-50 self-start px-2 py-0.5 rounded uppercase mt-auto">Registros de Gastos: {expensesLog.length}</div>
+                    </div>
+
+                    {/* Net Balance Card */}
+                    <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-3 relative overflow-hidden group">
+                      <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition">
+                        <DollarSign className="h-16 w-16 text-blue-500" />
+                      </div>
+                      <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Balance Neto</h3>
+                      <div>
+                        <div className={`text-2xl font-black ${balanceGTQ >= 0 ? 'text-blue-600' : 'text-red-600'}`}>Q{balanceGTQ.toFixed(2)}</div>
+                        <div className={`text-sm font-semibold mt-1 ${balanceUSD >= 0 ? 'text-blue-500' : 'text-red-500'}`}>${balanceUSD.toFixed(2)}</div>
+                      </div>
+                      <div className="text-3xs text-blue-600 font-bold bg-blue-50 self-start px-2 py-0.5 rounded uppercase mt-auto">Utilidad Calculada</div>
+                    </div>
+
+                    {/* Pending Invoices Card */}
+                    <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-3 relative overflow-hidden group">
+                      <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition">
+                        <AlertTriangle className="h-16 w-16 text-orange-500" />
+                      </div>
+                      <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Pendiente de Cobro</h3>
+                      <div>
+                        <div className="text-2xl font-black text-gray-800">Q{pendingTotalGTQ.toFixed(2)}</div>
+                        <div className="text-sm font-semibold text-gray-500 mt-1">${pendingTotalUSD.toFixed(2)}</div>
+                      </div>
+                      <div className="text-3xs text-orange-600 font-bold bg-orange-50 self-start px-2 py-0.5 rounded uppercase mt-auto">Facturas Pendientes: {pendingInvoices.length}</div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* List of Pending Invoices */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
+                      <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+                        <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                          <ClipboardList className="h-4 w-4 text-orange-500" />
+                          Facturas Pendientes ({pendingInvoices.length})
+                        </h3>
+                      </div>
+                      <div className="p-0 overflow-y-auto max-h-[400px]">
+                        {pendingInvoices.length === 0 ? (
+                          <div className="p-8 text-center text-gray-400 text-sm font-medium">No hay facturas pendientes.</div>
+                        ) : (
+                          <div className="divide-y divide-gray-100">
+                            {pendingInvoices.map(inv => {
+                              const parsed = parseInvoiceConcept(inv.concept);
+                              const curr = parsed?.currency || 'GTQ';
+                              const sym = curr === 'USD' ? '$' : 'Q';
+                              return (
+                                <div key={inv.id} className="p-4 flex items-center justify-between hover:bg-gray-50 transition">
+                                  <div>
+                                    <div className="text-xs font-bold text-gray-800">{inv.id}</div>
+                                    <div className="text-2xs text-gray-500 mt-0.5 line-clamp-1">{parsed?.detail || inv.concept}</div>
+                                    <div className="text-3xs text-gray-400 mt-0.5">{new Date(inv.date).toLocaleDateString()}</div>
+                                  </div>
+                                  <div className="text-right">
+                                    <div className="text-sm font-black text-gray-800">{sym}{parseFloat(inv.amount || '0').toFixed(2)}</div>
+                                    <span className="inline-block mt-1 px-1.5 py-0.5 bg-orange-50 text-orange-600 border border-orange-200 rounded text-[9px] font-bold uppercase">
+                                      Pendiente
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* List of Recent Payments */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
+                      <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+                        <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-green-500" />
+                          Últimos Ingresos ({paymentsLog.length})
+                        </h3>
+                      </div>
+                      <div className="p-0 overflow-y-auto max-h-[400px]">
+                        {paymentsLog.length === 0 ? (
+                          <div className="p-8 text-center text-gray-400 text-sm font-medium">No hay ingresos registrados.</div>
+                        ) : (
+                          <div className="divide-y divide-gray-100">
+                            {[...paymentsLog].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(pay => {
+                              const curr = pay.currency || 'GTQ';
+                              const sym = curr === 'USD' ? '$' : 'Q';
+                              return (
+                                <div key={pay.id} className="p-4 flex items-center justify-between hover:bg-gray-50 transition">
+                                  <div>
+                                    <div className="text-xs font-bold text-gray-800">{pay.id} - {pay.method}</div>
+                                    <div className="text-2xs text-gray-500 mt-0.5">Ref: {pay.reference || 'N/A'}</div>
+                                    <div className="text-3xs text-gray-400 mt-0.5">{new Date(pay.date).toLocaleString()}</div>
+                                  </div>
+                                  <div className="text-right">
+                                    <div className="text-sm font-black text-green-600">+{sym}{parseFloat(pay.amount || '0').toFixed(2)}</div>
+                                    <div className="text-[9px] text-gray-400 uppercase mt-1 font-bold">Cobrado</div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+              );
+            })()}
+
+\n                    {/* ==================== 8. FACTURACIÓN Y COBROS (`facturacion`) ==================== */}
                     {adminSubTab === 'facturacion' && (
                       <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs space-y-6">
                         <div>
@@ -10053,189 +10236,6 @@ El Equipo de ShipFast GT`;
                       </div>
                     </div>
                   )}
-
-                </div>
-              );
-            })()}
-
-            {/* ==================== ADMIN: REPORTES FINANCIEROS TAB ==================== */}
-            {currentUser.role === 'admin' && activeTab === 'financial-reports' && (() => {
-              const pendingInvoices = invoices.filter(i => i.paymentStatus === 'Pendiente');
-              const paidInvoices = invoices.filter(i => i.paymentStatus === 'Pagado');
-
-              const totalRevenueGTQ = paymentsLog
-                .filter(p => p.currency === 'GTQ' || !p.currency)
-                .reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
-              const totalRevenueUSD = paymentsLog
-                .filter(p => p.currency === 'USD')
-                .reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
-              
-              const totalExpensesGTQ = expensesLog
-                .filter(e => e.currency === 'GTQ' || !e.currency)
-                .reduce((acc, e) => acc + (parseFloat(e.amount) || 0), 0);
-              const totalExpensesUSD = expensesLog
-                .filter(e => e.currency === 'USD')
-                .reduce((acc, e) => acc + (parseFloat(e.amount) || 0), 0);
-
-              const balanceGTQ = totalRevenueGTQ - totalExpensesGTQ;
-              const balanceUSD = totalRevenueUSD - totalExpensesUSD;
-
-              const pendingTotalGTQ = pendingInvoices.reduce((acc, i) => {
-                const parsed = parseInvoiceConcept(i.concept);
-                if ((parsed?.currency || 'GTQ') === 'GTQ') return acc + (parseFloat(i.amount) || 0);
-                return acc;
-              }, 0);
-              
-              const pendingTotalUSD = pendingInvoices.reduce((acc, i) => {
-                const parsed = parseInvoiceConcept(i.concept);
-                if (parsed?.currency === 'USD') return acc + (parseFloat(i.amount) || 0);
-                return acc;
-              }, 0);
-
-              return (
-                <div className="flex flex-col gap-6 w-full animate-fade-in pb-20">
-                  <div className="flex items-center justify-between bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                    <div>
-                      <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-3">
-                        <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
-                          <Wallet className="h-6 w-6" />
-                        </div>
-                        Reportes Financieros
-                      </h2>
-                      <p className="text-sm text-gray-500 mt-1">
-                        Resumen contable, ingresos, gastos y facturación.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    {/* Revenue Card */}
-                    <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-3 relative overflow-hidden group">
-                      <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition">
-                        <TrendingUp className="h-16 w-16 text-green-500" />
-                      </div>
-                      <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Total Ingresos</h3>
-                      <div>
-                        <div className="text-2xl font-black text-gray-800">Q{totalRevenueGTQ.toFixed(2)}</div>
-                        <div className="text-sm font-semibold text-gray-500 mt-1">${totalRevenueUSD.toFixed(2)}</div>
-                      </div>
-                      <div className="text-3xs text-green-600 font-bold bg-green-50 self-start px-2 py-0.5 rounded uppercase mt-auto">Facturas Cobradas: {paidInvoices.length}</div>
-                    </div>
-
-                    {/* Expenses Card */}
-                    <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-3 relative overflow-hidden group">
-                      <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition">
-                        <TrendingUp className="h-16 w-16 text-red-500 rotate-180" />
-                      </div>
-                      <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Total Gastos</h3>
-                      <div>
-                        <div className="text-2xl font-black text-gray-800">Q{totalExpensesGTQ.toFixed(2)}</div>
-                        <div className="text-sm font-semibold text-gray-500 mt-1">${totalExpensesUSD.toFixed(2)}</div>
-                      </div>
-                      <div className="text-3xs text-red-600 font-bold bg-red-50 self-start px-2 py-0.5 rounded uppercase mt-auto">Registros de Gastos: {expensesLog.length}</div>
-                    </div>
-
-                    {/* Net Balance Card */}
-                    <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-3 relative overflow-hidden group">
-                      <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition">
-                        <DollarSign className="h-16 w-16 text-blue-500" />
-                      </div>
-                      <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Balance Neto</h3>
-                      <div>
-                        <div className={`text-2xl font-black ${balanceGTQ >= 0 ? 'text-blue-600' : 'text-red-600'}`}>Q{balanceGTQ.toFixed(2)}</div>
-                        <div className={`text-sm font-semibold mt-1 ${balanceUSD >= 0 ? 'text-blue-500' : 'text-red-500'}`}>${balanceUSD.toFixed(2)}</div>
-                      </div>
-                      <div className="text-3xs text-blue-600 font-bold bg-blue-50 self-start px-2 py-0.5 rounded uppercase mt-auto">Utilidad Calculada</div>
-                    </div>
-
-                    {/* Pending Invoices Card */}
-                    <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-3 relative overflow-hidden group">
-                      <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition">
-                        <AlertTriangle className="h-16 w-16 text-orange-500" />
-                      </div>
-                      <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Pendiente de Cobro</h3>
-                      <div>
-                        <div className="text-2xl font-black text-gray-800">Q{pendingTotalGTQ.toFixed(2)}</div>
-                        <div className="text-sm font-semibold text-gray-500 mt-1">${pendingTotalUSD.toFixed(2)}</div>
-                      </div>
-                      <div className="text-3xs text-orange-600 font-bold bg-orange-50 self-start px-2 py-0.5 rounded uppercase mt-auto">Facturas Pendientes: {pendingInvoices.length}</div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* List of Pending Invoices */}
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
-                      <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
-                        <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
-                          <ClipboardList className="h-4 w-4 text-orange-500" />
-                          Facturas Pendientes ({pendingInvoices.length})
-                        </h3>
-                      </div>
-                      <div className="p-0 overflow-y-auto max-h-[400px]">
-                        {pendingInvoices.length === 0 ? (
-                          <div className="p-8 text-center text-gray-400 text-sm font-medium">No hay facturas pendientes.</div>
-                        ) : (
-                          <div className="divide-y divide-gray-100">
-                            {pendingInvoices.map(inv => {
-                              const parsed = parseInvoiceConcept(inv.concept);
-                              const curr = parsed?.currency || 'GTQ';
-                              const sym = curr === 'USD' ? '$' : 'Q';
-                              return (
-                                <div key={inv.id} className="p-4 flex items-center justify-between hover:bg-gray-50 transition">
-                                  <div>
-                                    <div className="text-xs font-bold text-gray-800">{inv.id}</div>
-                                    <div className="text-2xs text-gray-500 mt-0.5 line-clamp-1">{parsed?.detail || inv.concept}</div>
-                                    <div className="text-3xs text-gray-400 mt-0.5">{new Date(inv.date).toLocaleDateString()}</div>
-                                  </div>
-                                  <div className="text-right">
-                                    <div className="text-sm font-black text-gray-800">{sym}{parseFloat(inv.amount || '0').toFixed(2)}</div>
-                                    <span className="inline-block mt-1 px-1.5 py-0.5 bg-orange-50 text-orange-600 border border-orange-200 rounded text-[9px] font-bold uppercase">
-                                      Pendiente
-                                    </span>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* List of Recent Payments */}
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
-                      <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
-                        <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
-                          <CheckCircle2 className="h-4 w-4 text-green-500" />
-                          Últimos Ingresos ({paymentsLog.length})
-                        </h3>
-                      </div>
-                      <div className="p-0 overflow-y-auto max-h-[400px]">
-                        {paymentsLog.length === 0 ? (
-                          <div className="p-8 text-center text-gray-400 text-sm font-medium">No hay ingresos registrados.</div>
-                        ) : (
-                          <div className="divide-y divide-gray-100">
-                            {[...paymentsLog].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(pay => {
-                              const curr = pay.currency || 'GTQ';
-                              const sym = curr === 'USD' ? '$' : 'Q';
-                              return (
-                                <div key={pay.id} className="p-4 flex items-center justify-between hover:bg-gray-50 transition">
-                                  <div>
-                                    <div className="text-xs font-bold text-gray-800">{pay.id} - {pay.method}</div>
-                                    <div className="text-2xs text-gray-500 mt-0.5">Ref: {pay.reference || 'N/A'}</div>
-                                    <div className="text-3xs text-gray-400 mt-0.5">{new Date(pay.date).toLocaleString()}</div>
-                                  </div>
-                                  <div className="text-right">
-                                    <div className="text-sm font-black text-green-600">+{sym}{parseFloat(pay.amount || '0').toFixed(2)}</div>
-                                    <div className="text-[9px] text-gray-400 uppercase mt-1 font-bold">Cobrado</div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
 
                 </div>
               );
