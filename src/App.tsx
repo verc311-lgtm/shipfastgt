@@ -1927,9 +1927,9 @@ Cargos de Flete y Tarifas Asignadas:
           </div>
           <div class="company-info">
             <strong>ShipFast Logistics Quetzaltenango</strong><br>
-            Calle B 22-48 Zona 3, Colonia Minerva<br>
+            0 Avenida 13-105 Zona 5 Condominio Villa Zarca<br>
             Quetzaltenango, Guatemala<br>
-            Soporte: info@shipfastgt.com | Tel: +502 3726-8751
+            Soporte: info@shipfastgt.com | NIT: 93684541
           </div>
         </div>
 
@@ -1942,7 +1942,8 @@ Cargos de Flete y Tarifas Asignadas:
           <div class="info-block">
             <h3>EMISOR / PROVEEDOR</h3>
             <p class="client-name">ShipFast Quetzaltenango</p>
-            <p><strong>Dirección:</strong> Calle B 22-48 Zona 3, Colonia Minerva, Quetzaltenango, Guatemala</p>
+            <p><strong>Dirección:</strong> 0 Avenida 13-105 Zona 5 Condominio Villa Zarca, Quetzaltenango, Guatemala</p>
+            <p><strong>NIT:</strong> 93684541</p>
             <p><strong>Teléfono:</strong> +502 3726-8751</p>
             <p><strong>Email:</strong> info@shipfastgt.com</p>
           </div>
@@ -6264,151 +6265,298 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                         }
 
                         let contentHtml = `
-                          <html>
+                          <!DOCTYPE html>
+                          <html lang="es">
                             <head>
+                              <meta charset="UTF-8">
                               <title>Facturación en Masa - ShipFast GT</title>
                               <style>
+                                @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+                                
+                                @page {
+                                  size: letter;
+                                  margin: 0.5in;
+                                }
+                                
                                 body {
-                                  font-family: 'Courier New', Courier, monospace;
-                                  color: #000;
+                                  font-family: 'Inter', sans-serif;
+                                  color: #1F2937;
                                   margin: 0;
                                   padding: 0;
-                                  font-size: 11px;
+                                  line-height: 1.5;
+                                  background-color: #ffffff;
                                 }
-                                .invoice-page {
-                                  padding: 40px;
+                                .invoice-container {
                                   page-break-after: always;
                                   box-sizing: border-box;
+                                  padding: 20px;
                                   min-height: 100vh;
                                   display: flex;
                                   flex-direction: column;
                                   justify-content: space-between;
                                 }
                                 .header {
-                                  border-bottom: 2px solid #000;
-                                  padding-bottom: 10px;
-                                  margin-bottom: 20px;
+                                  display: flex;
+                                  justify-content: space-between;
+                                  align-items: flex-start;
+                                  border-bottom: 2px solid #EA580C;
+                                  padding-bottom: 25px;
+                                  margin-bottom: 30px;
+                                }
+                                .logo-area {
+                                  display: flex;
+                                  flex-direction: column;
+                                  gap: 5px;
+                                }
+                                .logo-img {
+                                  max-height: 55px;
+                                  width: auto;
+                                  display: block;
+                                }
+                                .logo-title {
+                                  font-size: 26px;
+                                  font-weight: 800;
+                                  color: #1F2937;
+                                }
+                                .logo-title span {
+                                  color: #EA580C;
+                                }
+                                .company-info {
+                                  text-align: right;
+                                  font-size: 11px;
+                                  color: #4B5563;
+                                  line-height: 1.6;
+                                }
+                                .title-area {
                                   display: flex;
                                   justify-content: space-between;
                                   align-items: flex-end;
+                                  margin-bottom: 25px;
                                 }
-                                .logo {
-                                  font-size: 20px;
-                                  font-weight: bold;
-                                  letter-spacing: 2px;
+                                .title {
+                                  font-size: 22px;
+                                  font-weight: 800;
+                                  color: #111827;
+                                  text-transform: uppercase;
+                                  letter-spacing: 0.5px;
+                                  margin: 0;
                                 }
-                                .invoice-number {
-                                  font-size: 14px;
-                                  font-weight: bold;
+                                .invoice-id {
+                                  font-size: 16px;
+                                  font-weight: 700;
+                                  color: #EA580C;
                                 }
-                                .meta-grid {
+                                .info-grid {
                                   display: grid;
                                   grid-template-columns: 1fr 1fr;
-                                  gap: 20px;
-                                  margin-bottom: 30px;
+                                  gap: 30px;
+                                  margin-bottom: 35px;
                                 }
-                                .meta-box {
-                                  border: 1px solid #000;
-                                  padding: 10px;
+                                .info-block {
+                                  background-color: #F9FAFB;
+                                  padding: 20px;
+                                  border-radius: 8px;
+                                  border: 1px solid #E5E7EB;
                                 }
-                                .meta-title {
-                                  font-weight: bold;
-                                  border-bottom: 1px solid #000;
-                                  padding-bottom: 3px;
-                                  margin-bottom: 8px;
+                                .info-block h3 {
+                                  font-size: 11px;
+                                  font-weight: 800;
                                   text-transform: uppercase;
+                                  color: #9CA3AF;
+                                  letter-spacing: 0.5px;
+                                  margin-top: 0;
+                                  margin-bottom: 12px;
+                                  border-bottom: 1px solid #E5E7EB;
+                                  padding-bottom: 6px;
                                 }
-                                .meta-item {
-                                  margin-bottom: 4px;
+                                .info-block p {
+                                  margin: 4px 0;
+                                  font-size: 13px;
+                                  color: #374151;
                                 }
-                                .table-items {
+                                .client-name {
+                                  font-size: 15px;
+                                  font-weight: 700;
+                                  color: #111827;
+                                  margin-bottom: 6px !important;
+                                }
+                                table {
                                   width: 100%;
                                   border-collapse: collapse;
-                                  margin-bottom: 30px;
+                                  margin-bottom: 35px;
                                 }
-                                .table-items th {
-                                  border-bottom: 2px solid #000;
-                                  padding: 6px;
+                                th {
+                                  background-color: #F3F4F6;
+                                  color: #374151;
+                                  font-weight: 700;
                                   text-align: left;
-                                  font-weight: bold;
+                                  padding: 12px 16px;
+                                  font-size: 12px;
+                                  text-transform: uppercase;
+                                  border-bottom: 2px solid #E5E7EB;
                                 }
-                                .table-items td {
-                                  border-bottom: 1px dashed #ccc;
-                                  padding: 6px;
+                                td {
+                                  padding: 16px;
+                                  font-size: 13px;
+                                  border-bottom: 1px solid #E5E7EB;
+                                  color: #374151;
                                 }
-                                .total-box {
-                                  text-align: right;
+                                .concept-title {
+                                  font-weight: 600;
+                                  color: #111827;
                                   font-size: 14px;
-                                  font-weight: bold;
-                                  margin-top: 20px;
-                                  border-top: 2px solid #000;
-                                  padding-top: 10px;
+                                }
+                                .text-right {
+                                  text-align: right;
+                                }
+                                .summary-container {
+                                  display: flex;
+                                  justify-content: flex-end;
+                                  margin-bottom: 40px;
+                                }
+                                .summary-box {
+                                  width: 320px;
+                                }
+                                .summary-row {
+                                  display: flex;
+                                  justify-content: space-between;
+                                  padding: 8px 0;
+                                  border-bottom: 1px solid #F3F4F6;
+                                  font-size: 13px;
+                                }
+                                .summary-row.total {
+                                  border-bottom: none;
+                                  font-size: 18px;
+                                  font-weight: 800;
+                                  color: #EA580C;
+                                  padding-top: 12px;
+                                  border-top: 2px solid #FED7AA;
                                 }
                                 .footer {
-                                  border-top: 1px dashed #000;
-                                  padding-top: 10px;
                                   text-align: center;
-                                  font-size: 8px;
+                                  font-size: 11px;
+                                  color: #9CA3AF;
+                                  border-top: 1px solid #E5E7EB;
+                                  padding-top: 20px;
+                                  margin-top: auto;
+                                }
+                                .btn-print-action {
+                                  background-color: #EA580C;
+                                  color: white;
+                                  border: none;
+                                  padding: 12px 24px;
+                                  font-size: 14px;
+                                  font-weight: bold;
+                                  border-radius: 6px;
+                                  cursor: pointer;
+                                  margin-bottom: 20px;
+                                  transition: background-color 0.2s;
+                                }
+                                .btn-print-action:hover {
+                                  background-color: #C2410C;
                                 }
                                 @media print {
-                                  body { padding: 0; }
-                                  .no-print { display: none; }
+                                  .no-print {
+                                    display: none !important;
+                                  }
+                                  body {
+                                    padding: 0;
+                                  }
+                                  .invoice-container {
+                                    padding: 0;
+                                    margin: 0;
+                                  }
                                 }
                               </style>
                             </head>
                             <body>
+                              <div class="no-print" style="display: flex; justify-content: space-between; padding: 20px; background: #f3f4f6; border-bottom: 1px solid #e5e7eb;">
+                                <button class="btn-print-action" onclick="window.print()" style="margin: 0;">🖨️ Imprimir / Guardar Lote como PDF</button>
+                                <button class="btn-print-action" style="background-color: #4B5563; margin: 0;" onclick="window.close()">Cerrar Ventana</button>
+                              </div>
                         `;
 
                         invoicesToPrint.forEach(({ invoice, guide }) => {
                           const client = users.find(u => u.lockerId === invoice.lockerId);
                           const clientName = client ? client.name : 'Cliente General';
                           const clientEmail = client ? client.email : 'N/A';
+                          const clientPhone = client ? client.phone : 'N/A';
+                          const clientAddress = client ? client.address : 'Dirección no registrada';
+                          const parsed = parseInvoiceConcept(invoice.concept);
                           
                           contentHtml += `
-                            <div class="invoice-page">
+                            <div class="invoice-container">
                               <div>
-                                <div class="header">
-                                  <div class="logo">SHIPFAST GT</div>
-                                  <div class="invoice-number">FACTURA COMERCIAL: ${invoice.id}</div>
-                                </div>
-
-                                <div class="meta-grid">
-                                  <div class="meta-box">
-                                    <div class="meta-title">Datos del Cliente</div>
-                                    <div class="meta-item"><strong>Nombre:</strong> ${clientName}</div>
-                                    <div class="meta-item"><strong>NIT:</strong> ${client?.lockerId || 'CF'}</div>
-                                    <div class="meta-item"><strong>Casillero:</strong> ${invoice.lockerId}</div>
-                                    <div class="meta-item"><strong>Email:</strong> ${clientEmail}</div>
+                                <div class="header" style="margin-top: 20px;">
+                                  <div class="logo-area">
+                                    <div class="logo-title">ShipFast<span>GT</span></div>
+                                    <p style="color: #6B7280; font-size: 11px; margin: 0; font-weight: 500;">Premium Courier & Cargo Service</p>
                                   </div>
-                                  <div class="meta-box">
-                                    <div class="meta-title">Detalles del Emisor</div>
-                                    <div class="meta-item"><strong>ShipFast Guatemala S.A.</strong></div>
-                                    <div class="meta-item"><strong>NIT:</strong> 93684541</div>
-                                    <div class="meta-item"><strong>Dirección:</strong> 0 Avenida 13-105 Zona 5 Condominio Villa Zarca Quetzaltenango Guatemala</div>
-                                    <div class="meta-item"><strong>Fecha Factura:</strong> ${invoice.date}</div>
+                                  <div class="company-info">
+                                    <strong>ShipFast Logistics Quetzaltenango</strong><br>
+                                    0 Avenida 13-105 Zona 5 Condominio Villa Zarca<br>
+                                    Quetzaltenango, Guatemala<br>
+                                    Soporte: info@shipfastgt.com | NIT: 93684541
                                   </div>
                                 </div>
 
-                                <table class="table-items">
+                                <div class="title-area">
+                                  <h1 class="title">Factura de Servicio</h1>
+                                  <span class="invoice-id">Factura No: ${invoice.id}</span>
+                                </div>
+
+                                <div class="info-grid">
+                                  <div class="info-block">
+                                    <h3>EMISOR / PROVEEDOR</h3>
+                                    <p class="client-name">ShipFast Quetzaltenango</p>
+                                    <p><strong>Dirección:</strong> 0 Avenida 13-105 Zona 5 Condominio Villa Zarca, Quetzaltenango, Guatemala</p>
+                                    <p><strong>NIT:</strong> 93684541</p>
+                                    <p><strong>Teléfono:</strong> +502 3726-8751</p>
+                                    <p><strong>Email:</strong> info@shipfastgt.com</p>
+                                  </div>
+                                  <div class="info-block">
+                                    <h3>FACTURADO A</h3>
+                                    <p class="client-name">${clientName}</p>
+                                    ${invoice.lockerId ? `<p><strong>Casillero:</strong> ${invoice.lockerId}</p>` : '<p><strong>Estado:</strong> Cliente No Registrado (Manual)</p>'}
+                                    <p><strong>Email:</strong> ${clientEmail}</p>
+                                    <p><strong>Teléfono:</strong> ${clientPhone}</p>
+                                    <p><strong>Dirección:</strong> ${clientAddress}</p>
+                                  </div>
+                                </div>
+
+                                <table style="width: 100%;">
                                   <thead>
                                     <tr>
-                                      <th>Descripción de Servicios de Flete</th>
-                                      <th style="text-align: right; width: 150px;">Total a Pagar</th>
+                                      <th style="width: 70%;">Descripción del Cargo / Concepto</th>
+                                      <th style="width: 30%; text-align: right;">Monto</th>
                                     </tr>
                                   </thead>
                                   <tbody>
                                     <tr>
                                       <td>
-                                        ${invoice.concept}
-                                        ${guide ? `<br/><span style="font-size: 9px; color: #555;">(Peso registrado: ${guide.totalWeight.toFixed(1)} Lbs | Bultos: ${guide.itemsCount})</span>` : ''}
+                                        <div class="concept-title">${parsed.detail}</div>
+                                        ${guide ? `<span style="font-size: 11px; color: #6b7280; display: block; margin-top: 4px;">Peso total: ${guide.totalWeight.toFixed(1)} Lbs | Bultos: ${guide.itemsCount}</span>` : ''}
                                       </td>
-                                      <td style="text-align: right; font-weight: bold; font-size: 12px;">Q ${invoice.amount.toFixed(2)}</td>
+                                      <td class="text-right" style="font-weight: 700;">Q ${invoice.amount.toFixed(2)}</td>
                                     </tr>
                                   </tbody>
                                 </table>
 
-                                <div class="total-box">
-                                  TOTAL A FACTURAR: Q ${invoice.amount.toFixed(2)}
+                                <div class="summary-container">
+                                  <div class="summary-box">
+                                    <div class="summary-row">
+                                      <span style="color: #4B5563;">Subtotal:</span>
+                                      <span style="font-weight: 600;">Q ${invoice.amount.toFixed(2)}</span>
+                                    </div>
+                                    <div class="summary-row">
+                                      <span style="color: #4B5563;">Impuestos (Exento IVA):</span>
+                                      <span style="font-weight: 600;">Q 0.00</span>
+                                    </div>
+                                    <div class="summary-row total">
+                                      <span>Total a Pagar:</span>
+                                      <span>Q ${invoice.amount.toFixed(2)}</span>
+                                    </div>
+                                  </div>
                                 </div>
                               </div>
 
@@ -6421,9 +6569,6 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                         });
 
                         contentHtml += `
-                              <div class="no-print" style="position: fixed; bottom: 20px; right: 20px; background: #fff; padding: 10px; border: 1px solid #000; box-shadow: 0 2px 10px rgba(0,0,0,0.2);">
-                                <button onclick="window.print();" style="padding: 8px 20px; font-weight: bold; cursor: pointer; background: #ea580c; color: #fff; border: none; border-radius: 4px;">Imprimir Facturas</button>
-                              </div>
                               <script>
                                 window.onload = function() {
                                   window.print();
