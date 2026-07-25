@@ -175,6 +175,16 @@ export const db = {
       return false;
     }
   },
+  async deleteInvoice(id: string): Promise<boolean> {
+    try {
+      const { error } = await supabase.from('invoices').delete().eq('id', id);
+      if (error) throw error;
+      return true;
+    } catch (err) {
+      console.error("Supabase: deleteInvoice error", err);
+      return false;
+    }
+  },
 
   // Payments
   async getPayments(): Promise<any[]> {

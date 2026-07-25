@@ -1668,6 +1668,19 @@ Cargos de Flete y Tarifas Asignadas:
     printWindow.document.close();
   };
 
+  const handleDeleteInvoice = async (invoiceId: string) => {
+    if (!window.confirm(`¿Está seguro de que desea eliminar la factura ${invoiceId}? Esta acción es permanente y no se puede deshacer.`)) {
+      return;
+    }
+    const success = await db.deleteInvoice(invoiceId);
+    if (success) {
+      setInvoices(prev => prev.filter(inv => inv.id !== invoiceId));
+      alert(`¡Factura ${invoiceId} eliminada exitosamente!`);
+    } else {
+      alert(`Error: No se pudo eliminar la factura de la base de datos.`);
+    }
+  };
+
   // Generate professional print-ready HTML Invoice PDF
   const handlePrintInvoicePDF = (invoice: any) => {
     const parsed = parseInvoiceConcept(invoice.concept);
@@ -7881,14 +7894,24 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                           </span>
                                         </td>
                                         <td className="py-3 px-4 text-center">
-                                          <button
-                                            type="button"
-                                            onClick={() => handlePrintInvoicePDF(invoice)}
-                                            className="bg-brand-gray-dark hover:bg-brand-gray-dark/80 text-white font-extrabold text-4xs px-2.5 py-1 rounded transition uppercase tracking-wider flex items-center gap-1 mx-auto cursor-pointer"
-                                            title="Generar Factura en PDF profesional"
-                                          >
-                                            🖨️ PDF
-                                          </button>
+                                          <div className="flex gap-1.5 justify-center items-center">
+                                            <button
+                                              type="button"
+                                              onClick={() => handlePrintInvoicePDF(invoice)}
+                                              className="bg-brand-gray-dark hover:bg-brand-gray-dark/80 text-white font-extrabold text-4xs px-2.5 py-1 rounded transition uppercase tracking-wider flex items-center gap-1 cursor-pointer"
+                                              title="Generar Factura en PDF profesional"
+                                            >
+                                              🖨️ PDF
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => handleDeleteInvoice(invoice.id)}
+                                              className="bg-red-600 hover:bg-red-700 text-white font-bold text-4xs px-2.5 py-1 rounded transition uppercase tracking-wider flex items-center gap-1 cursor-pointer"
+                                              title="Eliminar Factura"
+                                            >
+                                              🗑️
+                                            </button>
+                                          </div>
                                         </td>
                                       </tr>
                                     );
