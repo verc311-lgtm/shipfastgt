@@ -3646,17 +3646,7 @@ Para proporcionarle información específica, puede solicitar:
                       <ClipboardList className="h-3.5 w-3.5" />
                       Repartidores
                     </button>
-                    <button
-                      onClick={() => setActiveTab('financial-reports')}
-                      className={`px-4 py-1.5 text-3xs font-bold rounded uppercase tracking-wider transition flex items-center gap-1.5 whitespace-nowrap ${
-                        activeTab === 'financial-reports' 
-                          ? 'bg-brand-orange text-white' 
-                          : 'text-gray-300 hover:text-white hover:bg-gray-700'
-                      }`}
-                    >
-                      <Wallet className="h-3.5 w-3.5" />
-                      Finanzas
-                    </button>
+
                     <button
                       onClick={() => setActiveTab('ai-chat')}
                       className={`px-4 py-1.5 text-3xs font-bold rounded uppercase tracking-wider transition flex items-center gap-1.5 whitespace-nowrap ${
@@ -4469,6 +4459,7 @@ Para proporcionarle información específica, puede solicitar:
                   { id: 'consolidado', label: 'Historial de Consolidados', icon: Layers },
                 ],
                 finanzas: [
+                  { id: 'reportes-financieros', label: 'Reportes Financieros', icon: Wallet },
                   { id: 'facturacion', label: 'Facturación / Fletes', icon: FileSpreadsheet },
                   { id: 'cotizaciones', label: 'Generar Cotización', icon: ClipboardList },
                   { id: 'pagos', label: 'Registro de Pagos', icon: Wallet },
