@@ -6255,7 +6255,6 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                           if (!inv) {
                             const parts = guide.id.split('-');
                             const lockerId = parts[2] || '';
-                            const user = users.find(u => u.lockerId === lockerId);
                             const invoiceId = `FAC-${Math.floor(1000 + Math.random() * 9000)}`;
                             const rate = guide.origin === 'Mexico' ? ratesSettings.mexicoRate : ratesSettings.laredoRate;
                             const amount = guide.totalWeight * rate;
@@ -6266,9 +6265,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                               date: currentDate,
                               concept: `Flete Consolidado - ${guide.itemsCount} Paquetes desde Bodega ${guide.origin} [Guía: ${guide.id}]`,
                               amount: amount,
-                              paymentStatus: 'Pendiente',
-                              nit: user?.nit || 'C/F',
-                              address: user?.address || 'Ciudad de Guatemala'
+                              paymentStatus: 'Pendiente'
                             };
 
                             newInvoicesCreated.push(inv);
@@ -6516,6 +6513,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                           const clientEmail = client ? client.email : 'N/A';
                           const clientPhone = client ? client.phone : 'N/A';
                           const clientAddress = client ? client.address : 'Dirección no registrada';
+                          const clientNit = client ? client.nit : 'C/F';
                           const parsed = parseInvoiceConcept(invoice.concept);
                           
                           contentHtml += `
@@ -6552,6 +6550,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                     <h3>FACTURADO A</h3>
                                     <p class="client-name">${clientName}</p>
                                     ${invoice.lockerId ? `<p><strong>Casillero:</strong> ${invoice.lockerId}</p>` : '<p><strong>Estado:</strong> Cliente No Registrado (Manual)</p>'}
+                                    <p><strong>NIT:</strong> ${clientNit}</p>
                                     <p><strong>Email:</strong> ${clientEmail}</p>
                                     <p><strong>Teléfono:</strong> ${clientPhone}</p>
                                     <p><strong>Dirección:</strong> ${clientAddress}</p>
