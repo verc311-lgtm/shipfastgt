@@ -5301,21 +5301,19 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                   });
 
                                   const rows: string[][] = [];
-                                  rows.push(['ID', 'Locker', 'Cliente', 'Descripción', 'Peso Est. (Lbs)', 'Valor Decl. ($)', 'Estado', 'Fecha']);
                                   
                                   filtered.forEach(pa => {
                                     const user = users.find(u => u.lockerId === pa.lockerId);
                                     const clientName = user ? user.name : 'Desconocido';
-                                    rows.push([
-                                      pa.id, 
-                                      pa.lockerId, 
-                                      clientName, 
-                                      pa.description || '', 
-                                      String(pa.weightEst || 0), 
-                                      String(pa.declaredValue || 0), 
-                                      pa.status, 
-                                      pa.dateCreated || ''
-                                    ]);
+                                    rows.push(['ID', pa.id]);
+                                    rows.push(['Locker', pa.lockerId]);
+                                    rows.push(['Cliente', clientName]);
+                                    rows.push(['Descripción', pa.description || '']);
+                                    rows.push(['Peso Est. (Lbs)', String(pa.weightEst || 0)]);
+                                    rows.push(['Valor Decl. ($)', String(pa.declaredValue || 0)]);
+                                    rows.push(['Estado', pa.status]);
+                                    rows.push(['Fecha', pa.dateCreated || '']);
+                                    rows.push(['', '']);
                                   });
                                 
                                   const csvString = "\\uFEFF" + rows.map(e => e.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\\n");
