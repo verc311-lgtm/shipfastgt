@@ -5307,7 +5307,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                     const user = users.find(u => u.lockerId === pa.lockerId);
                                     const clientName = user ? user.name : 'Desconocido';
                                     rows.push([
-                                      pa.id || '', 
+                                      '="' + (pa.id || '') + '"', 
                                       pa.lockerId || '', 
                                       clientName || '', 
                                       pa.description || '', 
