@@ -435,6 +435,8 @@ export default function App() {
   const [adminPreAlertStatusFilter, setAdminPreAlertStatusFilter] = useState<string>('todos');
   const [adminPreAlertBodegaFilter, setAdminPreAlertBodegaFilter] = useState<string>('todos');
   const [adminPreAlertSearchText, setAdminPreAlertSearchText] = useState('');
+  const [adminPreAlertStartDate, setAdminPreAlertStartDate] = useState('');
+  const [adminPreAlertEndDate, setAdminPreAlertEndDate] = useState('');
   const [selectedWarehouseGroups, setSelectedWarehouseGroups] = useState<string[]>([]);
   const [selectedAdminShipment, setSelectedAdminShipment] = useState<Shipment | null>(null);
   const [newShipmentModal, setNewShipmentModal] = useState(false);
@@ -1455,6 +1457,8 @@ Cargos de Flete y Tarifas Asignadas:
       if (adminPreAlertBodegaFilter === 'USA' && !isUSA) return false;
       if (adminPreAlertBodegaFilter === 'Mexico' && !isMexico) return false;
       if (adminPreAlertStatusFilter !== 'todos' && pa.status !== adminPreAlertStatusFilter) return false;
+      if (adminPreAlertStartDate && pa.dateCreated < adminPreAlertStartDate) return false;
+      if (adminPreAlertEndDate && pa.dateCreated > adminPreAlertEndDate) return false;
       return true;
     });
 
@@ -5271,6 +5275,64 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                               Descargar Reporte PDF
                             </button>
                             <button
+                                type="button"
+                                onClick={() => {
+                                  const filtered = preAlerts.filter(pa => {
+                                    const desc = pa.description ? pa.description.toLowerCase() : '';
+                                    const isMexico = desc.includes('origen: mexico');
+                                    const isUSA = desc.includes('origen: usa') || desc.includes('origen: laredo') || desc.includes('origen: texas');
+                                    
+                                    if (adminPreAlertBodegaFilter === 'USA' && !isUSA) return false;
+                                    if (adminPreAlertBodegaFilter === 'Mexico' && !isMexico) return false;
+                                    if (adminPreAlertStatusFilter !== 'todos' && pa.status !== adminPreAlertStatusFilter) return false;
+                                    
+                                    if (adminPreAlertStartDate && pa.dateCreated < adminPreAlertStartDate) return false;
+                                    if (adminPreAlertEndDate && pa.dateCreated > adminPreAlertEndDate) return false;
+                                    
+                                    if (adminPreAlertSearchText.trim() !== '') {
+                                      const searchQ = adminPreAlertSearchText.toLowerCase().trim();
+                                      const matchesId = (pa.id || '').toLowerCase().includes(searchQ);
+                                      const matchesLocker = (pa.lockerId || '').toLowerCase().includes(searchQ);
+                                      const matchesSender = (pa.sender || '').toLowerCase().includes(searchQ);
+                                      const matchesDesc = desc.includes(searchQ);
+                                      if (!matchesId && !matchesLocker && !matchesSender && !matchesDesc) return false;
+                                    }
+                                    return true;
+                                  });
+
+                                  const rows: string[][] = [];
+                                  rows.push(['ID', 'Locker', 'Cliente', 'Descripción', 'Peso Est. (Lbs)', 'Valor Decl. ($)', 'Estado', 'Fecha']);
+                                  
+                                  filtered.forEach(pa => {
+                                    const user = users.find(u => u.lockerId === pa.lockerId);
+                                    const clientName = user ? user.name : 'Desconocido';
+                                    rows.push([
+                                      pa.id, 
+                                      pa.lockerId, 
+                                      clientName, 
+                                      pa.description || '', 
+                                      String(pa.weightEst || 0), 
+                                      String(pa.declaredValue || 0), 
+                                      pa.status, 
+                                      pa.dateCreated || ''
+                                    ]);
+                                  });
+                                
+                                  const csvContent = "data:text/csv;charset=utf-8,\\uFEFF" + rows.map(e => e.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\\n");
+                                  const encodedUri = encodeURI(csvContent);
+                                  const link = document.createElement("a");
+                                  link.setAttribute("href", encodedUri);
+                                  link.setAttribute("download", `pre_alertas_${adminPreAlertStartDate || 'inicio'}_al_${adminPreAlertEndDate || 'fin'}.csv`);
+                                  document.body.appendChild(link);
+                                  link.click();
+                                  document.body.removeChild(link);
+                                }}
+                                className="bg-green-600 hover:bg-green-700 text-white text-3xs font-extrabold px-4 py-2 rounded uppercase tracking-wider cursor-pointer transition shadow-3xs flex items-center gap-1 border border-green-700 active:scale-98"
+                              >
+                                <FileSpreadsheet className="h-3.5 w-3.5 text-white" />
+                                Exportar CSV
+                              </button>
+                            <button
                               type="button"
                               onClick={() => {
                                 setAdminPreAlertLockerId('');
@@ -5317,6 +5379,24 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                           </div>
 
                           <div>
+                            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1">Desde Fecha</span>
+                            <input 
+                              type="date" 
+                              value={adminPreAlertStartDate}
+                              onChange={(e) => setAdminPreAlertStartDate(e.target.value)}
+                              className="px-2.5 py-1 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark bg-white focus:ring-1 focus:ring-brand-orange focus:outline-none"
+                            />
+                          </div>
+                          <div>
+                            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1">Hasta Fecha</span>
+                            <input 
+                              type="date" 
+                              value={adminPreAlertEndDate}
+                              onChange={(e) => setAdminPreAlertEndDate(e.target.value)}
+                              className="px-2.5 py-1 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark bg-white focus:ring-1 focus:ring-brand-orange focus:outline-none"
+                            />
+                          </div>
+                          <div>
                             <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1">Buscar Tracking / Cliente</span>
                             <div className="relative">
                               <input
@@ -5347,6 +5427,8 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                 if (adminPreAlertBodegaFilter === 'USA' && !isUSA) return false;
                                 if (adminPreAlertBodegaFilter === 'Mexico' && !isMexico) return false;
                                 if (adminPreAlertStatusFilter !== 'todos' && pa.status !== adminPreAlertStatusFilter) return false;
+                                if (adminPreAlertStartDate && pa.dateCreated < adminPreAlertStartDate) return false;
+                                if (adminPreAlertEndDate && pa.dateCreated > adminPreAlertEndDate) return false;
                                 if (adminPreAlertSearchText.trim() !== '') {
                                   const searchQ = adminPreAlertSearchText.toLowerCase().trim();
                                   const matchesId = (pa.id || '').toLowerCase().includes(searchQ);
@@ -5383,6 +5465,8 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                 if (adminPreAlertBodegaFilter === 'USA' && !isUSA) return false;
                                 if (adminPreAlertBodegaFilter === 'Mexico' && !isMexico) return false;
                                 if (adminPreAlertStatusFilter !== 'todos' && pa.status !== adminPreAlertStatusFilter) return false;
+                                if (adminPreAlertStartDate && pa.dateCreated < adminPreAlertStartDate) return false;
+                                if (adminPreAlertEndDate && pa.dateCreated > adminPreAlertEndDate) return false;
                                 if (adminPreAlertSearchText.trim() !== '') {
                                   const searchQ = adminPreAlertSearchText.toLowerCase().trim();
                                   const matchesId = (pa.id || '').toLowerCase().includes(searchQ);
