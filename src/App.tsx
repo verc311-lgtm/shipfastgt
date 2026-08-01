@@ -5318,14 +5318,16 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                     ]);
                                   });
                                 
-                                  const csvContent = "data:text/csv;charset=utf-8,\\uFEFF" + rows.map(e => e.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\\n");
-                                  const encodedUri = encodeURI(csvContent);
+                                  const csvString = "\\uFEFF" + rows.map(e => e.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\\n");
+                                  const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+                                  const url = URL.createObjectURL(blob);
                                   const link = document.createElement("a");
-                                  link.setAttribute("href", encodedUri);
+                                  link.setAttribute("href", url);
                                   link.setAttribute("download", `pre_alertas_${adminPreAlertStartDate || 'inicio'}_al_${adminPreAlertEndDate || 'fin'}.csv`);
                                   document.body.appendChild(link);
                                   link.click();
                                   document.body.removeChild(link);
+                                  URL.revokeObjectURL(url);
                                 }}
                                 className="bg-green-600 hover:bg-green-700 text-white text-3xs font-extrabold px-4 py-2 rounded uppercase tracking-wider cursor-pointer transition shadow-3xs flex items-center gap-1 border border-green-700 active:scale-98"
                               >
