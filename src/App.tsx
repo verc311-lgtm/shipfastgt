@@ -162,6 +162,10 @@ export default function App() {
   // If currentUser is admin: activeTab controls: 'admin-dashboard' | 'driver-terminal' | 'ai-chat'
   const [activeTab, setActiveTab] = useState<string>('my-locker');
 
+  // Report Filters
+  const [reportStartDate, setReportStartDate] = useState('');
+  const [reportEndDate, setReportEndDate] = useState('');
+
   // Unified Access Landing Page States
   const [accessTab, setAccessTab] = useState<'login' | 'signup' | 'quote'>('login');
   
@@ -7760,20 +7764,53 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
 
                                 {/* ==================== ADMIN: REPORTES FINANCIEROS TAB ==================== */}
             {adminSubTab === 'reportes-financieros' && (() => {
-              const pendingInvoices = invoices.filter(i => i.paymentStatus === 'Pendiente');
-              const paidInvoices = invoices.filter(i => i.paymentStatus === 'Pagado');
+              const isDateInRange = (dateStr: string) => {
+                if (!dateStr) return true;
+                if (reportStartDate && dateStr < reportStartDate) return false;
+                if (reportEndDate && dateStr > reportEndDate) return false;
+                return true;
+              };
 
-              const totalRevenueGTQ = paymentsLog
+              const filteredInvoices = invoices.filter(i => isDateInRange(i.date));
+              const filteredPayments = paymentsLog.filter(p => isDateInRange(p.date));
+              const filteredExpenses = expensesLog.filter(e => isDateInRange(e.date));
+
+              const exportToCSV = () => {
+                const rows: string[][] = [];
+                rows.push(['Tipo', 'ID', 'Fecha', 'Concepto/Referencia', 'Monto', 'Moneda']);
+                
+                filteredPayments.forEach(p => {
+                  rows.push(['Ingreso (Pago)', String(p.id), p.date || '', `${p.method || ''} ${p.reference || ''}`.trim(), String(p.amount), p.currency || 'GTQ']);
+                });
+                
+                filteredExpenses.forEach(e => {
+                  rows.push(['Gasto', String(e.id), e.date || '', `${e.category || ''} - ${e.description || ''}`.trim(), String(e.amount), e.currency || 'GTQ']);
+                });
+              
+                const csvContent = "data:text/csv;charset=utf-8,\\uFEFF" + rows.map(e => e.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\\n");
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", `reporte_financiero_${reportStartDate || 'inicio'}_al_${reportEndDate || 'fin'}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+              };
+
+              const pendingInvoices = filteredInvoices.filter(i => i.paymentStatus === 'Pendiente');
+              const paidInvoices = filteredInvoices.filter(i => i.paymentStatus === 'Pagado');
+
+              const totalRevenueGTQ = filteredPayments
                 .filter(p => p.currency === 'GTQ' || !p.currency)
                 .reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
-              const totalRevenueUSD = paymentsLog
+              const totalRevenueUSD = filteredPayments
                 .filter(p => p.currency === 'USD')
                 .reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
               
-              const totalExpensesGTQ = expensesLog
+              const totalExpensesGTQ = filteredExpenses
                 .filter(e => e.currency === 'GTQ' || !e.currency)
                 .reduce((acc, e) => acc + (parseFloat(e.amount) || 0), 0);
-              const totalExpensesUSD = expensesLog
+              const totalExpensesUSD = filteredExpenses
                 .filter(e => e.currency === 'USD')
                 .reduce((acc, e) => acc + (parseFloat(e.amount) || 0), 0);
 
@@ -7794,7 +7831,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
 
               return (
                 <div className="flex flex-col gap-6 w-full animate-fade-in pb-20">
-                  <div className="flex items-center justify-between bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between bg-white p-6 rounded-2xl shadow-sm border border-gray-100 gap-4">
                     <div>
                       <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-3">
                         <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
@@ -7805,6 +7842,33 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                       <p className="text-sm text-gray-500 mt-1">
                         Resumen contable, ingresos, gastos y facturación.
                       </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs font-bold text-gray-500 uppercase">Desde:</label>
+                        <input 
+                          type="date" 
+                          className="text-sm px-3 py-1.5 border border-gray-300 rounded font-mono bg-white"
+                          value={reportStartDate}
+                          onChange={e => setReportStartDate(e.target.value)}
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs font-bold text-gray-500 uppercase">Hasta:</label>
+                        <input 
+                          type="date" 
+                          className="text-sm px-3 py-1.5 border border-gray-300 rounded font-mono bg-white"
+                          value={reportEndDate}
+                          onChange={e => setReportEndDate(e.target.value)}
+                        />
+                      </div>
+                      <button 
+                        onClick={exportToCSV}
+                        className="bg-green-600 hover:bg-green-700 text-white text-sm font-bold px-4 py-2 rounded transition-all shadow-sm flex items-center gap-2 active:scale-95"
+                      >
+                        <FileSpreadsheet className="w-4 h-4" />
+                        Descargar CSV
+                      </button>
                     </div>
                   </div>
 
