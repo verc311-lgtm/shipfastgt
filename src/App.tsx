@@ -23,6 +23,7 @@ import {
   Building,
   Settings,
   FileText,
+  CreditCard,
   Users,
   Printer,
   Trash2,
@@ -341,6 +342,7 @@ export default function App() {
   const [mailPromoImageName, setMailPromoImageName] = useState('');
 
   // Payments
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [paymentsLog, setPaymentsLog] = useState<any[]>([]);
   const [paymentLocker, setPaymentLocker] = useState('');
   const [paymentInvoice, setPaymentInvoice] = useState('');
@@ -1804,6 +1806,17 @@ Cargos de Flete y Tarifas Asignadas:
     } else {
       alert('Error: No se pudieron guardar los cambios en Supabase.');
     }
+  };
+
+  const handleOpenPaymentModal = (invoice: any) => {
+    setPaymentInvoice(invoice.id);
+    setPaymentLocker(invoice.lockerId || 'N/R');
+    setPaymentNotes('');
+    setPaymentDiscountType('none');
+    setPaymentDiscountValue(0);
+    setPaymentInsuranceExtra(0);
+    setPaymentLocalDeliveryExtra(0);
+    setIsPaymentModalOpen(true);
   };
 
   // Generate professional print-ready HTML Invoice PDF
@@ -8124,6 +8137,16 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                             >
                                               🖨️ PDF
                                             </button>
+                                            {invoice.paymentStatus === 'Pendiente' && (
+                                              <button
+                                                type="button"
+                                                onClick={() => handleOpenPaymentModal(invoice)}
+                                                className="bg-green-600 hover:bg-green-700 text-white font-extrabold text-4xs px-2.5 py-1 rounded transition uppercase tracking-wider flex items-center gap-1 cursor-pointer shadow-sm active:scale-95"
+                                                title="Registrar cobro / pago de esta factura"
+                                              >
+                                                💵 Cobrar
+                                              </button>
+                                            )}
                                             <button
                                               type="button"
                                               onClick={() => handleOpenEditInvoiceModal(invoice)}
@@ -8858,30 +8881,151 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                     })()}
 
                     {/* ==================== 9. REGISTRO DE PAGOS / COBROS (`pagos`) ==================== */}
-                    {adminSubTab === 'pagos' && (
-                      <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs space-y-6">
-                        <div>
-                          <h3 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display mb-1">💰 Caja Chica y Recibos de Pagos Recaudados</h3>
-                          <p className="text-4xs text-gray-500">Módulo de control de caja. Reciba pagos en efectivo, transferencia o contra-entrega (COD) para cancelar facturas pendientes, sumando saldo líquido en tiempo real.</p>
-                        </div>
+                    {adminSubTab === 'pagos' && (() => {
+                      const totalRecaudado = paymentsLog.reduce((sum, p) => sum + p.amount, 0);
+                      const pendingInvoices = invoices.filter(i => i.paymentStatus === 'Pendiente');
+                      const totalPendingAmount = pendingInvoices.reduce((sum, i) => sum + i.amount, 0);
 
-                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                          
-                          {/* Payments Log Ledger - LEFT */}
-                          <div className="lg:col-span-8 space-y-4">
+                      return (
+                        <div className="bg-white p-6 rounded-3xl border border-gray-150 shadow-xs space-y-6">
+                          {/* Title and top-right actions */}
+                          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                            <div>
+                              <h3 className="text-xs font-black text-brand-gray-dark uppercase tracking-wider font-display mb-1 flex items-center gap-1.5">
+                                <span className="bg-orange-50 text-brand-orange p-1.5 rounded-lg border border-orange-100">
+                                  <Wallet className="h-4 w-4" />
+                                </span>
+                                Caja Chica y Recibos de Pagos Recaudados
+                              </h3>
+                              <p className="text-4xs text-gray-500">Módulo de control de caja. Registre el cobro de facturas y visualice el historial de caja chica en tiempo real.</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPaymentInvoice('');
+                                setPaymentLocker('');
+                                setPaymentNotes('');
+                                setPaymentDiscountType('none');
+                                setPaymentDiscountValue(0);
+                                setPaymentInsuranceExtra(0);
+                                setPaymentLocalDeliveryExtra(0);
+                                setIsPaymentModalOpen(true);
+                              }}
+                              className="bg-brand-orange hover:bg-brand-orange-hover text-white text-3xs font-extrabold py-2 px-4 rounded-xl uppercase tracking-wider transition shadow-sm shadow-orange-100 hover:shadow-orange-200 active:scale-95 flex items-center gap-1 cursor-pointer"
+                            >
+                              <Plus className="h-3.5 w-3.5" /> Registrar Cobro Manual
+                            </button>
+                          </div>
+
+                          {/* Quick Metrics Row */}
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="bg-gradient-to-br from-green-50/50 to-emerald-50/20 border border-green-150 p-4 rounded-2xl flex items-center gap-4 shadow-3xs">
+                              <span className="p-3 bg-green-100/60 rounded-xl text-green-700 border border-green-200">
+                                <DollarSign className="h-5 w-5" />
+                              </span>
+                              <div>
+                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block leading-none mb-1">Total Recaudado (Caja)</span>
+                                <h4 className="text-sm font-black text-green-700 font-mono">Q {totalRecaudado.toFixed(2)}</h4>
+                                <span className="text-[8px] font-bold text-slate-500">Saldo líquido ingresado</span>
+                              </div>
+                            </div>
+
+                            <div className="bg-gradient-to-br from-orange-50/30 to-amber-50/10 border border-orange-150 p-4 rounded-2xl flex items-center gap-4 shadow-3xs">
+                              <span className="p-3 bg-orange-100/60 rounded-xl text-brand-orange border border-orange-200">
+                                <FileText className="h-5 w-5" />
+                              </span>
+                              <div>
+                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block leading-none mb-1">Facturas Pendientes</span>
+                                <h4 className="text-sm font-black text-brand-orange font-mono">{pendingInvoices.length}</h4>
+                                <span className="text-[8px] font-bold text-slate-500">Esperando cobro en ventanilla</span>
+                              </div>
+                            </div>
+
+                            <div className="bg-gradient-to-br from-slate-50 to-gray-50/50 border border-slate-200 p-4 rounded-2xl flex items-center gap-4 shadow-3xs">
+                              <span className="p-3 bg-slate-100 rounded-xl text-slate-600 border border-slate-200">
+                                <TrendingUp className="h-5 w-5" />
+                              </span>
+                              <div>
+                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block leading-none mb-1">Importe en Cartera</span>
+                                <h4 className="text-sm font-black text-slate-700 font-mono">Q {totalPendingAmount.toFixed(2)}</h4>
+                                <span className="text-[8px] font-bold text-slate-500">Total por cobrar</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Facturas Pendientes (Queue Board) */}
+                          <div className="space-y-3">
+                            <span className="text-4xs font-bold text-gray-400 uppercase tracking-widest block">Facturas Pendientes de Pago (Cola de Cobros)</span>
+                            {pendingInvoices.length > 0 ? (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {pendingInvoices.slice(0, 6).map(invoice => {
+                                  const parsed = parseInvoiceConcept(invoice.concept);
+                                  const currencySymbol = parsed.currency === 'USD' ? '$' : 'Q';
+                                  return (
+                                    <div key={invoice.id} className="bg-white border border-slate-200/80 p-4 rounded-2xl shadow-3xs flex flex-col justify-between space-y-3 hover:border-brand-orange/60 transition group hover:shadow-2xs">
+                                      <div className="space-y-1">
+                                        <div className="flex justify-between items-center">
+                                          <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-lg text-4xs font-black uppercase tracking-wider">{invoice.id}</span>
+                                          <span className="font-mono text-gray-400 text-4xs">Casillero: <strong className="text-slate-600">{invoice.lockerId || 'N/R'}</strong></span>
+                                        </div>
+                                        <div className="text-4xs text-gray-500 font-bold truncate" title={parsed.detail}>
+                                          {parsed.detail}
+                                        </div>
+                                        <div className="text-4xs text-gray-400 font-medium">
+                                          Fecha: <span className="font-mono">{invoice.date}</span>
+                                        </div>
+                                      </div>
+                                      
+                                      <div className="flex items-center justify-between border-t border-slate-100 pt-2.5">
+                                        <span className="font-mono font-black text-brand-orange text-xs">{currencySymbol} {invoice.amount.toFixed(2)}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleOpenPaymentModal(invoice)}
+                                          className="bg-green-600 hover:bg-green-700 text-white font-extrabold text-4xs px-3 py-1.5 rounded-xl transition uppercase tracking-wider flex items-center gap-1 cursor-pointer shadow-sm active:scale-95"
+                                        >
+                                          💵 Registrar Pago
+                                        </button>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                                {pendingInvoices.length > 6 && (
+                                  <div className="bg-slate-50/50 border border-dashed border-slate-200 p-4 rounded-2xl flex flex-col justify-center items-center text-center text-4xs font-bold text-slate-500 space-y-2">
+                                    <span>Hay {pendingInvoices.length - 6} facturas más pendientes de cobro en cola.</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => setAdminSubTab('facturacion')}
+                                      className="text-brand-orange hover:underline uppercase text-[9px] font-black"
+                                    >
+                                      Ver todas en Facturación &rarr;
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="bg-slate-50/50 border border-dashed border-slate-200 p-8 rounded-2xl text-center space-y-2">
+                                <div className="text-xs">🎉</div>
+                                <div className="text-4xs font-black text-slate-400 uppercase tracking-wider">¡Caja al día!</div>
+                                <p className="text-4xs text-slate-500">No hay facturas pendientes de cobro en este momento.</p>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Historical Payments Log Ledger Table (Full Width) */}
+                          <div className="space-y-3 pt-2">
                             <span className="text-4xs font-bold text-gray-400 uppercase tracking-widest block">Historial Ledger de Transacciones de Caja</span>
                             
-                            <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                            <div className="overflow-x-auto border border-gray-150 rounded-2xl">
                               <table className="w-full text-left border-collapse">
                                 <thead>
-                                  <tr className="bg-gray-100 border-b border-gray-200 text-4xs font-extrabold text-gray-500 uppercase tracking-wider">
-                                    <th className="py-2.5 px-4">Recibo ID</th>
-                                    <th className="py-2.5 px-3">Casillero</th>
-                                    <th className="py-2.5 px-3">Factura Relac.</th>
-                                    <th className="py-2.5 px-3">Fecha Recibo</th>
-                                    <th className="py-2.5 px-3">Método Pago</th>
-                                    <th className="py-2.5 px-3 text-right">Monto Recaudado</th>
-                                    <th className="py-2.5 px-4">Notas / Auditoría</th>
+                                  <tr className="bg-gray-50 border-b border-gray-150 text-4xs font-extrabold text-gray-500 uppercase tracking-wider">
+                                    <th className="py-3 px-4">Recibo ID</th>
+                                    <th className="py-3 px-3">Casillero</th>
+                                    <th className="py-3 px-3">Factura Relac.</th>
+                                    <th className="py-3 px-3">Fecha Recibo</th>
+                                    <th className="py-3 px-3">Método Pago</th>
+                                    <th className="py-3 px-3 text-right">Monto Recaudado</th>
+                                    <th className="py-3 px-4">Notas / Auditoría</th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100 text-3xs font-semibold text-brand-gray-dark">
@@ -8891,13 +9035,13 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                     const currencySymbol = parsed?.currency === 'USD' ? '$' : 'Q';
                                     return (
                                       <tr key={pay.id} className="hover:bg-gray-50/50">
-                                        <td className="py-3 px-4 font-bold text-brand-gray-dark uppercase">{pay.id}</td>
-                                        <td className="py-3 px-3 font-mono text-gray-500">{pay.lockerId}</td>
-                                        <td className="py-3 px-3 font-bold text-brand-orange uppercase">{pay.invoiceId}</td>
-                                        <td className="py-3 px-3 font-mono">{pay.date}</td>
-                                        <td className="py-3 px-3 font-bold">{pay.method}</td>
-                                        <td className="py-3 px-3 text-right font-mono text-green-700 font-black">{currencySymbol} {pay.amount.toFixed(2)}</td>
-                                        <td className="py-3 px-4 text-gray-400 italic">{pay.notes}</td>
+                                        <td className="py-3.5 px-4 font-bold text-brand-gray-dark uppercase">{pay.id}</td>
+                                        <td className="py-3.5 px-3 font-mono text-gray-500">{pay.lockerId}</td>
+                                        <td className="py-3.5 px-3 font-bold text-brand-orange uppercase">{pay.invoiceId}</td>
+                                        <td className="py-3.5 px-3 font-mono">{pay.date}</td>
+                                        <td className="py-3.5 px-3 font-bold">{pay.method}</td>
+                                        <td className="py-3.5 px-3 text-right font-mono text-green-700 font-black">{currencySymbol} {pay.amount.toFixed(2)}</td>
+                                        <td className="py-3.5 px-4 text-gray-400 italic">{pay.notes}</td>
                                       </tr>
                                     );
                                   })}
@@ -8906,259 +9050,9 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                             </div>
                           </div>
 
-                          {/* Record Payment Form - RIGHT */}
-                          <div className="lg:col-span-4 bg-gray-50 border border-gray-200 p-5 rounded-lg space-y-4">
-                            <h4 className="text-3xs font-extrabold text-brand-gray-dark uppercase tracking-wider border-b border-gray-200 pb-1.5">Registrar Cobro Recibido (Caja)</h4>
-                            
-                            <form 
-                              onSubmit={(e) => {
-                                e.preventDefault();
-                                
-                                const selectedInvoice = invoices.find(i => i.id === paymentInvoice);
-                                if (!selectedInvoice) {
-                                  alert('Seleccione una factura pendiente válida.');
-                                  return;
-                                }
-
-                                const originalAmount = selectedInvoice.amount;
-                                const netAmount = getNetPaymentAmount();
-                                
-                                // Calculate base after discount (before adding extra charges)
-                                let baseAfterDiscount = originalAmount;
-                                if (paymentDiscountType === 'fixed') {
-                                  baseAfterDiscount = Math.max(0, originalAmount - paymentDiscountValue);
-                                } else if (paymentDiscountType === 'percentage') {
-                                  const discount = originalAmount * (paymentDiscountValue / 100);
-                                  baseAfterDiscount = Math.max(0, originalAmount - discount);
-                                }
-                                const discountAmount = originalAmount - baseAfterDiscount;
-
-                                const currentDate = new Date().toISOString().split('T')[0];
-                                const receiptId = `PAG-${500 + paymentsLog.length + 1}`;
-                                
-                                let auditNotes = paymentNotes || 'Auditado en ventanilla';
-                                let conceptAdditions = '';
-
-                                if (paymentDiscountType !== 'none') {
-                                  auditNotes += ` (Descuento: Q ${discountAmount.toFixed(2)} - ${paymentDiscountType === 'fixed' ? 'Monto Fijo' : 'Porcentaje ' + paymentDiscountValue + '%'})`;
-                                  conceptAdditions += ` [Descuento: Q ${discountAmount.toFixed(2)} sobre Q ${originalAmount.toFixed(2)}]`;
-                                }
-                                if (paymentInsuranceExtra > 0) {
-                                  auditNotes += ` (Cargo Seguro: Q ${paymentInsuranceExtra.toFixed(2)})`;
-                                  conceptAdditions += ` [Cargo Seguro: Q ${paymentInsuranceExtra.toFixed(2)}]`;
-                                }
-                                if (paymentLocalDeliveryExtra > 0) {
-                                  auditNotes += ` (Envío Local: Q ${paymentLocalDeliveryExtra.toFixed(2)})`;
-                                  conceptAdditions += ` [Envío Local: Q ${paymentLocalDeliveryExtra.toFixed(2)}]`;
-                                }
-
-                                const updatedInvoice = { 
-                                  ...selectedInvoice, 
-                                  amount: netAmount,
-                                  paymentStatus: 'Pagado',
-                                  concept: selectedInvoice.concept + conceptAdditions
-                                };
-
-                                const newPayment = {
-                                  id: receiptId,
-                                  lockerId: paymentLocker,
-                                  date: currentDate,
-                                  method: paymentMethod,
-                                  invoiceId: paymentInvoice,
-                                  amount: netAmount,
-                                  notes: auditNotes
-                                };
-
-                                // Save to Supabase
-                                db.upsertInvoice(updatedInvoice);
-                                db.upsertPayment(newPayment);
-
-                                // Update invoice status
-                                setInvoices(prev => prev.map(inv => inv.id === paymentInvoice ? updatedInvoice : inv));
-
-                                // Append transaction receipt
-                                setPaymentsLog(prev => [
-                                  newPayment,
-                                  ...prev
-                                ]);
-
-                                alert(`¡Recibo de pago ${receiptId} registrado correctamente! Factura ${paymentInvoice} marcada como Pagada.`);
-                                
-                                // Reset fields
-                                setPaymentNotes('');
-                                setPaymentDiscountType('none');
-                                setPaymentDiscountValue(0);
-                                setPaymentInsuranceExtra(0);
-                                setPaymentLocalDeliveryExtra(0);
-                              }}
-                              className="space-y-3"
-                            >
-                              <div>
-                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Seleccionar Factura Pendiente *</label>
-                                <select
-                                  value={paymentInvoice}
-                                  onChange={(e) => {
-                                    setPaymentInvoice(e.target.value);
-                                    const match = invoices.find(i => i.id === e.target.value);
-                                    if (match) {
-                                      setPaymentLocker(match.lockerId);
-                                    }
-                                  }}
-                                  className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white font-mono text-brand-orange font-bold"
-                                >
-                                  <option value="">-- Facturas en Cola --</option>
-                                  {invoices.filter(i => i.paymentStatus === 'Pendiente').map(i => {
-                                    const parsed = parseInvoiceConcept(i.concept);
-                                    const currencySymbol = parsed.currency === 'USD' ? '$' : 'Q';
-                                    return (
-                                      <option key={i.id} value={i.id}>{i.id} &mdash; {i.lockerId} ({currencySymbol} {i.amount.toFixed(2)})</option>
-                                    );
-                                  })}
-                                </select>
-                              </div>
-
-                              {/* Descuentos (Cantidad Fija o Porcentaje/Totales) */}
-                              <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                  <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Tipo de Descuento</label>
-                                  <select
-                                    value={paymentDiscountType}
-                                    onChange={(e) => {
-                                      setPaymentDiscountType(e.target.value as any);
-                                      setPaymentDiscountValue(0);
-                                    }}
-                                    className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white font-semibold text-brand-gray-dark"
-                                  >
-                                    <option value="none">Ninguno</option>
-                                    <option value="fixed">Monto Fijo</option>
-                                    <option value="percentage">Porcentaje (%)</option>
-                                  </select>
-                                </div>
-                                
-                                {paymentDiscountType !== 'none' && (
-                                  <div>
-                                    <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">
-                                      {paymentDiscountType === 'fixed' ? 'Valor Descuento (Cantidad)' : 'Porcentaje (%)'}
-                                    </label>
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      step="any"
-                                      value={paymentDiscountValue}
-                                      onChange={(e) => setPaymentDiscountValue(parseFloat(e.target.value) || 0)}
-                                      className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark font-mono text-brand-orange"
-                                      placeholder={paymentDiscountType === 'fixed' ? 'Ej: 15.50' : 'Ej: 10'}
-                                    />
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* Cargos Extras (Seguro y Envío Local) */}
-                              <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                  <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Cargo Seguro (Extra)</label>
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    step="any"
-                                    value={paymentInsuranceExtra || ''}
-                                    onChange={(e) => setPaymentInsuranceExtra(parseFloat(e.target.value) || 0)}
-                                    className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark font-mono text-green-600"
-                                    placeholder="Ej: 10.00"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Envío Local (Extra)</label>
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    step="any"
-                                    value={paymentLocalDeliveryExtra || ''}
-                                    onChange={(e) => setPaymentLocalDeliveryExtra(parseFloat(e.target.value) || 0)}
-                                    className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark font-mono text-green-600"
-                                    placeholder="Ej: 25.00"
-                                  />
-                                </div>
-                              </div>
-
-                              <div className="grid grid-cols-1 gap-1 text-4xs bg-slate-50 p-3 rounded-lg border border-slate-200 leading-relaxed text-slate-600">
-                                <div>Locker / Casillero: <strong className="text-brand-gray-dark">{paymentLocker || 'N/R'}</strong></div>
-                                {(() => {
-                                  const selectedInv = invoices.find(i => i.id === paymentInvoice);
-                                  const selectedInvParsed = selectedInv ? parseInvoiceConcept(selectedInv.concept) : null;
-                                  const selectedInvSymbol = selectedInvParsed?.currency === 'USD' ? '$' : 'Q';
-                                  const originalAmount = selectedInv ? selectedInv.amount : 0;
-                                  const netAmount = getNetPaymentAmount();
-                                  
-                                  // Base after discount
-                                  let baseAfterDiscount = originalAmount;
-                                  if (paymentDiscountType === 'fixed') {
-                                    baseAfterDiscount = Math.max(0, originalAmount - paymentDiscountValue);
-                                  } else if (paymentDiscountType === 'percentage') {
-                                    const discount = originalAmount * (paymentDiscountValue / 100);
-                                    baseAfterDiscount = Math.max(0, originalAmount - discount);
-                                  }
-                                  const discountAmount = originalAmount - baseAfterDiscount;
-
-                                  return (
-                                    <>
-                                      <div>Monto Original Factura: <strong>{selectedInvSymbol} {originalAmount.toFixed(2)}</strong></div>
-                                      {paymentDiscountType !== 'none' && (
-                                        <div className="text-red-600 font-bold">Descuento Aplicado: <strong>- {selectedInvSymbol} {discountAmount.toFixed(2)}</strong></div>
-                                      )}
-                                      {paymentInsuranceExtra > 0 && (
-                                        <div className="text-emerald-650 font-bold">Cargo Seguro Extra: <strong>+ {selectedInvSymbol} {paymentInsuranceExtra.toFixed(2)}</strong></div>
-                                      )}
-                                      {paymentLocalDeliveryExtra > 0 && (
-                                        <div className="text-emerald-650 font-bold">Envío Local Extra: <strong>+ {selectedInvSymbol} {paymentLocalDeliveryExtra.toFixed(2)}</strong></div>
-                                      )}
-                                      <div className="text-green-700 font-black border-t border-slate-200/60 pt-1 mt-1 text-3xs flex justify-between items-center bg-green-50/50 p-1.5 rounded">
-                                        <span>Total Neto a Cobrar:</span>
-                                        <span>{selectedInvSymbol} {netAmount.toFixed(2)}</span>
-                                      </div>
-                                    </>
-                                  );
-                                })()}
-                              </div>
-
-                              <div>
-                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Método de Recaudación *</label>
-                                <select
-                                  value={paymentMethod}
-                                  onChange={(e) => setPaymentMethod(e.target.value)}
-                                  className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white font-semibold"
-                                >
-                                  <option value="Transferencia Bancaria">Transferencia Bancaria</option>
-                                  <option value="Pago en Efectivo">Pago en Efectivo</option>
-                                  <option value="Tarjeta de Crédito">Tarjeta de Crédito/Débito</option>
-                                  <option value="Contra-Entrega (COD)">Contra-Entrega (COD)</option>
-                                </select>
-                              </div>
-
-                              <div>
-                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Notas / Código Referencia *</label>
-                                <input
-                                  type="text"
-                                  required
-                                  placeholder="Ej: Depósito Banrural Ref #8219"
-                                  value={paymentNotes}
-                                  onChange={(e) => setPaymentNotes(e.target.value)}
-                                  className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark"
-                                />
-                              </div>
-
-                              <button
-                                type="submit"
-                                className="w-full bg-brand-orange hover:bg-brand-orange-hover text-white text-3xs font-extrabold py-2 rounded uppercase tracking-wider transition cursor-pointer"
-                              >
-                                Registrar Recibo de Pago
-                              </button>
-                            </form>
-                          </div>
-
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
 
                     {/* ==================== 10. REGISTRO DE GASTOS (`gastos`) ==================== */}
                     {adminSubTab === 'gastos' && (
@@ -12309,6 +12203,362 @@ El Equipo de ShipFast GT`;
                       className="bg-brand-orange hover:bg-brand-orange-hover text-white font-extrabold text-xs py-2 px-6 rounded-xl flex items-center justify-center gap-1 shadow-md shadow-orange-100 hover:shadow-orange-200 active:scale-98 transition cursor-pointer"
                     >
                       Guardar Cambios
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* ==================== MODERN CHECKOUT / PAYMENT MODAL ==================== */}
+          {isPaymentModalOpen && (
+            <div className="fixed inset-0 bg-brand-gray-dark/65 backdrop-blur-xs flex justify-center items-center z-50 p-4 animate-fade-in font-sans">
+              <div className="bg-white w-full max-w-2xl rounded-3xl border border-slate-100 shadow-2xl overflow-hidden relative animate-zoom-in flex flex-col max-h-[90vh]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsPaymentModalOpen(false);
+                    setPaymentInvoice('');
+                  }}
+                  className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 cursor-pointer p-1.5 rounded-full hover:bg-slate-50 transition z-10"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+
+                {/* Header */}
+                <div className="bg-slate-900 p-6 text-white flex-shrink-0">
+                  <div className="flex items-center gap-3">
+                    <span className="bg-slate-800 text-green-400 p-2.5 rounded-xl border border-slate-700">
+                      <Wallet className="h-6 w-6" />
+                    </span>
+                    <div>
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block font-mono">Registro de Caja</span>
+                      <h3 className="text-xs font-black uppercase text-white">Cobrar Factura: {paymentInvoice || 'Manual'}</h3>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Form */}
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    
+                    const selectedInvoice = invoices.find(i => i.id === paymentInvoice);
+                    if (!selectedInvoice) {
+                      alert('Seleccione una factura pendiente válida.');
+                      return;
+                    }
+
+                    const originalAmount = selectedInvoice.amount;
+                    const netAmount = getNetPaymentAmount();
+                    
+                    // Calculate base after discount (before adding extra charges)
+                    let baseAfterDiscount = originalAmount;
+                    if (paymentDiscountType === 'fixed') {
+                      baseAfterDiscount = Math.max(0, originalAmount - paymentDiscountValue);
+                    } else if (paymentDiscountType === 'percentage') {
+                      const discount = originalAmount * (paymentDiscountValue / 100);
+                      baseAfterDiscount = Math.max(0, originalAmount - discount);
+                    }
+                    const discountAmount = originalAmount - baseAfterDiscount;
+
+                    const currentDate = new Date().toISOString().split('T')[0];
+                    const receiptId = `PAG-${500 + paymentsLog.length + 1}`;
+                    
+                    let auditNotes = paymentNotes || 'Auditado en ventanilla';
+                    let conceptAdditions = '';
+
+                    if (paymentDiscountType !== 'none') {
+                      auditNotes += ` (Descuento: Q ${discountAmount.toFixed(2)} - ${paymentDiscountType === 'fixed' ? 'Monto Fijo' : 'Porcentaje ' + paymentDiscountValue + '%'})`;
+                      conceptAdditions += ` [Descuento: Q ${discountAmount.toFixed(2)} sobre Q ${originalAmount.toFixed(2)}]`;
+                    }
+                    if (paymentInsuranceExtra > 0) {
+                      auditNotes += ` (Cargo Seguro: Q ${paymentInsuranceExtra.toFixed(2)})`;
+                      conceptAdditions += ` [Cargo Seguro: Q ${paymentInsuranceExtra.toFixed(2)}]`;
+                    }
+                    if (paymentLocalDeliveryExtra > 0) {
+                      auditNotes += ` (Envío Local: Q ${paymentLocalDeliveryExtra.toFixed(2)})`;
+                      conceptAdditions += ` [Envío Local: Q ${paymentLocalDeliveryExtra.toFixed(2)}]`;
+                    }
+
+                    const updatedInvoice = { 
+                      ...selectedInvoice, 
+                      amount: netAmount,
+                      paymentStatus: 'Pagado',
+                      concept: selectedInvoice.concept + conceptAdditions
+                    };
+
+                    const newPayment = {
+                      id: receiptId,
+                      lockerId: paymentLocker,
+                      date: currentDate,
+                      method: paymentMethod,
+                      invoiceId: paymentInvoice,
+                      amount: netAmount,
+                      notes: auditNotes
+                    };
+
+                    // Save to Supabase
+                    db.upsertInvoice(updatedInvoice);
+                    db.upsertPayment(newPayment);
+
+                    // Update invoice status
+                    setInvoices(prev => prev.map(inv => inv.id === paymentInvoice ? updatedInvoice : inv));
+
+                    // Append transaction receipt
+                    setPaymentsLog(prev => [
+                      newPayment,
+                      ...prev
+                    ]);
+
+                    alert(`¡Recibo de pago ${receiptId} registrado correctamente! Factura ${paymentInvoice} marcada como Pagada.`);
+                    
+                    // Reset fields
+                    setPaymentNotes('');
+                    setPaymentDiscountType('none');
+                    setPaymentDiscountValue(0);
+                    setPaymentInsuranceExtra(0);
+                    setPaymentLocalDeliveryExtra(0);
+                    setIsPaymentModalOpen(false);
+                  }}
+                  className="p-6 space-y-4 overflow-y-auto flex-1 text-brand-gray-dark font-sans"
+                >
+                  {/* Step 1: Select Invoice if not prefilled */}
+                  {!paymentInvoice && (
+                    <div>
+                      <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Seleccionar Factura Pendiente *</label>
+                      <select
+                        required
+                        value={paymentInvoice}
+                        onChange={(e) => {
+                          setPaymentInvoice(e.target.value);
+                          const match = invoices.find(i => i.id === e.target.value);
+                          if (match) {
+                            setPaymentLocker(match.lockerId || 'N/R');
+                          }
+                        }}
+                        className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-orange focus:outline-none font-bold text-brand-gray-dark bg-white"
+                      >
+                        <option value="">-- Seleccionar Factura --</option>
+                        {invoices.filter(i => i.paymentStatus === 'Pendiente').map(i => {
+                          const parsed = parseInvoiceConcept(i.concept);
+                          const currencySymbol = parsed.currency === 'USD' ? '$' : 'Q';
+                          return (
+                            <option key={i.id} value={i.id}>{i.id} &mdash; {i.lockerId} ({currencySymbol} {i.amount.toFixed(2)})</option>
+                          );
+                        })}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Invoice Quick Summary Details */}
+                  {paymentInvoice && (() => {
+                    const selectedInv = invoices.find(i => i.id === paymentInvoice);
+                    const selectedInvParsed = selectedInv ? parseInvoiceConcept(selectedInv.concept) : null;
+                    return (
+                      <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl flex items-center justify-between flex-shrink-0">
+                        <div>
+                          <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Facturado A: Casillero {paymentLocker}</div>
+                          <div className="text-xs font-bold text-brand-gray-dark mt-0.5 max-w-sm truncate">{selectedInvParsed?.detail || 'Detalle no disponible'}</div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Monto Facturado</span>
+                          <span className="text-sm font-black text-brand-orange">{selectedInvParsed?.currency === 'USD' ? '$' : 'Q'} {selectedInv?.amount.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Step 2: Adjustments (Discounts & Extras) */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Discounts block */}
+                    <div className="border border-slate-100 p-4 rounded-2xl bg-white space-y-3">
+                      <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block">Tipo de Descuento</label>
+                      <div className="flex gap-2">
+                        {(['none', 'fixed', 'percentage'] as const).map(type => (
+                          <button
+                            key={type}
+                            type="button"
+                            onClick={() => {
+                              setPaymentDiscountType(type);
+                              setPaymentDiscountValue(0);
+                            }}
+                            className={`flex-1 text-[9px] font-bold py-1.5 px-2 rounded-xl border transition uppercase tracking-wider ${
+                              paymentDiscountType === type
+                                ? 'bg-orange-50 border-brand-orange text-brand-orange shadow-xs'
+                                : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100'
+                            }`}
+                          >
+                            {type === 'none' ? 'Ninguno' : type === 'fixed' ? 'Monto Fijo' : 'Porcentaje'}
+                          </button>
+                        ))}
+                      </div>
+                      {paymentDiscountType !== 'none' && (
+                        <div>
+                          <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">
+                            {paymentDiscountType === 'fixed' ? 'Valor del Descuento (Cantidad)' : 'Porcentaje del Descuento (%)'}
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            value={paymentDiscountValue || ''}
+                            onChange={(e) => setPaymentDiscountValue(parseFloat(e.target.value) || 0)}
+                            className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-orange focus:outline-none font-bold text-brand-gray-dark font-mono text-brand-orange"
+                            placeholder={paymentDiscountType === 'fixed' ? 'Ej: 15.00' : 'Ej: 10'}
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Extras charges block */}
+                    <div className="border border-slate-100 p-4 rounded-2xl bg-white space-y-3">
+                      <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block">Cargos Adicionales</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[8px] font-black text-gray-400 uppercase block mb-1">Cargo Seguro</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            value={paymentInsuranceExtra || ''}
+                            onChange={(e) => setPaymentInsuranceExtra(parseFloat(e.target.value) || 0)}
+                            className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-orange focus:outline-none font-bold text-brand-gray-dark font-mono text-green-600 text-center"
+                            placeholder="Q 0.00"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[8px] font-black text-gray-400 uppercase block mb-1">Envío Local</label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            value={paymentLocalDeliveryExtra || ''}
+                            onChange={(e) => setPaymentLocalDeliveryExtra(parseFloat(e.target.value) || 0)}
+                            className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-orange focus:outline-none font-bold text-brand-gray-dark font-mono text-green-600 text-center"
+                            placeholder="Q 0.00"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Step 3: Recaudación / Payment Method */}
+                  <div className="space-y-2">
+                    <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block">Método de Recaudación *</label>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                      {[
+                        { name: 'Transferencia Bancaria', icon: Building, color: 'text-blue-500' },
+                        { name: 'Pago en Efectivo', icon: Wallet, color: 'text-green-500' },
+                        { name: 'Tarjeta de Crédito', icon: CreditCard, color: 'text-purple-500' },
+                        { name: 'Contra-Entrega (COD)', icon: Truck, color: 'text-orange-500' },
+                      ].map(method => {
+                        const IconComponent = method.icon;
+                        const isSelected = paymentMethod === method.name;
+                        return (
+                          <button
+                            key={method.name}
+                            type="button"
+                            onClick={() => setPaymentMethod(method.name)}
+                            className={`p-3 rounded-2xl border transition text-center flex flex-col items-center justify-center gap-1.5 cursor-pointer relative active:scale-95 ${
+                              isSelected
+                                ? 'bg-orange-50 border-brand-orange text-brand-orange border-2'
+                                : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100/60'
+                            }`}
+                          >
+                            {isSelected && (
+                              <span className="absolute top-1.5 right-1.5 bg-brand-orange text-white p-0.5 rounded-full">
+                                <Check className="h-3 w-3" />
+                              </span>
+                            )}
+                            <IconComponent className={`h-5 w-5 ${isSelected ? 'text-brand-orange' : method.color}`} />
+                            <span className="text-[8px] font-black uppercase tracking-wider leading-none">{method.name.replace(' (COD)', '')}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Step 4: Notes */}
+                  <div>
+                    <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Notas / Código Referencia *</label>
+                    <input
+                      type="text"
+                      required
+                      value={paymentNotes}
+                      onChange={(e) => setPaymentNotes(e.target.value)}
+                      className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-orange focus:outline-none font-bold text-brand-gray-dark"
+                      placeholder="Ej: Depósito Banrural Ref #8219, Efectivo exacto..."
+                    />
+                  </div>
+
+                  {/* Step 5: Summary Receipt (Ticket Style) */}
+                  {paymentInvoice && (() => {
+                    const selectedInv = invoices.find(i => i.id === paymentInvoice);
+                    const selectedInvParsed = selectedInv ? parseInvoiceConcept(selectedInv.concept) : null;
+                    const currencySymbol = selectedInvParsed?.currency === 'USD' ? '$' : 'Q';
+                    const originalAmount = selectedInv ? selectedInv.amount : 0;
+                    const netAmount = getNetPaymentAmount();
+                    
+                    let baseAfterDiscount = originalAmount;
+                    if (paymentDiscountType === 'fixed') {
+                      baseAfterDiscount = Math.max(0, originalAmount - paymentDiscountValue);
+                    } else if (paymentDiscountType === 'percentage') {
+                      const discount = originalAmount * (paymentDiscountValue / 100);
+                      baseAfterDiscount = Math.max(0, originalAmount - discount);
+                    }
+                    const discountAmount = originalAmount - baseAfterDiscount;
+
+                    return (
+                      <div className="border-2 border-dashed border-slate-300 p-4 bg-slate-50/50 rounded-2xl space-y-1.5 text-4xs font-mono text-slate-600 flex-shrink-0">
+                        <div className="text-center font-bold uppercase tracking-wider text-[9px] mb-2 border-b border-slate-200 pb-1">Recibo Provisorio de Caja</div>
+                        <div className="flex justify-between">
+                          <span>Monto Original de la Factura:</span>
+                          <strong>{currencySymbol} {originalAmount.toFixed(2)}</strong>
+                        </div>
+                        {paymentDiscountType !== 'none' && (
+                          <div className="flex justify-between text-red-600 font-bold">
+                            <span>Descuento Aplicado:</span>
+                            <strong>- {currencySymbol} {discountAmount.toFixed(2)}</strong>
+                          </div>
+                        )}
+                        {paymentInsuranceExtra > 0 && (
+                          <div className="flex justify-between text-emerald-650 font-bold">
+                            <span>Cargo Seguro Extra:</span>
+                            <strong>+ {currencySymbol} {paymentInsuranceExtra.toFixed(2)}</strong>
+                          </div>
+                        )}
+                        {paymentLocalDeliveryExtra > 0 && (
+                          <div className="flex justify-between text-emerald-650 font-bold">
+                            <span>Envío Local Extra:</span>
+                            <strong>+ {currencySymbol} {paymentLocalDeliveryExtra.toFixed(2)}</strong>
+                          </div>
+                        )}
+                        <div className="flex justify-between text-green-700 font-black border-t border-dashed border-slate-300 pt-2 mt-2 text-3xs">
+                          <span className="uppercase tracking-wider">TOTAL NETO RECAUDADO:</span>
+                          <span>{currencySymbol} {netAmount.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Actions */}
+                  <div className="flex justify-end gap-3 border-t border-slate-100 pt-4 mt-2 flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsPaymentModalOpen(false);
+                        setPaymentInvoice('');
+                      }}
+                      className="px-5 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition active:scale-95 cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      className="bg-green-600 hover:bg-green-700 text-white font-extrabold text-xs py-2 px-6 rounded-xl flex items-center justify-center gap-1.5 shadow-md shadow-green-100 active:scale-98 transition cursor-pointer"
+                    >
+                      <CheckCircle2 className="h-4 w-4" /> Registrar Pago
                     </button>
                   </div>
                 </form>
