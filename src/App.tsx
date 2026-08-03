@@ -3589,7 +3589,7 @@ Para proporcionarle información específica, puede solicitar:
                           </button>
 
                           {/* Change Password Link */}
-                          <div className="text-center pt-1">
+                          <div className="text-center pt-4 mt-2 border-t border-gray-200">
                             <button
                               type="button"
                               onClick={() => {
@@ -3597,9 +3597,9 @@ Para proporcionarle información específica, puede solicitar:
                                 setLoginError('');
                                 setCpIdentifier(loginIdentifier);
                               }}
-                              className="text-4xs text-brand-orange hover:text-brand-orange-hover font-semibold transition-colors inline-flex items-center gap-1 cursor-pointer"
+                              className="text-xs text-brand-orange hover:text-brand-orange-hover font-bold transition-colors inline-flex items-center gap-1.5 cursor-pointer"
                             >
-                              <KeyRound className="h-3 w-3" />
+                              <KeyRound className="h-4 w-4" />
                               ¿Deseas cambiar tu contraseña?
                             </button>
                           </div>
