@@ -13112,6 +13112,68 @@ El Equipo de ShipFast GT`;
         </div>
       )}
 
+      {/* Dispatch Container Modal */}
+      {isDispatchContainerModalOpen && (
+        <div className="fixed inset-0 bg-brand-gray-dark/85 backdrop-blur-xs flex justify-center items-center z-50 p-4 animate-fade-in">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col border border-gray-200">
+            <div className="bg-brand-gray-dark px-5 py-4 border-b border-brand-orange/30 flex justify-between items-center">
+              <h3 className="text-sm font-extrabold text-white uppercase tracking-wider font-display flex items-center gap-2">
+                <Truck className="h-4.5 w-4.5 text-brand-orange" />
+                Generar Despacho a Ruta
+              </h3>
+              <button 
+                onClick={() => setIsDispatchContainerModalOpen(false)}
+                className="text-gray-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-5 flex-1 bg-gray-50/50">
+              <p className="text-4xs text-gray-600 mb-4 leading-relaxed">
+                Está a punto de despachar <strong>{dispatchGroupsPending.reduce((acc, g) => acc + g.count, 0)}</strong> paquetes consolidados hacia ruta. Ingrese el identificador del contenedor o valija (ej. CONT-LRD-01) para agrupar las guías madre.
+              </p>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-4xs font-bold text-gray-700 uppercase mb-1">Nombre del Contenedor / Valija *</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ej: LRD-GUA-001"
+                    value={containerInputName}
+                    onChange={(e) => setContainerInputName(e.target.value)}
+                    className="w-full text-xs font-mono px-3 py-2 border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange focus:outline-none"
+                    autoFocus
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="bg-gray-100 px-5 py-3 border-t border-gray-200 flex justify-end gap-2">
+              <button
+                onClick={() => setIsDispatchContainerModalOpen(false)}
+                className="px-4 py-2 text-4xs font-bold text-gray-600 hover:text-gray-800 uppercase tracking-wider cursor-pointer transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  if (!containerInputName.trim()) {
+                    alert("Debe ingresar un nombre para el contenedor.");
+                    return;
+                  }
+                  executeDispatchToContainer(dispatchGroupsPending, containerInputName);
+                  setIsDispatchContainerModalOpen(false);
+                  setContainerInputName('');
+                  setDispatchGroupsPending([]);
+                }}
+                className="bg-brand-orange hover:bg-brand-orange-hover text-white px-5 py-2 rounded text-4xs font-extrabold uppercase tracking-wider shadow-sm transition-all cursor-pointer flex items-center gap-1.5"
+              >
+                <Send className="h-3.5 w-3.5" />
+                Confirmar Despacho
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
