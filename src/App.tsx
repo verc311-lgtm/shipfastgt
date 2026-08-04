@@ -11083,7 +11083,7 @@ El Equipo de ShipFast GT`;
 
           {/* ==================== ZEBRA GK420d THERMAL PRINTER SIMULATOR ==================== */}
           {bulkPrintSticker && (
-            <div className="fixed inset-0 bg-brand-gray-dark/85 backdrop-blur-xs flex justify-center items-center z-50 p-4 animate-fade-in">
+            <div className="fixed inset-0 bg-brand-gray-dark/85 backdrop-blur-xs flex justify-center items-center z-[200] p-4 animate-fade-in">
               <div className="bg-white rounded-xl shadow-2xl border border-gray-200 max-w-sm w-full p-6 animate-zoom-in flex flex-col gap-4">
                 
                 {/* Simulator Header */}
@@ -11289,7 +11289,7 @@ El Equipo de ShipFast GT`;
 
           {/* ==================== BODEGA INTERNACIONAL ZOOM OVERLAY ==================== */}
           {activeWarehouseModal && (
-            <div className="fixed inset-0 bg-brand-gray-dark/65 backdrop-blur-sm flex justify-center items-center z-50 p-4 animate-fade-in">
+            <div className="fixed inset-0 bg-brand-gray-dark/65 backdrop-blur-sm flex justify-center items-center z-[200] p-4 animate-fade-in">
               <div className="bg-white w-full max-w-lg rounded-3xl border border-slate-100 shadow-2xl overflow-hidden relative animate-zoom-in transition-all duration-300 font-sans">
                 
                 {/* Header Flag / Title */}
@@ -11430,7 +11430,7 @@ El Equipo de ShipFast GT`;
 
           {/* ==================== NUEVA PRE-ALERTA MANUAL CLIENT OVERLAY ==================== */}
           {isClientPreAlertModalOpen && (
-            <div className="fixed inset-0 bg-brand-gray-dark/65 backdrop-blur-xs flex justify-center items-center z-50 p-4 animate-fade-in">
+            <div className="fixed inset-0 bg-brand-gray-dark/65 backdrop-blur-xs flex justify-center items-center z-[200] p-4 animate-fade-in">
               <div className="bg-white w-full max-w-lg rounded-3xl border border-slate-100 shadow-2xl overflow-hidden relative animate-zoom-in transition-all duration-300 font-sans">
                 
                 {/* Close Button X */}
@@ -11613,7 +11613,7 @@ El Equipo de ShipFast GT`;
 
           {/* ==================== NUEVA PRE-ALERTA MANUAL ADMINISTRADOR OVERLAY ==================== */}
           {isAdminPreAlertModalOpen && (
-            <div className="fixed inset-0 bg-brand-gray-dark/65 backdrop-blur-xs flex justify-center items-center z-50 p-4 animate-fade-in">
+            <div className="fixed inset-0 bg-brand-gray-dark/65 backdrop-blur-xs flex justify-center items-center z-[200] p-4 animate-fade-in">
               <div className="bg-white w-full max-w-lg rounded-3xl border border-slate-100 shadow-2xl overflow-hidden relative animate-zoom-in transition-all duration-300 font-sans">
                 
                 {/* Close Button X */}
@@ -11808,7 +11808,7 @@ El Equipo de ShipFast GT`;
             const clientLocker = activePreAlertInvoice.lockerId;
 
             return (
-              <div className="fixed inset-0 bg-brand-gray-dark/70 backdrop-blur-xs flex justify-center items-center z-50 p-4 animate-fade-in">
+              <div className="fixed inset-0 bg-brand-gray-dark/70 backdrop-blur-xs flex justify-center items-center z-[200] p-4 animate-fade-in">
                 <div className="bg-white w-full max-w-2xl rounded-2xl border border-gray-100 shadow-2xl overflow-hidden animate-zoom-in transition-all duration-300 font-sans">
                   
                   {/* Modal Header */}
@@ -11964,7 +11964,7 @@ El Equipo de ShipFast GT`;
 
           {/* ==================== EDIT PRE-ALERT MODAL (ADMIN / USER) ==================== */}
           {isEditPreAlertModalOpen && editingPreAlert && (
-            <div className="fixed inset-0 bg-brand-gray-dark/65 backdrop-blur-xs flex justify-center items-center z-50 p-4 animate-fade-in">
+            <div className="fixed inset-0 bg-brand-gray-dark/65 backdrop-blur-xs flex justify-center items-center z-[200] p-4 animate-fade-in">
               <div className="bg-white w-full max-w-md rounded-2xl border border-slate-100 shadow-2xl overflow-hidden relative animate-zoom-in font-sans">
                 <button
                   type="button"
@@ -12079,7 +12079,7 @@ El Equipo de ShipFast GT`;
 
           {/* ==================== ASSIGN CONTAINER MODAL ==================== */}
           {isContainerModalOpen && (
-            <div className="fixed inset-0 bg-brand-gray-dark/65 backdrop-blur-xs flex justify-center items-center z-50 p-4 animate-fade-in font-sans">
+            <div className="fixed inset-0 bg-brand-gray-dark/65 backdrop-blur-xs flex justify-center items-center z-[200] p-4 animate-fade-in font-sans">
               <div className="bg-white w-full max-w-md rounded-2xl border border-slate-100 shadow-2xl overflow-hidden relative animate-zoom-in">
                 <button
                   type="button"
@@ -12190,7 +12190,7 @@ El Equipo de ShipFast GT`;
 
           {/* ==================== EDIT INVOICE MODAL ==================== */}
           {isEditInvoiceModalOpen && editingInvoice && (
-            <div className="fixed inset-0 bg-brand-gray-dark/65 backdrop-blur-xs flex justify-center items-center z-50 p-4 animate-fade-in font-sans">
+            <div className="fixed inset-0 bg-brand-gray-dark/65 backdrop-blur-xs flex justify-center items-center z-[200] p-4 animate-fade-in font-sans">
               <div className="bg-white w-full max-w-lg rounded-2xl border border-slate-100 shadow-2xl overflow-hidden relative animate-zoom-in">
                 <button
                   type="button"
@@ -12318,7 +12318,7 @@ El Equipo de ShipFast GT`;
 
           {/* ==================== GLOBAL OMNI-SEARCH MODAL ==================== */}
           {isGlobalSearchOpen && (
-            <div className="fixed inset-0 bg-brand-gray-dark/65 backdrop-blur-xs flex justify-center items-start z-50 p-4 pt-10 md:pt-16 overflow-y-auto animate-fade-in font-sans">
+            <div className="fixed inset-0 bg-brand-gray-dark/65 backdrop-blur-xs flex justify-center items-start z-[200] p-4 pt-10 md:pt-16 overflow-y-auto animate-fade-in font-sans">
               <div className="bg-white w-full max-w-4xl rounded-2xl border border-slate-100 shadow-2xl overflow-hidden relative animate-zoom-in flex flex-col max-h-[85vh]">
                 
                 {/* Modal Header */}
@@ -12642,7 +12642,7 @@ El Equipo de ShipFast GT`;
             href="https://wa.me/18028390011?text=Hola%20ShipFast%20GT!%20Necesito%20soporte%20con%20mis%20paquetes."
             target="_blank"
             rel="noopener noreferrer"
-            className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 bg-[#25D366] hover:bg-[#20ba56] text-white font-extrabold text-3xs uppercase tracking-wider py-3 px-5 rounded-full shadow-2xl hover:shadow-[#25D366]/40 transition-all hover:scale-105 active:scale-95 duration-300 select-none group border-2 border-white/20"
+            className="fixed bottom-6 right-6 z-[200] flex items-center gap-2.5 bg-[#25D366] hover:bg-[#20ba56] text-white font-extrabold text-3xs uppercase tracking-wider py-3 px-5 rounded-full shadow-2xl hover:shadow-[#25D366]/40 transition-all hover:scale-105 active:scale-95 duration-300 select-none group border-2 border-white/20"
             title="Escríbenos por WhatsApp"
           >
             <span className="relative flex h-2.5 w-2.5">
