@@ -239,7 +239,7 @@ export default function App() {
   const [activeDriverTaskId, setActiveDriverTaskId] = useState<string | null>(null);
   const [signeeName, setSigneeName] = useState('');
   const [signatureDone, setSignatureDone] = useState(false);
-  const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  // signatureCanvasRef (Driver)
 
   // Admin View States
   const [adminSubTab, setAdminSubTab] = useState<string>('portal');
@@ -320,6 +320,12 @@ export default function App() {
 
   // Global omni-search states
   const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
+  const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
+  const [pendingPreAlertData, setPendingPreAlertData] = useState<any>(null);
+  const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [isDrawingSignature, setIsDrawingSignature] = useState(false);
+  
+
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
   const [globalSearchFilter, setGlobalSearchFilter] = useState<'todos' | 'usuarios' | 'shipments' | 'prealerts' | 'invoices'>('todos');
 
@@ -1315,6 +1321,131 @@ Cargos de Flete y Tarifas Asignadas:
       setCopyLinkSuccess(true);
       setTimeout(() => setCopyLinkSuccess(false), 3000);
     });
+  };
+
+
+  const handleSaveSignature = () => {
+    if (signatureCanvasRef.current && pendingPreAlertData) {
+      const signatureDataUrl = signatureCanvasRef.current.toDataURL('image/png');
+      
+      const finalPreAlert = {
+        ...pendingPreAlertData,
+        waiverSignature: signatureDataUrl,
+        waiverDate: new Date().toISOString()
+      };
+      
+      setPreAlerts(prev => [finalPreAlert, ...prev]);
+      db.upsertPreAlert(finalPreAlert);
+      
+      // Reset everything
+      setPendingPreAlertData(null);
+      setIsSignatureModalOpen(false);
+      
+      // Clean up form
+      if (currentUser?.role === 'admin') {
+        setAdminPreAlertLockerId('');
+        setClientPreAlertTracking('');
+        setClientPreAlertBodega('');
+        setClientPreAlertValue('');
+        setClientPreAlertWeight('1.0');
+        setClientPreAlertInsurance('Sin seguro');
+        setClientPreAlertFileName('');
+      } else {
+        setClientPreAlertTracking('');
+        setClientPreAlertBodega('');
+        setClientPreAlertValue('');
+        setClientPreAlertWeight('1.0');
+        setClientPreAlertInsurance('Sin seguro');
+        setClientPreAlertFileName('');
+      }
+      alert('Pre-alerta creada exitosamente con firma electrónica guardada en el sistema.');
+    }
+  };
+
+  const handlePrintWaiverPDF = (pa: any) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Por favor permite las ventanas emergentes (popups) para descargar el documento.');
+      return;
+    }
+
+    const clientName = users.find((u: any) => u.lockerId === pa.lockerId)?.name || 'Desconocido';
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Documento de Exención - ${pa.id}</title>
+        <style>
+          body { font-family: 'Arial', sans-serif; padding: 40px; color: #111827; line-height: 1.6; }
+          .header { text-align: center; border-bottom: 2px solid #ea580c; padding-bottom: 20px; margin-bottom: 30px; }
+          .title { font-size: 24px; font-weight: bold; color: #ea580c; margin: 0; }
+          .subtitle { font-size: 14px; color: #4b5563; font-weight: bold; }
+          .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 30px; background: #f9fafb; padding: 20px; border-radius: 8px; border: 1px solid #e5e7eb; }
+          .clause { margin-bottom: 20px; text-align: justify; }
+          .clause h3 { font-size: 14px; margin-bottom: 5px; color: #1f2937; }
+          .signature-box { margin-top: 50px; text-align: center; width: 300px; }
+          .signature-img { max-width: 100%; max-height: 100px; border-bottom: 1px solid #000; padding-bottom: 5px; margin-bottom: 10px; }
+          @media print { body { padding: 0; } }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1 class="title">SHIPFAST LOGISTICS GUATEMALA</h1>
+          <div class="subtitle">DOCUMENTO DE RENUNCIA DE SEGURO Y LÍMITE DE INDEMNIZACIÓN</div>
+        </div>
+
+        <div class="info-grid">
+          <div><strong>Fecha:</strong> ${pa.waiverDate ? new Date(pa.waiverDate).toLocaleDateString() : new Date().toLocaleDateString()}</div>
+          <div><strong>Cliente:</strong> ${clientName}</div>
+          <div><strong>Casillero:</strong> ${pa.lockerId}</div>
+          <div><strong>Tracking:</strong> ${pa.id}</div>
+        </div>
+
+        <p>Por medio del presente documento, declaro y acepto expresamente lo siguiente respecto al servicio de transporte, importación y manejo de paquetería provisto por ShipFast Logistics Guatemala:</p>
+
+        <div class="clause">
+          <h3>1. RECHAZO DE COBERTURA DE SEGURO</h3>
+          <p>Confirmo que he sido informado sobre la opción de proteger mi mercancía a través del pago de un seguro, y declaro que he decidido libre y voluntariamente <strong>NO CONTRATAR</strong> dicha póliza de seguro para el/los paquete(s) vinculado(s) al tracking #${pa.id}.</p>
+        </div>
+
+        <div class="clause">
+          <h3>2. CONOCIMIENTO DE RIESGOS</h3>
+          <p>Soy plenamente consciente y acepto que el transporte internacional y local de carga conlleva riesgos inherentes que pueden resultar en situaciones fortuitas o de fuerza mayor, incluyendo pero no limitándose a: extravío, robo, decomiso en aduanas o pérdida de los paquetes durante la cadena logística.</p>
+        </div>
+
+        <div class="clause">
+          <h3>3. LÍMITE MÁXIMO DE RESPONSABILIDAD POR PÉRDIDA</h3>
+          <p>Entiendo y acepto incondicionalmente que, al haber declinado el pago del seguro, en el caso eventual de que ocurra una pérdida total o parcial de mi mercancía, <strong>ShipFast Logistics Guatemala únicamente se hará responsable hasta por un monto máximo de cincuenta dólares exactos ($50.00 USD)</strong>, independientemente de cuál sea el valor real, comercial o sentimental de los bienes transportados.</p>
+        </div>
+
+        <div class="clause">
+          <h3>4. EXENCIÓN TOTAL POR DAÑOS</h3>
+          <p>Reconozco y acepto que al no contar con un seguro, <strong>la empresa no se hará responsable en lo absoluto por daños, golpes, roturas, rayones, mermas o desperfectos</strong> que pueda presentar la mercancía al momento de ser entregada.</p>
+        </div>
+
+        <div class="clause">
+          <h3>5. LIBERACIÓN LEGAL</h3>
+          <p>Mediante mi firma electrónica estampada a continuación, libero total y definitivamente a ShipFast Logistics Guatemala, sus directores, empleados, agentes y contratistas, de cualquier demanda, queja, acción legal o reclamación de indemnización que pretenda exigir un monto superior a los $50.00 USD aquí estipulados.</p>
+        </div>
+
+        <p>He leído, comprendido y aceptado todas las condiciones detalladas en este documento de exención de responsabilidad.</p>
+
+        <div class="signature-box">
+          ${pa.waiverSignature ? `<img src="${pa.waiverSignature}" class="signature-img" />` : '<div style="height: 60px; border-bottom: 1px solid #000; margin-bottom: 10px;"></div>'}
+          <div><strong>FIRMA DEL CLIENTE / RECEPTOR</strong></div>
+          <div>${clientName}</div>
+        </div>
+        
+        <div style="margin-top: 40px; text-align: center;">
+          <button onclick="window.print()" style="padding: 10px 20px; background: #ea580c; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">🖨️ Imprimir / Guardar como PDF</button>
+        </div>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
   };
 
   // Download Quote PDF (Opens print-ready professional invoice layout)
@@ -2524,6 +2655,13 @@ Cargos de Flete y Tarifas Asignadas:
       invoiceFileName: clientPreAlertFileName
     };
 
+    if (clientPreAlertInsurance === 'Sin seguro') {
+      setPendingPreAlertData(newPreAlert);
+      setIsSignatureModalOpen(true);
+      setIsClientPreAlertModalOpen(false);
+      return;
+    }
+
     // Save to Supabase
     db.upsertPreAlert(newPreAlert);
 
@@ -2580,6 +2718,13 @@ Cargos de Flete y Tarifas Asignadas:
       insurance: clientPreAlertInsurance,
       invoiceFileName: clientPreAlertFileName
     };
+
+    if (clientPreAlertInsurance === 'Sin seguro') {
+      setPendingPreAlertData(newPreAlert);
+      setIsSignatureModalOpen(true);
+      setIsAdminPreAlertModalOpen(false);
+      return;
+    }
 
     // Save to Supabase
     db.upsertPreAlert(newPreAlert);
@@ -4466,6 +4611,16 @@ Para proporcionarle información específica, puede solicitar:
                           <div className="text-gray-500 font-sans leading-tight">
                             {pa.description}
                           </div>
+                          {(pa as any).waiverSignature && (
+                            <button
+                              type="button"
+                              onClick={() => handlePrintWaiverPDF(pa)}
+                              className="mt-1 self-start inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-orange-50 border border-orange-200 text-brand-orange hover:bg-orange-100 hover:text-orange-700 text-[9px] font-black tracking-wider transition-all duration-150 cursor-pointer shadow-3xs"
+                              title="Imprimir Exención de Responsabilidad"
+                            >
+                              🖨️ Ver Renuncia de Seguro
+                            </button>
+                          )}
                           <div className="text-[8px] text-gray-400 font-semibold uppercase flex justify-between pt-0.5 border-t border-gray-100/50 mt-1 font-sans">
                             <span>Creación: {pa.dateCreated}</span>
                             <span>Est: {pa.weightEst} Lbs</span>
@@ -6064,6 +6219,16 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                             title={`Ver archivo: ${invoiceFile}`}
                                           >
                                             📄 Ver Factura ({invoiceFile})
+                                          </button>
+                                        )}
+                                        {(pa as any).waiverSignature && (
+                                          <button
+                                            type="button"
+                                            onClick={() => handlePrintWaiverPDF(pa)}
+                                            className="mt-1 self-start inline-flex items-center gap-1 px-2.5 py-0.5 rounded bg-orange-50 border border-orange-200 text-brand-orange hover:bg-orange-100 hover:text-orange-700 text-[10px] font-black tracking-wider transition-all duration-150 cursor-pointer shadow-3xs"
+                                            title="Imprimir Exención de Responsabilidad"
+                                          >
+                                            🖨️ Ver Renuncia de Seguro
                                           </button>
                                         )}
                                       </div>
@@ -12760,6 +12925,129 @@ El Equipo de ShipFast GT`;
             </div>
           )}
 
+
+          {/* ==================== SIGNATURE WAIVER MODAL ==================== */}
+          {isSignatureModalOpen && pendingPreAlertData && (
+            <div className="fixed inset-0 bg-brand-gray-dark/65 backdrop-blur-xs flex justify-center items-start z-[200] p-4 pt-10 md:pt-16 overflow-y-auto animate-fade-in font-sans">
+              <div className="bg-white w-full max-w-2xl rounded-2xl border border-slate-100 shadow-2xl overflow-hidden relative animate-zoom-in flex flex-col">
+                
+                {/* Modal Header */}
+                <div className="bg-brand-orange p-5 text-white flex-shrink-0">
+                  <h3 className="text-xl font-black uppercase tracking-tight">Acuerdo de Exención de Responsabilidad</h3>
+                  <p className="text-xs text-white/80 mt-1">Requerido por declinar el seguro de carga.</p>
+                </div>
+
+                <div className="p-6 overflow-y-auto max-h-[50vh] text-xs text-gray-700 space-y-4">
+                  <p><strong>Tracking:</strong> <span className="font-mono text-brand-orange font-bold">{pendingPreAlertData.id}</span></p>
+                  <p>Por medio del presente documento, declaro y acepto expresamente lo siguiente respecto al servicio de transporte, importación y manejo de paquetería provisto por ShipFast Logistics Guatemala:</p>
+                  <ol className="list-decimal list-inside space-y-2">
+                    <li><strong>RECHAZO DE COBERTURA DE SEGURO:</strong> He decidido libre y voluntariamente NO CONTRATAR la póliza de seguro.</li>
+                    <li><strong>CONOCIMIENTO DE RIESGOS:</strong> Soy consciente de los riesgos inherentes del transporte (extravío, robo, pérdida).</li>
+                    <li><strong>LÍMITE MÁXIMO DE RESPONSABILIDAD:</strong> Acepto que <strong>ShipFast Logistics únicamente se hará responsable hasta por un monto máximo de $50.00 USD</strong>.</li>
+                    <li><strong>EXENCIÓN TOTAL POR DAÑOS:</strong> La empresa no se hará responsable en lo absoluto por daños o golpes.</li>
+                    <li><strong>LIBERACIÓN LEGAL:</strong> Libero a ShipFast de cualquier reclamo que exceda los $50 USD.</li>
+                  </ol>
+                  
+                  <div className="mt-6">
+                    <label className="text-[10px] font-black text-gray-500 uppercase tracking-wider block mb-2">DIBUJE SU FIRMA AQUÍ:</label>
+                    <div className="border-2 border-dashed border-gray-300 rounded-xl bg-gray-50 cursor-crosshair">
+                      <canvas
+                        ref={signatureCanvasRef}
+                        width={600}
+                        height={150}
+                        className="w-full h-[150px] touch-none"
+                        onMouseDown={(e) => {
+                          setIsDrawingSignature(true);
+                          const canvas = signatureCanvasRef.current;
+                          if (!canvas) return;
+                          const ctx = canvas.getContext('2d');
+                          if (!ctx) return;
+                          const rect = canvas.getBoundingClientRect();
+                          ctx.beginPath();
+                          ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+                        }}
+                        onMouseMove={(e) => {
+                          if (!isDrawingSignature) return;
+                          const canvas = signatureCanvasRef.current;
+                          if (!canvas) return;
+                          const ctx = canvas.getContext('2d');
+                          if (!ctx) return;
+                          const rect = canvas.getBoundingClientRect();
+                          ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+                          ctx.strokeStyle = '#000';
+                          ctx.lineWidth = 2;
+                          ctx.stroke();
+                        }}
+                        onMouseUp={() => setIsDrawingSignature(false)}
+                        onMouseLeave={() => setIsDrawingSignature(false)}
+                        onTouchStart={(e) => {
+                          setIsDrawingSignature(true);
+                          const canvas = signatureCanvasRef.current;
+                          if (!canvas) return;
+                          const ctx = canvas.getContext('2d');
+                          if (!ctx) return;
+                          const rect = canvas.getBoundingClientRect();
+                          const touch = e.touches[0];
+                          ctx.beginPath();
+                          ctx.moveTo(touch.clientX - rect.left, touch.clientY - rect.top);
+                        }}
+                        onTouchMove={(e) => {
+                          if (!isDrawingSignature) return;
+                          const canvas = signatureCanvasRef.current;
+                          if (!canvas) return;
+                          const ctx = canvas.getContext('2d');
+                          if (!ctx) return;
+                          const rect = canvas.getBoundingClientRect();
+                          const touch = e.touches[0];
+                          ctx.lineTo(touch.clientX - rect.left, touch.clientY - rect.top);
+                          ctx.strokeStyle = '#000';
+                          ctx.lineWidth = 2;
+                          ctx.stroke();
+                          e.preventDefault();
+                        }}
+                        onTouchEnd={() => setIsDrawingSignature(false)}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-5 border-t border-slate-100 flex justify-between bg-slate-50">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const canvas = signatureCanvasRef.current;
+                      if (!canvas) return;
+                      const ctx = canvas.getContext('2d');
+                      ctx?.clearRect(0, 0, canvas.width, canvas.height);
+                    }}
+                    className="text-slate-500 font-bold text-xs px-4 py-2 hover:bg-slate-200 rounded-lg transition cursor-pointer"
+                  >
+                    Limpiar Firma
+                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsSignatureModalOpen(false);
+                        setPendingPreAlertData(null);
+                      }}
+                      className="text-slate-500 font-bold text-xs px-4 py-2 hover:bg-slate-200 rounded-lg transition cursor-pointer"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveSignature}
+                      className="bg-green-600 hover:bg-green-700 text-white font-extrabold text-xs py-2 px-6 rounded-lg shadow-md hover:shadow-lg transition cursor-pointer"
+                    >
+                      Firmar y Guardar
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          )}
 
           {/* ==================== GLOBAL OMNI-SEARCH MODAL ==================== */}
           {isGlobalSearchOpen && (
