@@ -44,7 +44,8 @@ import {
   KeyRound,
   Eye,
   EyeOff,
-  ArrowLeft
+  ArrowLeft,
+  PackageMinus
 } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 
@@ -3327,37 +3328,53 @@ Para proporcionarle información específica, puede solicitar:
     setAdminSubTab('consolidado');
   };
 
-  const handleDeleteWarehouseGroups = async (groupsToDelete: any[]) => {
-    if (groupsToDelete.length === 0) return;
+  const handleRemoveFromWarehouseGroups = async (groupsToRemove: any[]) => {
+    if (groupsToRemove.length === 0) return;
     
-    const totalPackages = groupsToDelete.reduce((acc: number, g: any) => acc + g.count, 0);
+    const totalPackages = groupsToRemove.reduce((acc: number, g: any) => acc + g.count, 0);
     
-    if (!window.confirm(`¿Está seguro que desea ELIMINAR permanentemente ${totalPackages} paquete(s) del sistema? Esta acción no se puede deshacer y borrará el historial de estos envíos.`)) {
+    if (!window.confirm(`¿Está seguro que desea DESALMACENAR ${totalPackages} paquete(s)? Volverán al estado "Creado" y ya no aparecerán en el almacén.`)) {
       return;
     }
 
-    const shipmentsToDelete: string[] = [];
-    groupsToDelete.forEach(g => {
+    const currentDate = new Date().toISOString().split('T')[0];
+    const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
+
+    const updatedShipmentsList: Shipment[] = [];
+    groupsToRemove.forEach(g => {
       g.shipments.forEach((s: any) => {
-        shipmentsToDelete.push(s.id);
+        updatedShipmentsList.push({
+          ...s,
+          status: 'Creado',
+          lastUpdated: `${currentDate} ${currentTime}`,
+          history: [
+            {
+              date: currentDate,
+              time: currentTime,
+              status: 'Creado',
+              location: 'Administración',
+              details: 'Paquete retirado del almacén manualmente.'
+            },
+            ...s.history
+          ]
+        });
       });
     });
 
-    let successCount = 0;
-    for (const id of shipmentsToDelete) {
-      const success = await db.deleteShipment(id);
-      if (success) successCount++;
-    }
+    const success = await db.upsertShipments(updatedShipmentsList);
 
-    if (successCount === 0 && shipmentsToDelete.length > 0) {
-      alert('Hubo un error al intentar eliminar los paquetes de la base de datos.');
+    if (!success) {
+      alert('Hubo un error al intentar desalmacenar los paquetes en la base de datos.');
       return;
     }
 
-    setShipments(prev => prev.filter(s => !shipmentsToDelete.includes(s.id)));
+    setShipments(prev => prev.map(s => {
+      const updated = updatedShipmentsList.find(u => u.id === s.id);
+      return updated ? updated : s;
+    }));
     setSelectedWarehouseGroups([]);
     
-    alert(`Se eliminaron ${successCount} paquetes correctamente del sistema.`);
+    alert(`Se desalmacenaron ${totalPackages} paquetes correctamente.`);
   };
 
   const handleUpdateContainerStatus = async (containerName: string, newStatus: string) => {
@@ -6788,12 +6805,12 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                       type="button"
                                       onClick={() => {
                                         const groups = groupList.filter(g => selectedWarehouseGroups.includes(`${g.lockerId}-${g.bodega}`));
-                                        handleDeleteWarehouseGroups(groups);
+                                        handleRemoveFromWarehouseGroups(groups);
                                       }}
-                                      className="bg-red-500 hover:bg-red-600 text-white text-[10px] font-extrabold px-3 py-1.5 rounded uppercase tracking-wider cursor-pointer transition shadow-3xs flex items-center gap-1.5 active:scale-98"
+                                      className="bg-yellow-500 hover:bg-yellow-600 text-white text-[10px] font-extrabold px-3 py-1.5 rounded uppercase tracking-wider cursor-pointer transition shadow-3xs flex items-center gap-1.5 active:scale-98"
                                     >
-                                      <Trash2 className="h-3.5 w-3.5" />
-                                      <span>Eliminar Selección ({selectedWarehouseGroups.length})</span>
+                                      <PackageMinus className="h-3.5 w-3.5" />
+                                      <span>Desalmacenar Selección ({selectedWarehouseGroups.length})</span>
                                     </button>
                                     <button
                                       type="button"
@@ -6915,11 +6932,11 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                                 <div className="flex gap-1 justify-center mt-1">
                                                   <button
                                                     type="button"
-                                                    onClick={() => handleDeleteWarehouseGroups([g])}
-                                                    className="bg-red-500 hover:bg-red-600 text-white text-[9px] font-extrabold px-2 py-1 rounded uppercase tracking-wider transition cursor-pointer"
-                                                    title="Eliminar"
+                                                    onClick={() => handleRemoveFromWarehouseGroups([g])}
+                                                    className="bg-yellow-500 hover:bg-yellow-600 text-white text-[9px] font-extrabold px-2 py-1 rounded uppercase tracking-wider transition cursor-pointer"
+                                                    title="Desalmacenar"
                                                   >
-                                                    <Trash2 className="h-3 w-3" />
+                                                    <PackageMinus className="h-3 w-3" />
                                                   </button>
                                                   <button
                                                     type="button"
