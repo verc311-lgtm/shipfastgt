@@ -44,7 +44,8 @@ import {
   KeyRound,
   Eye,
   EyeOff,
-  ArrowLeft
+  ArrowLeft,
+  PackageMinus
 } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 
@@ -3470,6 +3471,55 @@ Para proporcionarle información específica, puede solicitar:
     alert(`¡Despacho a contenedor "${cName}" completado con éxito!\n\nSe procesaron ${groupsToDispatch.length} grupos:\n${summaryDetails.join('\n')}`);
     
     setAdminSubTab('consolidado');
+  };
+
+  const handleRemoveFromWarehouseGroups = async (groupsToRemove: any[]) => {
+    if (groupsToRemove.length === 0) return;
+    
+    const totalPackages = groupsToRemove.reduce((acc: number, g: any) => acc + g.count, 0);
+    
+    if (!window.confirm(`¿Está seguro que desea DESALMACENAR ${totalPackages} paquete(s)? Volverán al estado "Creado" y ya no aparecerán en el almacén.`)) {
+      return;
+    }
+
+    const currentDate = new Date().toISOString().split('T')[0];
+    const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
+
+    const updatedShipmentsList: Shipment[] = [];
+    groupsToRemove.forEach(g => {
+      g.shipments.forEach((s: any) => {
+        updatedShipmentsList.push({
+          ...s,
+          status: 'Creado',
+          lastUpdated: `${currentDate} ${currentTime}`,
+          history: [
+            {
+              date: currentDate,
+              time: currentTime,
+              status: 'Creado',
+              location: 'Administración',
+              details: 'Paquete retirado del almacén manualmente.'
+            },
+            ...s.history
+          ]
+        });
+      });
+    });
+
+    const success = await db.upsertShipments(updatedShipmentsList);
+
+    if (!success) {
+      alert('Hubo un error al intentar desalmacenar los paquetes en la base de datos.');
+      return;
+    }
+
+    setShipments(prev => prev.map(s => {
+      const updated = updatedShipmentsList.find(u => u.id === s.id);
+      return updated ? updated : s;
+    }));
+    setSelectedWarehouseGroups([]);
+    
+    alert(`Se desalmacenaron ${totalPackages} paquetes correctamente.`);
   };
 
   const handleUpdateContainerStatus = async (containerName: string, newStatus: string) => {
@@ -6915,17 +6965,30 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                               {/* Quick stats badges */}
                               <div className="flex gap-2.5 items-center flex-wrap">
                                 {selectedWarehouseGroups.length > 0 && (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const groups = groupList.filter(g => selectedWarehouseGroups.includes(`${g.lockerId}-${g.bodega}`));
-                                      setDispatchGroupsPending(groups);
-                                      setIsDispatchContainerModalOpen(true);
-                                    }}
-                                    className="bg-brand-orange hover:bg-brand-orange-hover text-white text-[10px] font-extrabold px-3 py-1.5 rounded uppercase tracking-wider cursor-pointer transition shadow-3xs flex items-center gap-1.5 active:scale-98"
-                                  >
-                                    <span>Despachar Selección en Masa ({selectedWarehouseGroups.length})</span>
-                                  </button>
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const groups = groupList.filter(g => selectedWarehouseGroups.includes(`${g.lockerId}-${g.bodega}`));
+                                        handleRemoveFromWarehouseGroups(groups);
+                                      }}
+                                      className="bg-yellow-500 hover:bg-yellow-600 text-white text-[10px] font-extrabold px-3 py-1.5 rounded uppercase tracking-wider cursor-pointer transition shadow-3xs flex items-center gap-1.5 active:scale-98"
+                                    >
+                                      <PackageMinus className="h-3.5 w-3.5" />
+                                      <span>Desalmacenar Selección ({selectedWarehouseGroups.length})</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const groups = groupList.filter(g => selectedWarehouseGroups.includes(`${g.lockerId}-${g.bodega}`));
+                                        setDispatchGroupsPending(groups);
+                                        setIsDispatchContainerModalOpen(true);
+                                      }}
+                                      className="bg-brand-orange hover:bg-brand-orange-hover text-white text-[10px] font-extrabold px-3 py-1.5 rounded uppercase tracking-wider cursor-pointer transition shadow-3xs flex items-center gap-1.5 active:scale-98"
+                                    >
+                                      <span>Despachar Selección en Masa ({selectedWarehouseGroups.length})</span>
+                                    </button>
+                                  </>
                                 )}
                                 <span className="bg-blue-50 text-blue-700 text-[10px] font-bold px-2.5 py-1 rounded border border-blue-100 flex items-center gap-1 font-mono">
                                   🇺🇸 USA: {shipments.filter(s => s.status === 'En Sucursal' && (s.origin === 'Laredo' || s.origin === 'USA')).length} paq.
@@ -7023,23 +7086,35 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                               {g.totalWeight.toFixed(1)} Lbs
                                             </td>
                                             <td className="py-3 px-3 text-center space-x-2">
-                                              <button
-                                                type="button"
-                                                onClick={() => setExpandedWarehouseGroup(isExpanded ? null : groupKey)}
-                                                className="text-brand-orange hover:text-brand-orange-hover text-4xs font-black uppercase tracking-wider underline cursor-pointer"
-                                              >
-                                                {isExpanded ? 'Ocultar Detalle' : 'Ver Detalle'}
-                                              </button>
-                                              <button
-                                                type="button"
-                                                onClick={() => {
-                                                  setDispatchGroupsPending([g]);
-                                                  setIsDispatchContainerModalOpen(true);
-                                                }}
-                                                className="bg-brand-orange hover:bg-brand-orange-hover text-white text-[9px] font-extrabold px-2.5 py-1 rounded uppercase tracking-wider transition cursor-pointer"
-                                              >
-                                                Despachar
-                                              </button>
+                                              <div className="flex flex-col gap-1">
+                                                <button
+                                                  type="button"
+                                                  onClick={() => setExpandedWarehouseGroup(isExpanded ? null : groupKey)}
+                                                  className="text-brand-orange hover:text-brand-orange-hover text-4xs font-black uppercase tracking-wider underline cursor-pointer"
+                                                >
+                                                  {isExpanded ? 'Ocultar Detalle' : 'Ver Detalle'}
+                                                </button>
+                                                <div className="flex gap-1 justify-center mt-1">
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => handleRemoveFromWarehouseGroups([g])}
+                                                    className="bg-yellow-500 hover:bg-yellow-600 text-white text-[9px] font-extrabold px-2 py-1 rounded uppercase tracking-wider transition cursor-pointer"
+                                                    title="Desalmacenar"
+                                                  >
+                                                    <PackageMinus className="h-3 w-3" />
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                      setDispatchGroupsPending([g]);
+                                                      setIsDispatchContainerModalOpen(true);
+                                                    }}
+                                                    className="bg-brand-orange hover:bg-brand-orange-hover text-white text-[9px] font-extrabold px-2.5 py-1 rounded uppercase tracking-wider transition cursor-pointer"
+                                                  >
+                                                    Despachar
+                                                  </button>
+                                                </div>
+                                              </div>
                                             </td>
                                           </tr>
                                           
@@ -13397,6 +13472,68 @@ El Equipo de ShipFast GT`;
             <span className="hidden sm:inline">WhatsApp Soporte</span>
           </a>
 
+        </div>
+      )}
+
+      {/* Dispatch Container Modal */}
+      {isDispatchContainerModalOpen && (
+        <div className="fixed inset-0 bg-brand-gray-dark/85 backdrop-blur-xs flex justify-center items-center z-50 p-4 animate-fade-in">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col border border-gray-200">
+            <div className="bg-brand-gray-dark px-5 py-4 border-b border-brand-orange/30 flex justify-between items-center">
+              <h3 className="text-sm font-extrabold text-white uppercase tracking-wider font-display flex items-center gap-2">
+                <Truck className="h-4.5 w-4.5 text-brand-orange" />
+                Generar Despacho a Ruta
+              </h3>
+              <button 
+                onClick={() => setIsDispatchContainerModalOpen(false)}
+                className="text-gray-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-5 flex-1 bg-gray-50/50">
+              <p className="text-4xs text-gray-600 mb-4 leading-relaxed">
+                Está a punto de despachar <strong>{dispatchGroupsPending.reduce((acc, g) => acc + g.count, 0)}</strong> paquetes consolidados hacia ruta. Ingrese el identificador del contenedor o valija (ej. CONT-LRD-01) para agrupar las guías madre.
+              </p>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-4xs font-bold text-gray-700 uppercase mb-1">Nombre del Contenedor / Valija *</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ej: LRD-GUA-001"
+                    value={containerInputName}
+                    onChange={(e) => setContainerInputName(e.target.value)}
+                    className="w-full text-xs font-mono px-3 py-2 border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange focus:outline-none"
+                    autoFocus
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="bg-gray-100 px-5 py-3 border-t border-gray-200 flex justify-end gap-2">
+              <button
+                onClick={() => setIsDispatchContainerModalOpen(false)}
+                className="px-4 py-2 text-4xs font-bold text-gray-600 hover:text-gray-800 uppercase tracking-wider cursor-pointer transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  if (!containerInputName.trim()) {
+                    alert("Debe ingresar un nombre para el contenedor.");
+                    return;
+                  }
+                  executeDispatchToContainer(dispatchGroupsPending, containerInputName);
+                  setIsDispatchContainerModalOpen(false);
+                  setContainerInputName('');
+                  setDispatchGroupsPending([]);
+                }}
+                className="bg-brand-orange hover:bg-brand-orange-hover text-white px-5 py-2 rounded text-4xs font-extrabold uppercase tracking-wider shadow-sm transition-all cursor-pointer flex items-center gap-1.5"
+              >
+                <Send className="h-3.5 w-3.5" />
+                Confirmar Despacho
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

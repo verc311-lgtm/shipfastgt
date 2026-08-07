@@ -102,6 +102,16 @@ export const db = {
       return false;
     }
   },
+  async deleteShipment(trackingId: string): Promise<boolean> {
+    try {
+      const { error } = await supabase.from('shipments').delete().eq('id', trackingId);
+      if (error) throw error;
+      return true;
+    } catch (err) {
+      console.error("Supabase: deleteShipment error", err);
+      return false;
+    }
+  },
 
   // Pre-Alerts
   async getPreAlerts(): Promise<any[]> {
