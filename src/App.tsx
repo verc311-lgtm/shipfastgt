@@ -317,6 +317,7 @@ export default function App() {
   const [selectedConsolidados, setSelectedConsolidados] = useState<string[]>([]);
   const [isContainerModalOpen, setIsContainerModalOpen] = useState(false);
   const [containerInputName, setContainerInputName] = useState('');
+  const [isCreatingNewContainer, setIsCreatingNewContainer] = useState(false);
   const [consolidadoContainerFilter, setConsolidadoContainerFilter] = useState('Todos');
 
   // Global omni-search states
@@ -13341,7 +13342,10 @@ El Equipo de ShipFast GT`;
                 Generar Despacho a Ruta
               </h3>
               <button 
-                onClick={() => setIsDispatchContainerModalOpen(false)}
+                onClick={() => {
+                  setIsDispatchContainerModalOpen(false);
+                  setIsCreatingNewContainer(false);
+                }}
                 className="text-gray-400 hover:text-white transition-colors cursor-pointer"
               >
                 <X className="h-5 w-5" />
@@ -13367,7 +13371,7 @@ El Equipo de ShipFast GT`;
             </div>
             <div className="bg-gray-100 px-5 py-3 border-t border-gray-200 flex justify-end gap-2">
               <button
-                onClick={() => setIsDispatchContainerModalOpen(false)}
+                onClick={() => { setIsDispatchContainerModalOpen(false); setIsCreatingNewContainer(false); }}
                 className="px-4 py-2 text-4xs font-bold text-gray-600 hover:text-gray-800 uppercase tracking-wider cursor-pointer transition-colors"
               >
                 Cancelar
