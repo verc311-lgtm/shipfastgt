@@ -13358,14 +13358,44 @@ El Equipo de ShipFast GT`;
               <div className="space-y-4">
                 <div>
                   <label className="block text-4xs font-bold text-gray-700 uppercase mb-1">Nombre del Contenedor / Valija *</label>
-                  <input 
-                    type="text" 
-                    placeholder="Ej: LRD-GUA-001"
-                    value={containerInputName}
-                    onChange={(e) => setContainerInputName(e.target.value)}
-                    className="w-full text-xs font-mono px-3 py-2 border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange focus:outline-none"
-                    autoFocus
-                  />
+                  <div className="flex flex-col gap-2">
+                    <select
+                      value={isCreatingNewContainer ? 'new' : (Array.from(new Set(consolidatedGuides.map(g => g.containerName).filter(Boolean))).includes(containerInputName) ? containerInputName : (containerInputName === '' ? '' : 'new'))}
+                      onChange={(e) => {
+                        if (e.target.value === 'new') {
+                          setIsCreatingNewContainer(true);
+                          setContainerInputName('CONT-');
+                        } else {
+                          setIsCreatingNewContainer(false);
+                          setContainerInputName(e.target.value);
+                        }
+                      }}
+                      className="w-full text-xs font-mono px-3 py-2 border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange focus:outline-none bg-white"
+                    >
+                      <option value="" disabled>-- Seleccione un contenedor --</option>
+                      {Array.from(new Set(consolidatedGuides.map(g => g.containerName).filter(Boolean))).map((cName: any) => (
+                        <option key={cName} value={cName}>{cName}</option>
+                      ))}
+                      <option value="new" className="font-bold text-brand-orange">+ Crear nuevo contenedor...</option>
+                    </select>
+
+                    {(isCreatingNewContainer || (!Array.from(new Set(consolidatedGuides.map(g => g.containerName).filter(Boolean))).includes(containerInputName) && containerInputName !== '')) && (
+                      <div className="relative animate-fade-in mt-1">
+                        <input 
+                          type="text" 
+                          placeholder="Ej: LRD-GUA-001"
+                          value={containerInputName}
+                          onChange={(e) => {
+                            setContainerInputName(e.target.value);
+                            setIsCreatingNewContainer(true);
+                          }}
+                          className="w-full text-xs font-mono px-3 py-2 border-2 border-brand-orange rounded focus:ring-2 focus:ring-brand-orange focus:outline-none bg-orange-50/20"
+                          autoFocus
+                        />
+                        <span className="absolute -top-2 right-2 bg-brand-orange text-white text-[8px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Nuevo</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
