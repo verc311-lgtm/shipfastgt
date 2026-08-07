@@ -23,6 +23,7 @@ import {
   Building,
   Settings,
   FileText,
+  CreditCard,
   Users,
   Printer,
   Trash2,
@@ -39,7 +40,12 @@ import {
   FileDown,
   Link,
   Copy,
-  Edit
+  Edit,
+  KeyRound,
+  Eye,
+  EyeOff,
+  ArrowLeft,
+  PackageMinus
 } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 
@@ -169,6 +175,20 @@ export default function App() {
   const [loginIdentifier, setLoginIdentifier] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+
+  // Change Password flow
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [cpIdentifier, setCpIdentifier] = useState('');
+  const [cpCurrentPassword, setCpCurrentPassword] = useState('');
+  const [cpNewPassword, setCpNewPassword] = useState('');
+  const [cpConfirmPassword, setCpConfirmPassword] = useState('');
+  const [cpError, setCpError] = useState('');
+  const [cpSuccess, setCpSuccess] = useState('');
+  const [cpShowCurrent, setCpShowCurrent] = useState(false);
+  const [cpShowNew, setCpShowNew] = useState(false);
+  const [cpShowConfirm, setCpShowConfirm] = useState(false);
+  const [cpLoading, setCpLoading] = useState(false);
 
   // Sign-Up fields
   const [signupName, setSignupName] = useState('');
@@ -281,6 +301,14 @@ export default function App() {
   const [warehouseNotes, setWarehouseNotes] = useState('');
   const [warehouseBodega, setWarehouseBodega] = useState<'Laredo' | 'USA' | 'Mexico'>('USA');
   const [isSheinPackage, setIsSheinPackage] = useState(false);
+  const [warehouseSearchQuery, setWarehouseSearchQuery] = useState('');
+  const [warehouseBillingToggle, setWarehouseBillingToggle] = useState(false); // false = Almacenar para Consolidar, true = Facturar de Inmediato
+  const [linkedPreAlert, setLinkedPreAlert] = useState<PreAlert | null>(null);
+  const [warehouseSenderInput, setWarehouseSenderInput] = useState('');
+  const [warehouseDeclaredValue, setWarehouseDeclaredValue] = useState<number>(0);
+  const [warehouseInsurance, setWarehouseInsurance] = useState('Sin seguro');
+  const [isDispatchContainerModalOpen, setIsDispatchContainerModalOpen] = useState(false);
+  const [dispatchGroupsPending, setDispatchGroupsPending] = useState<any[]>([]);
   const [expandedWarehouseGroup, setExpandedWarehouseGroup] = useState<string | null>(null);
   const [expandedConsolidadoGuide, setExpandedConsolidadoGuide] = useState<string | null>(null);
   const [masterGuideSearch, setMasterGuideSearch] = useState('');
@@ -298,6 +326,7 @@ export default function App() {
 
   // Consolidation States
   const [consolidatedGuides, setConsolidatedGuides] = useState<any[]>([]);
+  const [consolidadoViewTab, setConsolidadoViewTab] = useState<'contenedores' | 'guias'>('contenedores');
 
   // Finance & Invoices
   const [invoices, setInvoices] = useState<any[]>([]);
@@ -341,6 +370,7 @@ export default function App() {
   const [mailPromoImageName, setMailPromoImageName] = useState('');
 
   // Payments
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [paymentsLog, setPaymentsLog] = useState<any[]>([]);
   const [paymentLocker, setPaymentLocker] = useState('');
   const [paymentInvoice, setPaymentInvoice] = useState('');
@@ -372,6 +402,10 @@ export default function App() {
   const [expenseDescription, setExpenseDescription] = useState('');
   const [expenseAmount, setExpenseAmount] = useState(150.00);
   const [expenseDate, setExpenseDate] = useState(() => new Date().toISOString().split('T')[0]);
+
+  // Financial Report Filters
+  const [reportStartDate, setReportStartDate] = useState('');
+  const [reportEndDate, setReportEndDate] = useState('');
 
   // EmailJS Settings
   const [emailJsServiceId, setEmailJsServiceId] = useState(() => localStorage.getItem('emailJsServiceId') || 'service_raovwem');
@@ -567,6 +601,99 @@ export default function App() {
     } else {
       setLoginError('Credenciales incorrectas. Verifique su número de casillero (ej: SFG0) o correo y contraseña.');
     }
+  };
+
+  // Handle Change Password
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCpError('');
+    setCpSuccess('');
+    setCpLoading(true);
+
+    // Validate fields
+    if (!cpIdentifier.trim() || !cpCurrentPassword.trim() || !cpNewPassword.trim() || !cpConfirmPassword.trim()) {
+      setCpError('Todos los campos son obligatorios.');
+      setCpLoading(false);
+      return;
+    }
+
+    // Find user by identifier
+    const foundUser = users.find(u =>
+      u.lockerId.trim().toUpperCase() === cpIdentifier.trim().toUpperCase() ||
+      u.email.trim().toLowerCase() === cpIdentifier.trim().toLowerCase()
+    );
+
+    if (!foundUser) {
+      setCpError('No se encontró un usuario con ese casillero o correo electrónico.');
+      setCpLoading(false);
+      return;
+    }
+
+    // Verify current password
+    if (foundUser.password !== cpCurrentPassword) {
+      setCpError('La contraseña actual es incorrecta.');
+      setCpLoading(false);
+      return;
+    }
+
+    // Validate new password length
+    if (cpNewPassword.length < 4) {
+      setCpError('La nueva contraseña debe tener al menos 4 caracteres.');
+      setCpLoading(false);
+      return;
+    }
+
+    // Validate passwords match
+    if (cpNewPassword !== cpConfirmPassword) {
+      setCpError('Las contraseñas nuevas no coinciden.');
+      setCpLoading(false);
+      return;
+    }
+
+    // Check not same as current
+    if (cpNewPassword === cpCurrentPassword) {
+      setCpError('La nueva contraseña debe ser diferente a la actual.');
+      setCpLoading(false);
+      return;
+    }
+
+    try {
+      // Update in Supabase
+      const updatedUser = { ...foundUser, password: cpNewPassword };
+      const success = await db.upsertProfile(updatedUser);
+
+      if (success) {
+        // Update local state
+        setUsers(users.map(u => u.lockerId === foundUser.lockerId ? updatedUser : u));
+        setCpSuccess('¡Contraseña actualizada exitosamente! Ahora puede iniciar sesión con su nueva contraseña.');
+        // Clear form fields after success
+        setCpCurrentPassword('');
+        setCpNewPassword('');
+        setCpConfirmPassword('');
+      } else {
+        setCpError('Error al actualizar la contraseña. Intente nuevamente.');
+      }
+    } catch (err) {
+      console.error('Change password error:', err);
+      setCpError('Error de conexión. Intente nuevamente.');
+    }
+
+    setCpLoading(false);
+  };
+
+  // Reset change password form
+  const resetChangePasswordForm = () => {
+    setShowChangePassword(false);
+    setCpIdentifier('');
+    setCpCurrentPassword('');
+    setCpNewPassword('');
+    setCpConfirmPassword('');
+    setCpError('');
+    setCpSuccess('');
+    setCpShowCurrent(false);
+    setCpShowNew(false);
+    setCpShowConfirm(false);
+    setCpLoading(false);
   };
 
   // Send Welcome Email helper via EmailJS or native mailto fallback
@@ -1806,10 +1933,35 @@ Cargos de Flete y Tarifas Asignadas:
     }
   };
 
+  const handleOpenPaymentModal = (invoice: any) => {
+    setPaymentInvoice(invoice.id);
+    setPaymentLocker(invoice.lockerId || 'N/R');
+    setPaymentNotes('');
+    setPaymentDiscountType('none');
+    setPaymentDiscountValue(0);
+    setPaymentInsuranceExtra(0);
+    setPaymentLocalDeliveryExtra(0);
+    setIsPaymentModalOpen(true);
+  };
+
   // Generate professional print-ready HTML Invoice PDF
   const handlePrintInvoicePDF = (invoice: any) => {
     const parsed = parseInvoiceConcept(invoice.concept);
     const currencySymbol = parsed.currency === 'USD' ? '$' : 'Q';
+
+    const trackingsMatch = parsed.detail.match(/\[Trackings:\s*([^\]]+)\]/i);
+    let cleanDetail = parsed.detail;
+    let trackingsList: string[] = [];
+    if (trackingsMatch) {
+      cleanDetail = parsed.detail.replace(/\[Trackings:\s*[^\]]+\]/gi, '').trim();
+      trackingsList = trackingsMatch[1].split(',').map((t: string) => t.trim()).filter(Boolean);
+    } else {
+      const guideIdMatch = parsed.detail.match(/\[Guía:\s*([^\]]+)\]/i);
+      const searchId = guideIdMatch ? guideIdMatch[1] : invoice.id;
+      const matchingShipments = shipments.filter(s => s.history && s.history.some(h => h.details && h.details.includes(searchId)));
+      trackingsList = matchingShipments.map((s: any) => s.id);
+    }
+
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
       alert('Por favor permite las ventanas emergentes (popups) para descargar el PDF de tu factura.');
@@ -2105,7 +2257,15 @@ Cargos de Flete y Tarifas Asignadas:
           <tbody>
             <tr>
               <td>
-                <div class="concept-title">${parsed.detail}</div>
+                <div class="concept-title">${cleanDetail}</div>
+                ${trackingsList.length > 0 ? `
+                  <div style="margin-top: 10px; font-size: 11px; color: #4B5563;">
+                    <strong>Paquetes / Trackings Incluidos:</strong>
+                    <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px;">
+                      ${trackingsList.map(t => `<span style="background-color: #F3F4F6; border: 1px solid #E5E7EB; border-radius: 4px; padding: 2px 6px; font-family: monospace; font-weight: 600; color: #374151;">${t}</span>`).join('')}
+                    </div>
+                  </div>
+                ` : ''}
                 ${parsed.purchaseLink ? `
                   <a href="${parsed.purchaseLink}" class="concept-link" target="_blank" style="margin-right: 15px;">
                     🔗 Enlace de Compra Asoc.
@@ -3062,6 +3222,248 @@ Para proporcionarle información específica, puede solicitar:
     }
   };
 
+  const getContainerStepIndex = (status: string) => {
+    switch (status) {
+      case 'Despachado': return 0;
+      case 'Aduana Mexicana': return 1;
+      case 'Aduana Guatemalteca': return 2;
+      case 'En Bodega': return 3;
+      case 'Entregado': return 4;
+      default: return 1;
+    }
+  };
+
+  const executeDispatchToContainer = (groupsToDispatch: any[], cName: string) => {
+    if (groupsToDispatch.length === 0) return;
+    
+    const currentDate = new Date().toISOString().split('T')[0];
+    const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
+
+    const updatedShipmentsList: Shipment[] = [];
+    const newGuidesList: any[] = [];
+    const newInvoicesList: any[] = [];
+    const summaryDetails: string[] = [];
+
+    groupsToDispatch.forEach(g => {
+      const origin = g.bodega as 'Laredo' | 'USA' | 'Mexico';
+      const shortcode = (origin === 'Laredo' || origin === 'USA') ? 'LRD' : 'MEX';
+      const randomNum = Math.floor(100 + Math.random() * 900);
+      const masterWaybillId = `SF-CONS-${g.lockerId}-${shortcode}-${randomNum}`;
+      
+      g.shipments.forEach((s: any) => {
+        updatedShipmentsList.push({
+          ...s,
+          status: 'En Tránsito',
+          lastUpdated: `${currentDate} ${currentTime}`,
+          history: [
+            {
+              date: currentDate,
+              time: currentTime,
+              status: 'En Tránsito',
+              location: `Ruta Troncal desde Bodega ${origin}`,
+              details: `Despachado en contenedor master: "${cName}". Consolidado bajo Guía Madre ${masterWaybillId}.`
+            },
+            ...s.history
+          ]
+        });
+      });
+
+      const newGuide = {
+        id: masterWaybillId,
+        date: currentDate,
+        origin: origin,
+        destination: 'Guatemala Central',
+        status: 'Despachado',
+        itemsCount: g.shipments.length,
+        totalWeight: g.totalWeight,
+        notes: `Consolidación Automática del cliente ${g.lockerId} desde Bodega ${origin}.`,
+        containerName: cName
+      };
+      newGuidesList.push(newGuide);
+
+      const estimatedFlete = g.shipments.reduce((acc: number, s: any) => {
+        const isShein = (s.notes || '').toLowerCase().includes('shein');
+        const sFlete = isShein
+          ? ratesSettings.sheinRate
+          : ((origin === 'Laredo' || origin === 'USA')
+            ? s.weight * ratesSettings.laredoRate
+            : s.weight * ratesSettings.mexicoRate);
+        return acc + sFlete;
+      }, 0);
+
+      const invoiceId = `FAC-${Math.floor(1000 + Math.random() * 9000)}`;
+      const user = users.find(u => u.lockerId === g.lockerId);
+      const trackingList = g.shipments.map((s: any) => s.id).join(', ');
+      const newInvoice = {
+        id: invoiceId,
+        lockerId: g.lockerId,
+        date: currentDate,
+        concept: `Flete Consolidado - ${g.shipments.length} Paquetes desde Bodega ${origin} [Guía: ${masterWaybillId}] [Trackings: ${trackingList}]`,
+        amount: estimatedFlete,
+        paymentStatus: 'Pendiente',
+        nit: user?.nit || 'C/F',
+        address: user?.address || 'Ciudad de Guatemala'
+      };
+      newInvoicesList.push(newInvoice);
+
+      summaryDetails.push(`- Cliente ${g.lockerId} (${origin}): ${g.shipments.length} paq, Guía: ${masterWaybillId}`);
+    });
+
+    db.upsertShipments(updatedShipmentsList);
+    newGuidesList.forEach(g => db.upsertConsolidatedGuide(g));
+    newInvoicesList.forEach(inv => db.upsertInvoice(inv));
+
+    setShipments(prev => prev.map(s => {
+      const updated = updatedShipmentsList.find(u => u.id === s.id);
+      return updated ? updated : s;
+    }));
+
+    setConsolidatedGuides(prev => [...newGuidesList, ...prev]);
+    setInvoices(prev => [...newInvoicesList, ...prev]);
+    setSelectedWarehouseGroups([]);
+    setDispatchGroupsPending([]);
+
+    alert(`¡Despacho a contenedor "${cName}" completado con éxito!\n\nSe procesaron ${groupsToDispatch.length} grupos:\n${summaryDetails.join('\n')}`);
+    
+    setAdminSubTab('consolidado');
+  };
+
+  const handleRemoveFromWarehouseGroups = async (groupsToRemove: any[]) => {
+    if (groupsToRemove.length === 0) return;
+    
+    const totalPackages = groupsToRemove.reduce((acc: number, g: any) => acc + g.count, 0);
+    
+    if (!window.confirm(`¿Está seguro que desea DESALMACENAR ${totalPackages} paquete(s)? Volverán al estado "Creado" y ya no aparecerán en el almacén.`)) {
+      return;
+    }
+
+    const currentDate = new Date().toISOString().split('T')[0];
+    const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
+
+    const updatedShipmentsList: Shipment[] = [];
+    groupsToRemove.forEach(g => {
+      g.shipments.forEach((s: any) => {
+        updatedShipmentsList.push({
+          ...s,
+          status: 'Creado',
+          lastUpdated: `${currentDate} ${currentTime}`,
+          history: [
+            {
+              date: currentDate,
+              time: currentTime,
+              status: 'Creado',
+              location: 'Administración',
+              details: 'Paquete retirado del almacén manualmente.'
+            },
+            ...s.history
+          ]
+        });
+      });
+    });
+
+    const success = await db.upsertShipments(updatedShipmentsList);
+
+    if (!success) {
+      alert('Hubo un error al intentar desalmacenar los paquetes en la base de datos.');
+      return;
+    }
+
+    setShipments(prev => prev.map(s => {
+      const updated = updatedShipmentsList.find(u => u.id === s.id);
+      return updated ? updated : s;
+    }));
+    setSelectedWarehouseGroups([]);
+    
+    alert(`Se desalmacenaron ${totalPackages} paquetes correctamente.`);
+  };
+
+  const handleUpdateContainerStatus = async (containerName: string, newStatus: string) => {
+    const targetGuides = consolidatedGuides.filter(g => g.containerName === containerName);
+    if (targetGuides.length === 0) return;
+
+    const guideIds = targetGuides.map(g => g.id);
+
+    // Update guides in Supabase
+    for (const guide of targetGuides) {
+      await db.upsertConsolidatedGuide({ ...guide, status: newStatus });
+    }
+
+    // Update in local state
+    setConsolidatedGuides(prev => prev.map(g => {
+      if (guideIds.includes(g.id)) {
+        return { ...g, status: newStatus };
+      }
+      return g;
+    }));
+
+    // Update status of all child shipments of these guides
+    const currentDate = new Date().toISOString().split('T')[0];
+    const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
+
+    const updatedShipmentsList: Shipment[] = [];
+    const nextShipments = shipments.map(s => {
+      const isChild = s.history.some(h => h.details && guideIds.some(id => h.details.includes(id))) || 
+                      guideIds.some(id => (s.notes || '').includes(id));
+      
+      if (isChild) {
+        let packageStatus: "Creado" | "En Tránsito" | "En Sucursal" | "En Ruta" | "Entregado" | "Retrasado" = 'En Tránsito';
+        let detailsText = `Estado del Contenedor "${containerName}" actualizado a: ${newStatus}.`;
+        let locationText = 'Ruta Troncal / Aduanas';
+
+        if (newStatus === 'Entregado') {
+          packageStatus = 'Entregado';
+          detailsText = `Paquete entregado formalmente al cliente (Contenedor ${containerName} - Entregado).`;
+          locationText = 'Entregado a Destinatario';
+        } else if (newStatus === 'En Bodega') {
+          packageStatus = 'En Sucursal';
+          detailsText = `Paquete ingresado y disponible en bodega central (Contenedor ${containerName} - En Bodega).`;
+          locationText = 'Bodega Central Guatemala';
+        } else if (newStatus === 'Aduana Guatemalteca') {
+          packageStatus = 'En Tránsito';
+          detailsText = `Carga ingresada a aduana en Guatemala para proceso de desaduanaje (Contenedor ${containerName}).`;
+          locationText = 'Aduana Guatemalteca';
+        } else if (newStatus === 'Aduana Mexicana') {
+          packageStatus = 'En Tránsito';
+          detailsText = `Carga en tránsito por aduana de México (Contenedor ${containerName}).`;
+          locationText = 'Aduana Mexicana';
+        } else if (newStatus === 'Despachado') {
+          packageStatus = 'En Tránsito';
+          detailsText = `Despachado en contenedor master (Contenedor ${containerName}).`;
+          locationText = 'Bodega de Origen';
+        } else {
+          packageStatus = 'En Tránsito';
+          detailsText = `Carga en tránsito internacional (Contenedor ${containerName}).`;
+          locationText = 'En Tránsito Internacional';
+        }
+
+        const updated = {
+          ...s,
+          status: packageStatus,
+          lastUpdated: `${currentDate} ${currentTime}`,
+          history: [
+            {
+              date: currentDate,
+              time: currentTime,
+              status: packageStatus,
+              location: locationText,
+              details: detailsText
+            },
+            ...s.history
+          ]
+        };
+        updatedShipmentsList.push(updated);
+        return updated;
+      }
+      return s;
+    });
+
+    if (updatedShipmentsList.length > 0) {
+      await db.upsertShipments(updatedShipmentsList);
+    }
+    setShipments(nextShipments);
+    alert(`¡El estado del contenedor "${containerName}" y todos sus paquetes asociados se ha actualizado a: ${newStatus}!`);
+  };
+
   // Filter shipments for Admin listing
   const filteredShipments = shipments.filter(s => {
     const matchesSearch = s.id.toLowerCase().includes(adminSearch.toLowerCase()) ||
@@ -3181,54 +3583,218 @@ Para proporcionarle información específica, puede solicitar:
 
                   {/* ==================== LOGIN TAB ==================== */}
                   {accessTab === 'login' && (
-                    <form onSubmit={handleLoginSubmit} className="space-y-4">
-                      <div>
-                        <h3 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display mb-1">Acceso de Usuarios</h3>
-                        <p className="text-4xs text-gray-500">Ingrese su identificador de casillero (ej: SFG0) o correo registrado.</p>
-                      </div>
+                    <>
+                      {!showChangePassword ? (
+                        /* ---------- Normal Login Form ---------- */
+                        <form onSubmit={handleLoginSubmit} className="space-y-4">
+                          <div>
+                            <h3 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display mb-1">Acceso de Usuarios</h3>
+                            <p className="text-4xs text-gray-500">Ingrese su identificador de casillero (ej: SFG0) o correo registrado.</p>
+                          </div>
 
-                      {loginError && (
-                        <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-4xs font-bold rounded flex items-center gap-1.5">
-                          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                          {loginError}
-                        </div>
+                          {loginError && (
+                            <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-4xs font-bold rounded flex items-center gap-1.5">
+                              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                              {loginError}
+                            </div>
+                          )}
+
+                          <div className="space-y-3">
+                            <div>
+                              <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Casillero o Correo Electrónico *</label>
+                              <input
+                                type="text"
+                                required
+                                placeholder="Ej: SFG0 o juan@shipfast.gt"
+                                value={loginIdentifier}
+                                onChange={(e) => setLoginIdentifier(e.target.value)}
+                                className="w-full px-3 py-2 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-brand-orange"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Contraseña *</label>
+                              <div className="relative">
+                                <input
+                                  type={showLoginPassword ? 'text' : 'password'}
+                                  required
+                                  placeholder="Contraseña"
+                                  value={loginPassword}
+                                  onChange={(e) => setLoginPassword(e.target.value)}
+                                  className="w-full px-3 py-2 pr-9 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-brand-orange"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowLoginPassword(!showLoginPassword)}
+                                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
+                                  tabIndex={-1}
+                                >
+                                  {showLoginPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          <button
+                            type="submit"
+                            className="w-full bg-brand-orange hover:bg-brand-orange-hover text-white text-xs font-bold py-2.5 rounded-md transition duration-200 uppercase tracking-wider mt-2 cursor-pointer"
+                          >
+                            Ingresar al Sistema
+                          </button>
+
+                          {/* Change Password Link */}
+                          <div className="text-center pt-4 mt-2 border-t border-gray-200">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setShowChangePassword(true);
+                                setLoginError('');
+                                setCpIdentifier(loginIdentifier);
+                              }}
+                              className="text-xs text-brand-orange hover:text-brand-orange-hover font-bold transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <KeyRound className="h-4 w-4" />
+                              ¿Deseas cambiar tu contraseña?
+                            </button>
+                          </div>
+                        </form>
+                      ) : (
+                        /* ---------- Change Password Form ---------- */
+                        <form onSubmit={handleChangePassword} className="space-y-4">
+                          <div>
+                            <button
+                              type="button"
+                              onClick={resetChangePasswordForm}
+                              className="inline-flex items-center gap-1 text-4xs text-gray-500 hover:text-brand-orange font-bold uppercase tracking-wider mb-2 transition-colors cursor-pointer"
+                            >
+                              <ArrowLeft className="h-3 w-3" />
+                              Volver al inicio de sesión
+                            </button>
+                            <h3 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display mb-1 flex items-center gap-1.5">
+                              <KeyRound className="h-4 w-4 text-brand-orange" />
+                              Cambiar Contraseña
+                            </h3>
+                            <p className="text-4xs text-gray-500">Ingrese sus credenciales actuales y su nueva contraseña.</p>
+                          </div>
+
+                          {cpError && (
+                            <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-4xs font-bold rounded flex items-center gap-1.5">
+                              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                              {cpError}
+                            </div>
+                          )}
+
+                          {cpSuccess && (
+                            <div className="p-3 bg-green-50 border border-green-200 text-green-700 text-4xs font-bold rounded flex items-center gap-1.5">
+                              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                              {cpSuccess}
+                            </div>
+                          )}
+
+                          <div className="space-y-3">
+                            {/* Identifier */}
+                            <div>
+                              <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Casillero o Correo Electrónico *</label>
+                              <input
+                                type="text"
+                                required
+                                placeholder="Ej: SFG0 o juan@shipfast.gt"
+                                value={cpIdentifier}
+                                onChange={(e) => setCpIdentifier(e.target.value)}
+                                className="w-full px-3 py-2 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-brand-orange"
+                              />
+                            </div>
+
+                            {/* Current Password */}
+                            <div>
+                              <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Contraseña Actual *</label>
+                              <div className="relative">
+                                <input
+                                  type={cpShowCurrent ? 'text' : 'password'}
+                                  required
+                                  placeholder="Ingrese su contraseña actual"
+                                  value={cpCurrentPassword}
+                                  onChange={(e) => setCpCurrentPassword(e.target.value)}
+                                  className="w-full px-3 py-2 pr-9 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-brand-orange"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setCpShowCurrent(!cpShowCurrent)}
+                                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
+                                  tabIndex={-1}
+                                >
+                                  {cpShowCurrent ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* New Password */}
+                            <div>
+                              <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Nueva Contraseña *</label>
+                              <div className="relative">
+                                <input
+                                  type={cpShowNew ? 'text' : 'password'}
+                                  required
+                                  placeholder="Mínimo 4 caracteres"
+                                  value={cpNewPassword}
+                                  onChange={(e) => setCpNewPassword(e.target.value)}
+                                  className="w-full px-3 py-2 pr-9 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-brand-orange"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setCpShowNew(!cpShowNew)}
+                                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
+                                  tabIndex={-1}
+                                >
+                                  {cpShowNew ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                                </button>
+                              </div>
+                              {cpNewPassword.length > 0 && cpNewPassword.length < 4 && (
+                                <p className="text-4xs text-red-500 mt-0.5">Mínimo 4 caracteres</p>
+                              )}
+                            </div>
+
+                            {/* Confirm Password */}
+                            <div>
+                              <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Confirmar Nueva Contraseña *</label>
+                              <div className="relative">
+                                <input
+                                  type={cpShowConfirm ? 'text' : 'password'}
+                                  required
+                                  placeholder="Repita la nueva contraseña"
+                                  value={cpConfirmPassword}
+                                  onChange={(e) => setCpConfirmPassword(e.target.value)}
+                                  className="w-full px-3 py-2 pr-9 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-brand-orange"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setCpShowConfirm(!cpShowConfirm)}
+                                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
+                                  tabIndex={-1}
+                                >
+                                  {cpShowConfirm ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                                </button>
+                              </div>
+                              {cpConfirmPassword.length > 0 && cpNewPassword !== cpConfirmPassword && (
+                                <p className="text-4xs text-red-500 mt-0.5">Las contraseñas no coinciden</p>
+                              )}
+                            </div>
+                          </div>
+
+                          <button
+                            type="submit"
+                            disabled={cpLoading}
+                            className="w-full bg-brand-orange hover:bg-brand-orange-hover disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-bold py-2.5 rounded-md transition duration-200 uppercase tracking-wider mt-2 cursor-pointer flex items-center justify-center gap-1.5"
+                          >
+                            {cpLoading ? (
+                              <><RefreshCw className="h-3.5 w-3.5 animate-spin" /> Actualizando...</>
+                            ) : (
+                              <><KeyRound className="h-3.5 w-3.5" /> Cambiar Contraseña</>
+                            )}
+                          </button>
+                        </form>
                       )}
-
-                      <div className="space-y-3">
-                        <div>
-                          <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Casillero o Correo Electrónico *</label>
-                          <input
-                            type="text"
-                            required
-                            placeholder="Ej: SFG0 o juan@shipfast.gt"
-                            value={loginIdentifier}
-                            onChange={(e) => setLoginIdentifier(e.target.value)}
-                            className="w-full px-3 py-2 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-brand-orange"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Contraseña *</label>
-                          <input
-                            type="password"
-                            required
-                            placeholder="Contraseña"
-                            value={loginPassword}
-                            onChange={(e) => setLoginPassword(e.target.value)}
-                            className="w-full px-3 py-2 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-brand-orange"
-                          />
-                        </div>
-                      </div>
-
-                      <button
-                        type="submit"
-                        className="w-full bg-brand-orange hover:bg-brand-orange-hover text-white text-xs font-bold py-2.5 rounded-md transition duration-200 uppercase tracking-wider mt-2 cursor-pointer"
-                      >
-                        Ingresar al Sistema
-                      </button>
-
-
-                    </form>
+                    </>
                   )}
 
                   {/* ==================== SIGNUP TAB ==================== */}
@@ -4778,76 +5344,102 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                             </p>
                           </div>
 
-                          {/* Warehouse Capacity Card */}
-                          <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs space-y-4">
-                            <h3 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display border-b border-gray-100 pb-2">🏢 Capacidad de Bodega Central</h3>
-                            
-                            <div className="space-y-3">
-                              <div className="flex justify-between text-2xs font-bold text-gray-600">
-                                <span>Capacidad Utilizada</span>
-                                <span className="text-brand-orange">68% Ocupado</span>
+                          {/* Warehouse Capacity Card - dynamic */}
+                          {(() => {
+                            const pkgsInBodega = shipments.filter(s => s.status === 'En Sucursal' || s.status === 'Creado');
+                            const pkgsInTransit = shipments.filter(s => s.status === 'En Tránsito' || s.status === 'En Ruta');
+                            const totalActivePkgs = shipments.filter(s => s.status !== 'Entregado').length;
+                            const MAX_CAPACITY = 80;
+                            const occupiedPct = Math.min(100, Math.round((totalActivePkgs / MAX_CAPACITY) * 100));
+                            const capacityColor = occupiedPct > 80 ? 'text-red-600' : occupiedPct > 60 ? 'text-amber-600' : 'text-green-600';
+                            const barColor = occupiedPct > 80 ? 'from-red-600 to-red-400' : occupiedPct > 60 ? 'from-amber-500 to-brand-orange' : 'from-brand-gray-dark to-brand-orange';
+                            const totalWeightInBodega = pkgsInBodega.reduce((acc, s) => acc + s.weight, 0);
+                            return (
+                              <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs space-y-4">
+                                <h3 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display border-b border-gray-100 pb-2">🏢 Capacidad de Bodega Central</h3>
+                                <div className="space-y-3">
+                                  <div className="flex justify-between text-2xs font-bold text-gray-600">
+                                    <span>Capacidad Utilizada</span>
+                                    <span className={capacityColor}>{occupiedPct}% Ocupado</span>
+                                  </div>
+                                  <div className="w-full bg-gray-100 rounded-full h-3.5 border border-gray-200 overflow-hidden">
+                                    <div className={`bg-gradient-to-r ${barColor} h-full rounded-full transition-all duration-500`} style={{ width: `${occupiedPct}%` }} />
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2 text-4xs text-gray-500 pt-1">
+                                    <div>&bull; Paquetes en Bodega: <strong>{pkgsInBodega.length}</strong></div>
+                                    <div>&bull; En Tránsito: <strong>{pkgsInTransit.length}</strong></div>
+                                    <div>&bull; Capacidad Libre: <strong>{100 - occupiedPct}%</strong></div>
+                                    <div>&bull; Peso en Bodega: <strong>{totalWeightInBodega.toFixed(1)} Lbs</strong></div>
+                                  </div>
+                                </div>
                               </div>
-                              
-                              {/* Sleek Progress Bar */}
-                              <div className="w-full bg-gray-100 rounded-full h-3.5 border border-gray-200 overflow-hidden">
-                                <div 
-                                  className="bg-gradient-to-r from-brand-gray-dark to-brand-orange h-full rounded-full transition-all duration-500" 
-                                  style={{ width: '68%' }}
-                                />
-                              </div>
+                            );
+                          })()}
 
-                              <div className="grid grid-cols-2 gap-2 text-4xs text-gray-500 pt-1">
-                                <div>&bull; Racks Activos: <strong>4 (A-D)</strong></div>
-                                <div>&bull; Bins Ocupados: <strong>27 / 40</strong></div>
-                                <div>&bull; Capacidad Libre: <strong>32%</strong></div>
-                                <div>&bull; Carga en Lbs: <strong>{shipments.filter(s => s.status === 'En Sucursal').reduce((acc, curr) => acc + curr.weight, 0).toFixed(1)} Lbs</strong></div>
+                          {/* Critical System Notifications - dynamic */}
+                          {(() => {
+                            const pendingPreAlerts = preAlerts.filter(p => p.status === 'Pendiente');
+                            const delayedShipments = shipments.filter(s => s.status === 'Retrasado');
+                            const hasAlerts = pendingPreAlerts.length > 0 || delayedShipments.length > 0;
+                            return (
+                              <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs space-y-3">
+                                <h3 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display border-b border-gray-100 pb-2">🚨 Alertas del Hub Central</h3>
+                                <div className="space-y-2 max-h-[140px] overflow-y-auto">
+                                  {!hasAlerts && (
+                                    <div className="p-2 bg-green-50 border border-green-200 rounded flex items-center space-x-2 text-4xs text-green-700 font-bold">
+                                      <span>✅ Sin alertas activas. Operaciones en condición normal.</span>
+                                    </div>
+                                  )}
+                                  {pendingPreAlerts.slice(0, 3).map(pa => (
+                                    <div key={pa.id} className="p-2 bg-orange-50 border border-brand-orange/20 rounded flex items-center space-x-2 text-4xs text-brand-orange font-bold">
+                                      <AlertTriangle className="h-3.5 w-3.5 text-brand-orange shrink-0 animate-pulse" />
+                                      <span>Pre-alerta sin ingresar: [{pa.lockerId}] {pa.description} ({pa.weightEst} Lbs) – Remitente: {pa.sender}</span>
+                                    </div>
+                                  ))}
+                                  {delayedShipments.slice(0, 3).map(s => (
+                                    <div key={s.id} className="p-2 bg-red-50 border border-red-200 rounded flex items-center space-x-2 text-4xs text-red-800 font-bold">
+                                      <AlertTriangle className="h-3.5 w-3.5 text-red-600 shrink-0" />
+                                      <span>Envío retrasado: {s.id} – Destino: {s.destination} | Cliente: {s.lockerId}</span>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
-                            </div>
-                          </div>
-
-                          {/* Critical System Notifications */}
-                          <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs space-y-3">
-                            <h3 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display border-b border-gray-100 pb-2">🚨 Alertas del Hub Central</h3>
-                            
-                            <div className="space-y-2 max-h-[140px] overflow-y-auto">
-                              <div className="p-2 bg-orange-50 border border-brand-orange/20 rounded flex items-center space-x-2 text-4xs text-brand-orange font-bold">
-                                <AlertTriangle className="h-4 w-4 text-brand-orange shrink-0 animate-pulse" />
-                                <span>Pre-alerta pendiente de ingreso: Repuestos de laptop (2.5 Lbs) de Amazon US.</span>
-                              </div>
-                              <div className="p-2 bg-red-50 border border-red-200 rounded flex items-center space-x-2 text-4xs text-red-800 font-bold">
-                                <AlertTriangle className="h-4 w-4 text-red-600 shrink-0" />
-                                <span>Bloqueo Carretera: Ruta al Atlántico KM 42 reporta retrasos en tránsito.</span>
-                              </div>
-                            </div>
-                          </div>
+                            );
+                          })()}
 
                         </div>
 
-                        {/* Recent Activity Log */}
+                        {/* Recent Activity Log - dynamic from real shipments */}
                         <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs">
                           <h3 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display border-b border-gray-100 pb-3 mb-4">📜 Historial Operativo Reciente</h3>
                           <div className="space-y-3 max-h-[220px] overflow-y-auto">
-                            <div className="border-l-2 border-brand-orange pl-3 text-4xs space-y-1">
-                              <div className="flex justify-between font-bold text-brand-gray-dark">
-                                <span>FACTURA EMITIDA Y COBRADA</span>
-                                <span className="text-gray-400 font-semibold">2026-05-21 08:30</span>
+                            {/* Real recent invoice payments */}
+                            {invoices.filter(i => i.paymentStatus === 'Pagado').slice(0, 2).map(inv => (
+                              <div key={inv.id} className="border-l-2 border-brand-orange pl-3 text-4xs space-y-1">
+                                <div className="flex justify-between font-bold text-brand-gray-dark">
+                                  <span>FACTURA COBRADA – {inv.id}</span>
+                                  <span className="text-gray-400 font-semibold">{inv.date}</span>
+                                </div>
+                                <p className="text-gray-500">{inv.concept.substring(0, 80)}{inv.concept.length > 80 ? '...' : ''} — Q {inv.amount.toFixed(2)}</p>
                               </div>
-                              <p className="text-gray-500">Recibo de pago FAC-1001 registrado bajo el método Transferencia Bancaria por Q 122.50.</p>
-                            </div>
-                            <div className="border-l-2 border-brand-gray-dark pl-3 text-4xs space-y-1">
-                              <div className="flex justify-between font-bold text-brand-gray-dark">
-                                <span>RECEPCIÓN DE PAQUETE EN WAREHOUSE</span>
-                                <span className="text-gray-400 font-semibold">2026-05-21 08:15</span>
-                              </div>
-                              <p className="text-gray-500">Carga recepcionada e ingresada en Bodega USA para casillero SFG0 con peso de 2.5 Lbs.</p>
-                            </div>
-                            <div className="border-l-2 border-blue-600 pl-3 text-4xs space-y-1">
-                              <div className="flex justify-between font-bold text-brand-gray-dark">
-                                <span>DESPACHO EN RUTA</span>
-                                <span className="text-gray-400 font-semibold">2026-05-21 08:00</span>
-                              </div>
-                              <p className="text-gray-500">Envío SF-9843-GT asignado a mensajero motorizado con destino final Antigua Guatemala.</p>
-                            </div>
+                            ))}
+                            {/* Real recent shipments by last updated */}
+                            {[...shipments].sort((a, b) => b.lastUpdated.localeCompare(a.lastUpdated)).slice(0, 3).map(s => {
+                              const borderColor = s.status === 'Entregado' ? 'border-green-500' : s.status === 'En Tránsito' ? 'border-blue-500' : s.status === 'Retrasado' ? 'border-red-500' : 'border-brand-gray-dark';
+                              const lastEvent = s.history[0];
+                              return (
+                                <div key={s.id} className={`border-l-2 ${borderColor} pl-3 text-4xs space-y-1`}>
+                                  <div className="flex justify-between font-bold text-brand-gray-dark">
+                                    <span>{s.status.toUpperCase()} – {s.id}</span>
+                                    <span className="text-gray-400 font-semibold">{s.lastUpdated}</span>
+                                  </div>
+                                  <p className="text-gray-500">{lastEvent ? lastEvent.details : `Paquete de ${s.sender} con destino ${s.destination} (${s.weight} Lbs).`}</p>
+                                </div>
+                              );
+                            })}
+                            {shipments.length === 0 && invoices.length === 0 && (
+                              <p className="text-4xs text-gray-400 italic">Sin actividad reciente registrada.</p>
+                            )}
                           </div>
                         </div>
 
@@ -5799,184 +6391,40 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                       
                       const groupList = Object.values(groups);
 
-                      const handleBulkDispatch = (groupsToDispatch: any[]) => {
-                        if (groupsToDispatch.length === 0) return;
-                        
-                        const currentDate = new Date().toISOString().split('T')[0];
-                        const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
 
-                        const updatedShipmentsList: Shipment[] = [];
-                        const newGuidesList: any[] = [];
-                        const newInvoicesList: any[] = [];
-                        const summaryDetails: string[] = [];
 
-                        groupsToDispatch.forEach(g => {
-                          const origin = g.bodega as 'Laredo' | 'USA' | 'Mexico';
-                          const shortcode = (origin === 'Laredo' || origin === 'USA') ? 'LRD' : 'MEX';
-                                              const randomNum = Math.floor(100 + Math.random() * 900);
-                          const masterWaybillId = `SF-CONS-${g.lockerId}-${shortcode}-${randomNum}`;
+                      const handleWarehouseSearchQueryChange = (query: string) => {
+                        setWarehouseSearchQuery(query);
+                        if (!query.trim()) {
+                          setLinkedPreAlert(null);
+                          return;
+                        }
+
+                        const cleanQ = query.trim().toLowerCase();
+                        // Search in pending preAlerts
+                        const match = preAlerts.find(pa => 
+                          pa.status === 'Pendiente' && 
+                          (pa.id.toLowerCase() === cleanQ || (pa.id.toLowerCase().includes(cleanQ) && cleanQ.length > 5))
+                        );
+
+                        if (match) {
+                          setLinkedPreAlert(match);
+                          setWarehouseLocker(match.lockerId);
+                          setWarehouseNotes(match.description || '');
+                          setWarehouseSenderInput(match.sender || '');
+                          setWarehouseDeclaredValue(match.declaredValue || 0);
+                          setWarehouseInsurance(match.insurance || 'Sin seguro');
+                          setWarehouseWeightInput(match.weightEst || 2.0);
                           
-                          g.shipments.forEach((s: any) => {
-                            updatedShipmentsList.push({
-                              ...s,
-                              status: 'Despachado' as const,
-                              lastUpdated: `${currentDate} ${currentTime}`,
-                              history: [
-                                {
-                                  date: currentDate,
-                                  time: currentTime,
-                                  status: 'Despachado' as const,
-                                  location: `Ruta Troncal desde Bodega ${origin}`,
-                                  details: `Despachado en lote automático (Masa). Consolidado bajo Guía Madre ${masterWaybillId}.`
-                                },
-                                ...s.history
-                              ]
-                            });
-                          });
-
-                          const newGuide = {
-                            id: masterWaybillId,
-                            date: currentDate,
-                            origin: origin,
-                            destination: 'Guatemala Central',
-                            status: 'Despachado',
-                            itemsCount: g.shipments.length,
-                            totalWeight: g.totalWeight,
-                            notes: `Consolidación Automática del cliente ${g.lockerId} desde Bodega ${origin}.`
-                          };
-                          newGuidesList.push(newGuide);
-
-                          const estimatedFlete = g.shipments.reduce((acc: number, s: any) => {
-                            const isShein = (s.notes || '').toLowerCase().includes('shein');
-                            const sFlete = isShein
-                              ? ratesSettings.sheinRate
-                              : ((origin === 'Laredo' || origin === 'USA')
-                                ? s.weight * ratesSettings.laredoRate
-                                : s.weight * ratesSettings.mexicoRate);
-                            return acc + sFlete;
-                          }, 0);
-
-                          const invoiceId = `FAC-${Math.floor(1000 + Math.random() * 9000)}`;
-                          const user = users.find(u => u.lockerId === g.lockerId);
-                          const newInvoice = {
-                            id: invoiceId,
-                            lockerId: g.lockerId,
-                            date: currentDate,
-                            concept: `Flete Consolidado - ${g.shipments.length} Paquetes desde Bodega ${origin} [Guía: ${masterWaybillId}]`,
-                            amount: estimatedFlete,
-                            paymentStatus: 'Pendiente',
-                            nit: user?.nit || 'C/F',
-                            address: user?.address || 'Ciudad de Guatemala'
-                          };
-                          newInvoicesList.push(newInvoice);
-
-                          summaryDetails.push(`- Cliente ${g.lockerId} (${origin}): ${g.shipments.length} paq, Guía Madre: ${masterWaybillId}`);
-                        });
-
-                        db.upsertShipments(updatedShipmentsList);
-                        newGuidesList.forEach(g => db.upsertConsolidatedGuide(g));
-                        newInvoicesList.forEach(inv => db.upsertInvoice(inv));
-
-                        setShipments(prev => prev.map(s => {
-                          const updated = updatedShipmentsList.find(u => u.id === s.id);
-                          return updated ? updated : s;
-                        }));
-
-                        setConsolidatedGuides(prev => [...newGuidesList, ...prev]);
-                        setInvoices(prev => [...newInvoicesList, ...prev]);
-                        setSelectedWarehouseGroups([]);
-
-                        alert(`¡Despacho en masa de consolidados completado con éxito!\n\nSe procesaron ${groupsToDispatch.length} grupos:\n${summaryDetails.join('\n')}`);
-                        
-                        setAdminSubTab('consolidado');
-                      };
-
-                      const handleAutoDispatch = (lockerId: string, origin: 'Laredo' | 'USA' | 'Mexico', groupShipments: Shipment[], totalWeight: number, estimatedFlete: number) => {
-                        const currentDate = new Date().toISOString().split('T')[0];
-                        const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
-                        
-                        const shortcode = (origin === 'Laredo' || origin === 'USA') ? 'LRD' : 'MEX';
-                        const randomNum = Math.floor(100 + Math.random() * 900);
-                        const masterWaybillId = `SF-CONS-${lockerId}-${shortcode}-${randomNum}`;
-                        
-                        // 1. Transition all grouped packages to 'En Tránsito'
-                        const shipmentIds = groupShipments.map(s => s.id);
-                        const updatedShipments = groupShipments.map(s => {
-                          return {
-                            ...s,
-                            status: 'En Tránsito' as const,
-                            lastUpdated: `${currentDate} ${currentTime}`,
-                            history: [
-                              {
-                                date: currentDate,
-                                time: currentTime,
-                                status: 'En Tránsito' as const,
-                                location: `Ruta Troncal desde Bodega ${origin}`,
-                                details: `Despachado en lote automático. Consolidado bajo Guía Madre ${masterWaybillId}.`
-                              },
-                              ...s.history
-                            ]
-                          };
-                        });
-
-                        // 2. Append Master Guide to consolidatedGuides state
-                        const newGuide = {
-                          id: masterWaybillId,
-                          date: currentDate,
-                          origin: origin,
-                          destination: 'Guatemala Central',
-                          status: 'Despachado',
-                          itemsCount: groupShipments.length,
-                          totalWeight: totalWeight,
-                          notes: `Consolidación Automática del cliente ${lockerId} desde Bodega ${origin}.`
-                        };
-
-                        // 3. Issue a consolidated billing invoice (flete) in Quetzales to invoices state
-                        const invoiceId = `FAC-${Math.floor(1000 + Math.random() * 9000)}`;
-                        const user = users.find(u => u.lockerId === lockerId);
-                        const newInvoice = {
-                          id: invoiceId,
-                          lockerId: lockerId,
-                          date: currentDate,
-                          concept: `Flete Consolidado - ${groupShipments.length} Paquetes desde Bodega ${origin} [Guía: ${masterWaybillId}]`,
-                          amount: estimatedFlete,
-                          paymentStatus: 'Pendiente',
-                          nit: user?.nit || 'C/F',
-                          address: user?.address || 'Ciudad de Guatemala'
-                        };
-
-                        // Save to Supabase
-                        db.upsertShipments(updatedShipments);
-                        db.upsertConsolidatedGuide(newGuide);
-                        db.upsertInvoice(newInvoice);
-
-                        setShipments(prev => prev.map(s => {
-                          if (shipmentIds.includes(s.id)) {
-                            return {
-                              ...s,
-                              status: 'En Tránsito',
-                              lastUpdated: `${currentDate} ${currentTime}`,
-                              history: [
-                                {
-                                  date: currentDate,
-                                  time: currentTime,
-                                  status: 'En Tránsito',
-                                  location: `Ruta Troncal desde Bodega ${origin}`,
-                                  details: `Despachado en lote automático. Consolidado bajo Guía Madre ${masterWaybillId}.`
-                                },
-                                ...s.history
-                              ]
-                            };
+                          const desc = (match.description || '').toLowerCase();
+                          if (desc.includes('mexico') || desc.includes('tapachula')) {
+                            setWarehouseBodega('Mexico');
+                          } else {
+                            setWarehouseBodega('USA');
                           }
-                          return s;
-                        }));
-
-                        setConsolidatedGuides(prev => [newGuide, ...prev]);
-                        setInvoices(prev => [newInvoice, ...prev]);
-
-                        alert(`¡Consolidado despachado exitosamente!\n\n- Guía Madre: ${masterWaybillId}\n- Cliente: ${lockerId}\n- Paquetes: ${groupShipments.length}\n- Peso total: ${totalWeight.toFixed(1)} Lbs\n- Factura flete emitida: ${invoiceId} por Q ${estimatedFlete.toFixed(2)}`);
-                        
-                        setAdminSubTab('consolidado');
+                        } else {
+                          setLinkedPreAlert(null);
+                        }
                       };
 
                       const handleWarehouseCheckIn = (e: React.FormEvent) => {
@@ -5986,7 +6434,11 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                           return;
                         }
 
-                        const generatedId = `SF-${Math.floor(1000 + Math.random() * 9000)}-GT`;
+                        // Use scanned tracking number if present, otherwise generate random ID
+                        const generatedId = warehouseSearchQuery.trim() !== ''
+                          ? warehouseSearchQuery.trim()
+                          : `SF-${Math.floor(1000 + Math.random() * 9000)}-GT`;
+
                         const currentDate = new Date().toISOString().split('T')[0];
                         const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
 
@@ -6000,10 +6452,25 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                             ? warehouseWeightInput * ratesSettings.laredoRate
                             : warehouseWeightInput * ratesSettings.mexicoRate);
 
+                        // Prepare package history details
+                        let historyDetails = isShein
+                          ? `Ingreso físico de Bolsa Shein a bodega de ${warehouseBodega}.`
+                          : `Ingreso físico a bodega de ${warehouseBodega}. Peso registrado: ${warehouseWeightInput} Lbs.`;
+
+                        if (linkedPreAlert) {
+                          historyDetails += ` (Pre-alerta vinculada: ${linkedPreAlert.id})`;
+                        }
+                        if (warehouseDeclaredValue > 0) {
+                          historyDetails += ` Valor Declarado: Q${warehouseDeclaredValue}.`;
+                        }
+                        if (warehouseInsurance !== 'Sin seguro') {
+                          historyDetails += ` Seguro: ${warehouseInsurance}.`;
+                        }
+
                         const newShip: Shipment = {
                           id: generatedId,
                           lockerId: warehouseLocker,
-                          sender: 'Tienda Courier Intern.',
+                          sender: warehouseSenderInput || 'Tienda Courier Intern.',
                           receiver: clientName,
                           origin: warehouseBodega,
                           destination: matchingUser ? matchingUser.address : 'Guatemala Hub Central',
@@ -6018,9 +6485,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                               time: currentTime,
                               status: 'En Sucursal',
                               location: `Bodega ${warehouseBodega}`,
-                              details: isShein 
-                                ? `Ingreso físico de Bolsa Shein a bodega de ${warehouseBodega}.`
-                                : `Ingreso físico a bodega de ${warehouseBodega}. Peso registrado: ${warehouseWeightInput} Lbs.`
+                              details: historyDetails
                             }
                           ],
                           notes: warehouseNotes
@@ -6029,34 +6494,51 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                         // Save to Supabase
                         db.upsertShipment(newShip);
 
-                        setShipments([newShip, ...shipments]);
+                        // Handle pre-alert update if linked
+                        if (linkedPreAlert) {
+                          const updatedPa = { ...linkedPreAlert, status: 'Recibido' as const };
+                          db.upsertPreAlert(updatedPa);
+                          setPreAlerts(prev => prev.map(item => item.id === linkedPreAlert.id ? updatedPa : item));
+                        }
 
-                        // Generate invoice
-                        const newFacId = `FAC-${1000 + invoices.length + 1}`;
-                        const newInvoice = {
-                          id: newFacId,
-                          lockerId: warehouseLocker,
-                          date: currentDate,
-                          concept: isShein
-                            ? `Flete Especial Bolsa Shein ${generatedId}`
-                            : `Cargo Flete Almacén ${warehouseBodega} ${generatedId} (${warehouseWeightInput} Lbs)`,
-                          amount: fleteTotal,
-                          paymentStatus: 'Pendiente',
-                          nit: matchingUser?.nit || 'C/F',
-                          address: matchingUser?.address || 'Ciudad de Guatemala'
-                        };
+                        setShipments(prev => [newShip, ...prev]);
 
-                        // Save Invoice to Supabase
-                        db.upsertInvoice(newInvoice);
-
-                        setInvoices(prev => [newInvoice, ...prev]);
-
-                        alert(`¡Paquete ingresado formalmente en Bodega de ${warehouseBodega}! ID de guía asignado: ${generatedId}. Se ha emitido la factura ${newFacId} por Q ${fleteTotal.toFixed(2)}.`);
+                        // Generate invoice ONLY if the billing toggle is enabled (Facturar de Inmediato)
+                        let alertMessage = `¡Paquete ingresado formalmente en Bodega de ${warehouseBodega}! ID asignado: ${generatedId}.`;
                         
-                        // Reset Shein package checkbox
+                        if (warehouseBillingToggle) {
+                          const newFacId = `FAC-${1000 + invoices.length + 1}`;
+                          const newInvoice = {
+                            id: newFacId,
+                            lockerId: warehouseLocker,
+                            date: currentDate,
+                            concept: isShein
+                              ? `Flete Especial Bolsa Shein ${generatedId}`
+                              : `Cargo Flete Almacén ${warehouseBodega} ${generatedId} (${warehouseWeightInput} Lbs)`,
+                            amount: fleteTotal,
+                            paymentStatus: 'Pendiente',
+                            nit: matchingUser?.nit || 'C/F',
+                            address: matchingUser?.address || 'Ciudad de Guatemala'
+                          };
+
+                          db.upsertInvoice(newInvoice);
+                          setInvoices(prev => [newInvoice, ...prev]);
+                          alertMessage += ` Se ha emitido la factura ${newFacId} por Q ${fleteTotal.toFixed(2)}.`;
+                        } else {
+                          alertMessage += ` Almacenado listo para consolidación (sin facturar aún).`;
+                        }
+
+                        alert(alertMessage);
+                        
+                        // Reset form fields
+                        setWarehouseSearchQuery('');
+                        setLinkedPreAlert(null);
+                        setWarehouseNotes('');
+                        setWarehouseWeightInput(2.0);
+                        setWarehouseSenderInput('');
+                        setWarehouseDeclaredValue(0);
+                        setWarehouseInsurance('Sin seguro');
                         setIsSheinPackage(false);
-                        
-                        // We do not reset to keep the printed sticker on screen for the admin to see!
                       };
 
                       const isSheinActive = isSheinPackage || warehouseNotes.toLowerCase().includes('shein');
@@ -6077,6 +6559,50 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                             
                             {/* Warehouse check-in form - LEFT */}
                             <form onSubmit={handleWarehouseCheckIn} className="lg:col-span-7 space-y-4">
+                              {/* Smart pre-alert / tracking search box */}
+                              <div className="bg-orange-50/50 border border-orange-200/80 p-4 rounded-xl space-y-3">
+                                <label className="text-4xs font-black text-brand-orange uppercase block tracking-wider">
+                                  🔍 Escanear Código de Barras / Buscar Pre-alerta de Tracking
+                                </label>
+                                <div className="relative">
+                                  <input
+                                    type="text"
+                                    placeholder="Escriba o escanee el número de tracking original..."
+                                    value={warehouseSearchQuery}
+                                    onChange={(e) => handleWarehouseSearchQueryChange(e.target.value)}
+                                    className="w-full pl-9 pr-4 py-2 text-xs border border-orange-200 rounded-lg focus:ring-2 focus:ring-brand-orange bg-white font-mono text-brand-gray-dark placeholder-orange-300 font-bold"
+                                  />
+                                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-brand-orange" />
+                                </div>
+                                {linkedPreAlert ? (
+                                  <div className="bg-emerald-50 border border-emerald-150 p-3 rounded-lg flex items-start gap-2.5 animate-fadeIn">
+                                    <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+                                    <div className="text-4xs">
+                                      <span className="font-extrabold text-emerald-800 uppercase block tracking-wider mb-0.5">Pre-alerta Vinculada Exitosamente</span>
+                                      <p className="text-emerald-700 font-medium leading-relaxed">
+                                        <strong>Cliente:</strong> {users.find(u => u.lockerId === linkedPreAlert.lockerId)?.name || 'Cliente'} ({linkedPreAlert.lockerId})<br />
+                                        <strong>Tracking:</strong> {linkedPreAlert.id}<br />
+                                        <strong>Detalle:</strong> {linkedPreAlert.description || 'Sin descripción'}
+                                      </p>
+                                    </div>
+                                  </div>
+                                ) : warehouseSearchQuery.trim() ? (
+                                  <div className="bg-gray-50 border border-gray-200 p-3 rounded-lg flex items-start gap-2.5">
+                                    <Plus className="h-5 w-5 text-brand-orange shrink-0 mt-0.5" />
+                                    <div className="text-4xs">
+                                      <span className="font-extrabold text-brand-gray-dark uppercase block tracking-wider mb-0.5">Paquete Nuevo (Registro Manual)</span>
+                                      <p className="text-gray-500 font-medium leading-relaxed">
+                                        El tracking <strong>{warehouseSearchQuery}</strong> no tiene pre-alerta registrada. Se guardará con este ID de tracking original.
+                                      </p>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <p className="text-[9px] text-gray-500 font-medium italic">
+                                    💡 Consejo: Si escanea el código del transportista original (UPS, FedEx, USPS), el paquete conservará su historial intacto y evitará duplicados.
+                                  </p>
+                                )}
+                              </div>
+
                               <div className="grid grid-cols-2 gap-4">
                                 <div>
                                   <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Casillero Destino *</label>
@@ -6085,6 +6611,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                     onChange={(e) => setWarehouseLocker(e.target.value)}
                                     className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white font-mono text-brand-orange font-bold"
                                   >
+                                    <option value="">-- Seleccionar Casillero --</option>
                                     {users.filter(u => u.role === 'client').map(u => (
                                       <option key={u.lockerId} value={u.lockerId}>{u.lockerId} &mdash; {u.name}</option>
                                     ))}
@@ -6106,6 +6633,17 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
 
                               <div className="grid grid-cols-2 gap-4">
                                 <div>
+                                  <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Remitente / Tienda</label>
+                                  <input
+                                    type="text"
+                                    placeholder="Ej: Amazon, eBay, Nike..."
+                                    value={warehouseSenderInput}
+                                    onChange={(e) => setWarehouseSenderInput(e.target.value)}
+                                    className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark"
+                                  />
+                                </div>
+
+                                <div>
                                   <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Lectura de Báscula (Peso en Lbs) *</label>
                                   <input
                                     type="number"
@@ -6117,7 +6655,9 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                     className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold font-mono"
                                   />
                                 </div>
+                              </div>
 
+                              <div className="grid grid-cols-2 gap-4">
                                 <div>
                                   <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Descripción del Contenido *</label>
                                   <input
@@ -6129,23 +6669,42 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                     className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark"
                                   />
                                 </div>
+
+                                <div className="space-y-1">
+                                  <span className="text-4xs font-bold text-gray-500 uppercase block">Clasificación / Servicio</span>
+                                  {/* Shein package classification checkbox */}
+                                  <div className="flex items-center space-x-2 bg-gray-50 border border-gray-200 p-1.5 rounded hover:border-brand-orange transition select-none h-[30px]">
+                                    <input
+                                      id="isSheinPackageCheckbox"
+                                      type="checkbox"
+                                      checked={isSheinPackage}
+                                      onChange={(e) => setIsSheinPackage(e.target.checked)}
+                                      className="w-3.5 h-3.5 accent-brand-orange rounded cursor-pointer"
+                                    />
+                                    <label 
+                                      htmlFor="isSheinPackageCheckbox"
+                                      className="text-[9px] font-bold text-brand-gray-dark uppercase cursor-pointer select-none flex items-center space-x-1"
+                                    >
+                                      <span>🎀 ¿Bolsa Shein? (Plana Q {ratesSettings.sheinRate})</span>
+                                    </label>
+                                  </div>
+                                </div>
                               </div>
 
-                              {/* Shein package classification checkbox */}
-                              <div className="flex items-center space-x-2 bg-gray-50 border border-gray-200 p-2.5 rounded hover:border-brand-orange transition select-none">
-                                <input
-                                  id="isSheinPackageCheckbox"
-                                  type="checkbox"
-                                  checked={isSheinPackage}
-                                  onChange={(e) => setIsSheinPackage(e.target.checked)}
-                                  className="w-4 h-4 accent-brand-orange rounded cursor-pointer"
-                                />
-                                <label 
-                                  htmlFor="isSheinPackageCheckbox"
-                                  className="text-4xs font-bold text-brand-gray-dark uppercase cursor-pointer select-none flex items-center space-x-1"
-                                >
-                                  <span>🎀 ¿Es Paquete/Bolsa Shein?</span>
-                                  <span className="text-brand-orange font-extrabold font-mono">(Tarifa Especial Plana Q {ratesSettings.sheinRate})</span>
+                              {/* Toggle switch for billing */}
+                              <div className="flex items-center justify-between bg-gray-50 border border-gray-200 p-3 rounded-xl select-none">
+                                <div className="space-y-0.5">
+                                  <span className="text-[10px] font-extrabold text-brand-gray-dark uppercase tracking-wider block">🧾 ¿Facturar de Inmediato?</span>
+                                  <span className="text-[8px] text-gray-500 block">Si está desactivado (por defecto), el flete se cobrará acumulado al consolidar y despachar.</span>
+                                </div>
+                                <label className="relative inline-flex items-center cursor-pointer select-none">
+                                  <input
+                                    type="checkbox"
+                                    checked={warehouseBillingToggle}
+                                    onChange={(e) => setWarehouseBillingToggle(e.target.checked)}
+                                    className="sr-only peer"
+                                  />
+                                  <div className="w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3.5 after:transition-all peer-checked:bg-brand-orange"></div>
                                 </label>
                               </div>
 
@@ -6241,13 +6800,30 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                               {/* Quick stats badges */}
                               <div className="flex gap-2.5 items-center flex-wrap">
                                 {selectedWarehouseGroups.length > 0 && (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleBulkDispatch(groupList.filter(g => selectedWarehouseGroups.includes(`${g.lockerId}-${g.bodega}`)))}
-                                    className="bg-brand-orange hover:bg-brand-orange-hover text-white text-[10px] font-extrabold px-3 py-1.5 rounded uppercase tracking-wider cursor-pointer transition shadow-3xs flex items-center gap-1.5 active:scale-98"
-                                  >
-                                    <span>Despachar Selección en Masa ({selectedWarehouseGroups.length})</span>
-                                  </button>
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const groups = groupList.filter(g => selectedWarehouseGroups.includes(`${g.lockerId}-${g.bodega}`));
+                                        handleRemoveFromWarehouseGroups(groups);
+                                      }}
+                                      className="bg-yellow-500 hover:bg-yellow-600 text-white text-[10px] font-extrabold px-3 py-1.5 rounded uppercase tracking-wider cursor-pointer transition shadow-3xs flex items-center gap-1.5 active:scale-98"
+                                    >
+                                      <PackageMinus className="h-3.5 w-3.5" />
+                                      <span>Desalmacenar Selección ({selectedWarehouseGroups.length})</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const groups = groupList.filter(g => selectedWarehouseGroups.includes(`${g.lockerId}-${g.bodega}`));
+                                        setDispatchGroupsPending(groups);
+                                        setIsDispatchContainerModalOpen(true);
+                                      }}
+                                      className="bg-brand-orange hover:bg-brand-orange-hover text-white text-[10px] font-extrabold px-3 py-1.5 rounded uppercase tracking-wider cursor-pointer transition shadow-3xs flex items-center gap-1.5 active:scale-98"
+                                    >
+                                      <span>Despachar Selección en Masa ({selectedWarehouseGroups.length})</span>
+                                    </button>
+                                  </>
                                 )}
                                 <span className="bg-blue-50 text-blue-700 text-[10px] font-bold px-2.5 py-1 rounded border border-blue-100 flex items-center gap-1 font-mono">
                                   🇺🇸 USA: {shipments.filter(s => s.status === 'En Sucursal' && (s.origin === 'Laredo' || s.origin === 'USA')).length} paq.
@@ -6345,31 +6921,35 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                               {g.totalWeight.toFixed(1)} Lbs
                                             </td>
                                             <td className="py-3 px-3 text-center space-x-2">
-                                              <button
-                                                type="button"
-                                                onClick={() => setExpandedWarehouseGroup(isExpanded ? null : groupKey)}
-                                                className="text-brand-orange hover:text-brand-orange-hover text-4xs font-black uppercase tracking-wider underline cursor-pointer"
-                                              >
-                                                {isExpanded ? 'Ocultar Detalle' : 'Ver Detalle'}
-                                              </button>
-                                              <button
-                                                type="button"
-                                                onClick={() => {
-                                                  const estimatedFlete = g.shipments.reduce((acc, s) => {
-                                                    const isShein = (s.notes || '').toLowerCase().includes('shein');
-                                                    const sFlete = isShein
-                                                      ? ratesSettings.sheinRate
-                                                      : ((g.bodega === 'Laredo' || g.bodega === 'USA')
-                                                        ? s.weight * ratesSettings.laredoRate
-                                                        : s.weight * ratesSettings.mexicoRate);
-                                                    return acc + sFlete;
-                                                  }, 0);
-                                                  handleAutoDispatch(g.lockerId, g.bodega as 'Laredo' | 'USA' | 'Mexico', g.shipments, g.totalWeight, estimatedFlete);
-                                                }}
-                                                className="bg-brand-orange hover:bg-brand-orange-hover text-white text-[9px] font-extrabold px-2.5 py-1 rounded uppercase tracking-wider transition cursor-pointer"
-                                              >
-                                                Despachar
-                                              </button>
+                                              <div className="flex flex-col gap-1">
+                                                <button
+                                                  type="button"
+                                                  onClick={() => setExpandedWarehouseGroup(isExpanded ? null : groupKey)}
+                                                  className="text-brand-orange hover:text-brand-orange-hover text-4xs font-black uppercase tracking-wider underline cursor-pointer"
+                                                >
+                                                  {isExpanded ? 'Ocultar Detalle' : 'Ver Detalle'}
+                                                </button>
+                                                <div className="flex gap-1 justify-center mt-1">
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => handleRemoveFromWarehouseGroups([g])}
+                                                    className="bg-yellow-500 hover:bg-yellow-600 text-white text-[9px] font-extrabold px-2 py-1 rounded uppercase tracking-wider transition cursor-pointer"
+                                                    title="Desalmacenar"
+                                                  >
+                                                    <PackageMinus className="h-3 w-3" />
+                                                  </button>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                      setDispatchGroupsPending([g]);
+                                                      setIsDispatchContainerModalOpen(true);
+                                                    }}
+                                                    className="bg-brand-orange hover:bg-brand-orange-hover text-white text-[9px] font-extrabold px-2.5 py-1 rounded uppercase tracking-wider transition cursor-pointer"
+                                                  >
+                                                    Despachar
+                                                  </button>
+                                                </div>
+                                              </div>
                                             </td>
                                           </tr>
                                           
@@ -6428,6 +7008,8 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
 
                     {/* ==================== 7. HISTORIAL DE CONSOLIDADOS (`consolidado`) ==================== */}
                     {adminSubTab === 'consolidado' && (() => {
+
+
                       const handleBulkPrintInvoices = async (guideIds: string[]) => {
                         const newInvoicesCreated: any[] = [];
                         const invoicesToPrint: any[] = [];
@@ -6449,11 +7031,16 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                             const rate = guide.origin === 'Mexico' ? ratesSettings.mexicoRate : ratesSettings.laredoRate;
                             const amount = guide.totalWeight * rate;
 
+                            // Find packages for this guide to include trackings
+                            const guideShipments = shipments.filter(s => s.history && s.history.some(h => h.details && h.details.includes(guide.id)));
+                            const trackingList = guideShipments.map(s => s.id).join(', ');
+                            const trackingSuffix = trackingList ? ` [Trackings: ${trackingList}]` : '';
+
                             inv = {
                               id: invoiceId,
                               lockerId: lockerId || 'N/A',
                               date: currentDate,
-                              concept: `Flete Consolidado - ${guide.itemsCount} Paquetes desde Bodega ${guide.origin} [Guía: ${guide.id}]`,
+                              concept: `Flete Consolidado - ${guide.itemsCount} Paquetes desde Bodega ${guide.origin} [Guía: ${guide.id}]${trackingSuffix}`,
                               amount: amount,
                               paymentStatus: 'Pendiente'
                             };
@@ -6706,6 +7293,18 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                           const clientNit = client ? client.nit : 'C/F';
                           const parsed = parseInvoiceConcept(invoice.concept);
                           
+                          const trackingsMatch = parsed.detail.match(/\[Trackings:\s*([^\]]+)\]/i);
+                          let cleanDetail = parsed.detail;
+                          let trackingsList: string[] = [];
+                          if (trackingsMatch) {
+                            cleanDetail = parsed.detail.replace(/\[Trackings:\s*[^\]]+\]/gi, '').trim();
+                            trackingsList = trackingsMatch[1].split(',').map((t: string) => t.trim()).filter(Boolean);
+                          } else {
+                            const searchId = guide ? guide.id : invoice.id;
+                            const matchingShipments = shipments.filter(s => s.history && s.history.some(h => h.details && h.details.includes(searchId)));
+                            trackingsList = matchingShipments.map((s: any) => s.id);
+                          }
+                          
                           contentHtml += `
                             <div class="invoice-container">
                               <div>
@@ -6757,7 +7356,15 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                   <tbody>
                                     <tr>
                                       <td>
-                                        <div class="concept-title">${parsed.detail}</div>
+                                        <div class="concept-title">${cleanDetail}</div>
+                                        ${trackingsList.length > 0 ? `
+                                          <div style="margin-top: 10px; font-size: 11px; color: #4B5563;">
+                                            <strong>Paquetes / Trackings Incluidos:</strong>
+                                            <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px;">
+                                              ${trackingsList.map(t => `<span style="background-color: #F3F4F6; border: 1px solid #E5E7EB; border-radius: 4px; padding: 2px 6px; font-family: monospace; font-weight: 600; color: #374151;">${t}</span>`).join('')}
+                                            </div>
+                                          </div>
+                                        ` : ''}
                                         ${guide ? `<span style="font-size: 11px; color: #6b7280; display: block; margin-top: 4px;">Peso total: ${guide.totalWeight.toFixed(1)} Lbs | Bultos: ${guide.itemsCount}</span>` : ''}
                                       </td>
                                       <td class="text-right" style="font-weight: 700;">Q ${invoice.amount.toFixed(2)}</td>
@@ -6888,89 +7495,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                         alert(`¡Guía Madre ${guideId} actualizada a: ${newStatus}!\nSe ha propagado el estado a todos sus paquetes individuales.`);
                       };
 
-                      const handleUpdateContainerStatus = async (containerName: string, newStatus: string) => {
-                        const targetGuides = consolidatedGuides.filter(g => g.containerName === containerName);
-                        if (targetGuides.length === 0) return;
 
-                        const guideIds = targetGuides.map(g => g.id);
-
-                        for (const guide of targetGuides) {
-                          await db.upsertConsolidatedGuide({ ...guide, status: newStatus });
-                        }
-
-                        setConsolidatedGuides(prev => prev.map(g => {
-                          if (guideIds.includes(g.id)) {
-                            return { ...g, status: newStatus };
-                          }
-                          return g;
-                        }));
-
-                        const currentDate = new Date().toISOString().split('T')[0];
-                        const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
-
-                        const updatedShipmentsList: any[] = [];
-                        const nextShipments = shipments.map(s => {
-                          const hasGuideRef = s.history.some(h => h.details && guideIds.some(id => h.details.includes(id)));
-                          if (hasGuideRef) {
-                            let packageStatus: "Creado" | "En Tránsito" | "En Sucursal" | "En Ruta" | "Entregado" | "Retrasado" = 'En Tránsito';
-                            let detailsText = `Estado del Contenedor "${containerName}" actualizado a: ${newStatus}.`;
-                            let locationText = 'Ruta Troncal / Aduanas';
-
-                            if (newStatus === 'Entregado') {
-                              packageStatus = 'Entregado';
-                              detailsText = `Paquete entregado formalmente al cliente (Contenedor ${containerName} - Entregado).`;
-                              locationText = 'Entregado a Destinatario';
-                            } else if (newStatus === 'En Bodega') {
-                              packageStatus = 'En Sucursal';
-                              detailsText = `Paquete ingresado y disponible en bodega central (Contenedor ${containerName} - En Bodega).`;
-                              locationText = 'Bodega Central Guatemala';
-                            } else if (newStatus === 'Aduana Guatemalteca') {
-                              packageStatus = 'En Tránsito';
-                              detailsText = `Carga ingresada a aduana en Guatemala para proceso de desaduanaje (Contenedor ${containerName}).`;
-                              locationText = 'Aduana Guatemalteca';
-                            } else if (newStatus === 'Aduana Mexicana') {
-                              packageStatus = 'En Tránsito';
-                              detailsText = `Carga en tránsito por aduana de México (Contenedor ${containerName}).`;
-                              locationText = 'Aduana Mexicana';
-                            } else if (newStatus === 'Despachado') {
-                              packageStatus = 'En Tránsito';
-                              detailsText = `Despachado en contenedor master (Contenedor ${containerName}).`;
-                              locationText = 'Bodega de Origen';
-                            } else {
-                              packageStatus = 'En Tránsito';
-                              detailsText = `Carga en tránsito internacional (Contenedor ${containerName}).`;
-                              locationText = 'En Tránsito Internacional';
-                            }
-
-                            const updatedShip = {
-                              ...s,
-                              status: packageStatus,
-                              lastUpdated: `${currentDate} ${currentTime}`,
-                              history: [
-                                {
-                                  date: currentDate,
-                                  time: currentTime,
-                                  status: packageStatus,
-                                  location: locationText,
-                                  details: detailsText
-                                },
-                                ...s.history
-                              ]
-                            };
-                            updatedShipmentsList.push(updatedShip);
-                            return updatedShip;
-                          }
-                          return s;
-                        });
-
-                        if (updatedShipmentsList.length > 0) {
-                          await db.upsertShipments(updatedShipmentsList);
-                        }
-
-                        setShipments(nextShipments);
-
-                        alert(`¡Contenedor ${containerName} actualizado a: ${newStatus}!\nSe ha propagado el estado a todas sus guías madre y paquetes.`);
-                      };
 
                       // Filter Master Guides list
                       const filteredGuides = consolidatedGuides.filter(guide => {
@@ -7440,8 +7965,190 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                             </div>
                           </div>
 
-                          {/* Filters and Search Bar */}
-                          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                          {/* Sub-tab view switcher */}
+                          <div className="flex border-b border-gray-200">
+                            <button
+                              type="button"
+                              onClick={() => setConsolidadoViewTab('contenedores')}
+                              className={`px-4 py-2 text-2xs font-extrabold uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
+                                consolidadoViewTab === 'contenedores'
+                                  ? 'border-brand-orange text-brand-orange bg-orange-50/10'
+                                  : 'border-transparent text-gray-500 hover:text-brand-gray-dark'
+                              }`}
+                            >
+                              🚢 Vista de Contenedores
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConsolidadoViewTab('guias')}
+                              className={`px-4 py-2 text-2xs font-extrabold uppercase tracking-wider border-b-2 transition-all cursor-pointer ${
+                                consolidadoViewTab === 'guias'
+                                  ? 'border-brand-orange text-brand-orange bg-orange-50/10'
+                                  : 'border-transparent text-gray-500 hover:text-brand-gray-dark'
+                              }`}
+                            >
+                              📋 Vista de Guías Consolidadas
+                            </button>
+                          </div>
+
+                          {consolidadoViewTab === 'contenedores' && (() => {
+                            // Unique container names
+                            const containers = Array.from(new Set(consolidatedGuides.map(g => g.containerName).filter(Boolean))) as string[];
+                            
+                            if (containers.length === 0) {
+                              return (
+                                <div className="text-center py-12 text-gray-400 border border-dashed border-gray-200 rounded-xl">
+                                  <Truck className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+                                  <p className="text-3xs font-medium">No hay contenedores internacionales activos en este momento.</p>
+                                  <p className="text-[10px] text-gray-400 mt-1">Los contenedores se crean automáticamente al despachar carga consolidada desde el andén de recepción.</p>
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {containers.map(cName => {
+                                  const guidesInContainer = consolidatedGuides.filter(g => g.containerName === cName);
+                                  if (guidesInContainer.length === 0) return null;
+                                  
+                                  const totalWeight = guidesInContainer.reduce((sum, g) => sum + g.totalWeight, 0);
+                                  const totalPackages = guidesInContainer.reduce((sum, g) => sum + g.itemsCount, 0);
+                                  const firstGuide = guidesInContainer[0];
+                                  const status = firstGuide.status;
+                                  const date = firstGuide.date;
+                                  const origin = firstGuide.origin;
+                                  
+                                  const stepIndex = getContainerStepIndex(status);
+                                  const steps = [
+                                    { label: 'Salida', desc: 'Despachado de bodega origen' },
+                                    { label: 'Tránsito', desc: 'En tránsito internacional' },
+                                    { label: 'Aduanas', desc: 'Aduana de destino' },
+                                    { label: 'Bodega', desc: 'Disponible en Guatemala' },
+                                    { label: 'Entregado', desc: 'Entregado al cliente' }
+                                  ];
+
+                                  return (
+                                    <div key={cName} className="bg-white border border-gray-200 rounded-2xl shadow-2xs hover:shadow-xs transition duration-200 flex flex-col justify-between overflow-hidden">
+                                      {/* Card header */}
+                                      <div className="bg-slate-900 p-4 text-white flex justify-between items-start">
+                                        <div className="space-y-1">
+                                          <span className="text-[8px] font-black text-brand-orange uppercase tracking-wider font-mono">Contenedor Master</span>
+                                          <h4 className="text-xs font-black truncate max-w-[180px]" title={cName}>{cName}</h4>
+                                          <span className="text-[9px] text-slate-400 block font-mono">Despachado: {date}</span>
+                                        </div>
+                                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase border ${
+                                          origin === 'Mexico'
+                                            ? 'bg-emerald-950 text-emerald-400 border-emerald-800'
+                                            : 'bg-blue-950 text-blue-400 border-blue-800'
+                                        }`}>
+                                          {origin === 'Mexico' ? '🇲🇽 MX' : '🇺🇸 USA'}
+                                        </span>
+                                      </div>
+
+                                      {/* Card body */}
+                                      <div className="p-4 space-y-4 flex-1">
+                                        {/* Metrics grid */}
+                                        <div className="grid grid-cols-3 gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-center font-mono">
+                                          <div>
+                                            <span className="text-[8px] text-gray-400 uppercase tracking-wider block">Peso Total</span>
+                                            <strong className="text-3xs font-extrabold text-brand-gray-dark">{totalWeight.toFixed(1)} Lbs</strong>
+                                          </div>
+                                          <div>
+                                            <span className="text-[8px] text-gray-400 uppercase tracking-wider block">Paquetes</span>
+                                            <strong className="text-3xs font-extrabold text-brand-orange">{totalPackages}</strong>
+                                          </div>
+                                          <div>
+                                            <span className="text-[8px] text-gray-400 uppercase tracking-wider block">Clientes</span>
+                                            <strong className="text-3xs font-extrabold text-blue-600">{guidesInContainer.length}</strong>
+                                          </div>
+                                        </div>
+
+                                        {/* Progress bar timeline */}
+                                        <div className="space-y-2">
+                                          <span className="text-[9px] font-black text-gray-400 uppercase tracking-wider block">Estado de Tránsito</span>
+                                          <div className="relative flex justify-between items-center px-1">
+                                            {/* Background connector line */}
+                                            <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-0.5 bg-gray-150 -z-10"></div>
+                                            {/* Active progress indicator overlay */}
+                                            <div 
+                                              className="absolute left-0 top-1/2 -translate-y-1/2 h-0.5 bg-brand-orange -z-10 transition-all duration-300"
+                                              style={{ width: `${(stepIndex / 4) * 100}%` }}
+                                            />
+                                            {steps.map((step, idx) => {
+                                              const isActive = idx <= stepIndex;
+                                              const isCurrent = idx === stepIndex;
+                                              return (
+                                                <div key={idx} className="flex flex-col items-center group relative cursor-help">
+                                                  <div className={`w-3.5 h-3.5 rounded-full flex items-center justify-center border transition-all duration-300 ${
+                                                    isCurrent
+                                                      ? 'bg-brand-orange border-brand-orange scale-110 shadow-xs'
+                                                      : isActive
+                                                        ? 'bg-brand-orange border-brand-orange'
+                                                        : 'bg-white border-gray-300'
+                                                  }`}>
+                                                    {isActive && <Check className="h-2 w-2 text-white" />}
+                                                  </div>
+                                                  <span className={`text-[8px] font-extrabold uppercase mt-1 tracking-wider ${
+                                                    isCurrent ? 'text-brand-orange' : 'text-gray-400'
+                                                  }`}>{step.label}</span>
+                                                  
+                                                  {/* Tooltip */}
+                                                  <div className="absolute bottom-full mb-2 hidden group-hover:block bg-brand-gray-dark text-white text-[8px] rounded px-2 py-1 whitespace-nowrap shadow-md z-10 font-sans">
+                                                    {step.desc}
+                                                  </div>
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+
+                                        {/* Dropdown status update */}
+                                        <div className="space-y-1.5 pt-1">
+                                          <label className="text-[9px] font-black text-gray-400 uppercase tracking-wider block">Actualizar Estado Logístico</label>
+                                          <select
+                                            value={status}
+                                            onChange={(e) => handleUpdateContainerStatus(cName, e.target.value)}
+                                            className="w-full px-2.5 py-1.5 text-4xs font-bold border border-gray-200 rounded-lg focus:ring-1 focus:ring-brand-orange bg-white text-brand-gray-dark uppercase tracking-wider font-semibold"
+                                          >
+                                            <option value="Despachado">🇺🇸/🇲🇽 Despachado (Bodega Origen)</option>
+                                            <option value="Aduana Mexicana">🇲🇽 Aduana Mexicana (En Tránsito)</option>
+                                            <option value="Aduana Guatemalteca">🇬🇹 Aduana Guatemalteca (Desaduanaje)</option>
+                                            <option value="En Bodega">🇬🇹 En Sucursal / Disponible para Entrega</option>
+                                            <option value="Entregado">🎉 Entregado a Destinatarios</option>
+                                          </select>
+                                        </div>
+                                      </div>
+
+                                      {/* Card footer actions */}
+                                      <div className="bg-slate-50 px-4 py-3 border-t border-slate-100 flex justify-between items-center gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleBulkNotifyConsolidados(guidesInContainer.map(g => g.id))}
+                                          className="flex-1 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-[8px] font-extrabold py-1.5 px-2 rounded-lg uppercase tracking-wider cursor-pointer transition active:scale-97 flex items-center justify-center gap-1 shadow-3xs"
+                                        >
+                                          <Bell className="h-3 w-3 text-brand-orange" />
+                                          Notificar Clientes
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleBulkPrintInvoices(guidesInContainer.map(g => g.id))}
+                                          className="flex-1 bg-indigo-50 hover:bg-indigo-100 border border-indigo-150 text-indigo-700 text-[8px] font-extrabold py-1.5 px-2 rounded-lg uppercase tracking-wider cursor-pointer transition active:scale-97 flex items-center justify-center gap-1 shadow-3xs"
+                                        >
+                                          <Printer className="h-3 w-3" />
+                                          Imprimir Facturas
+                                        </button>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })()}
+
+                          {consolidadoViewTab === 'guias' && (
+                            <>
+                              {/* Filters and Search Bar */}
+                              <div className="grid grid-cols-1 md:grid-cols-12 gap-3 bg-gray-50 p-4 rounded-lg border border-gray-200">
                             
                             {/* Search bar */}
                             <div className="md:col-span-4 relative">
@@ -7839,27 +8546,62 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                               </tbody>
                             </table>
                           </div>
+                        </>
+                      )}
 
-                        </div>
+                    </div>
                       );
                     })()}
 
                                 {/* ==================== ADMIN: REPORTES FINANCIEROS TAB ==================== */}
             {adminSubTab === 'reportes-financieros' && (() => {
-              const pendingInvoices = invoices.filter(i => i.paymentStatus === 'Pendiente');
-              const paidInvoices = invoices.filter(i => i.paymentStatus === 'Pagado');
+              const isDateInRange = (dateStr: string) => {
+                if (!dateStr) return true;
+                if (reportStartDate && dateStr < reportStartDate) return false;
+                if (reportEndDate && dateStr > reportEndDate) return false;
+                return true;
+              };
 
-              const totalRevenueGTQ = paymentsLog
+              const filteredInvoices = invoices.filter(i => isDateInRange(i.date));
+              const filteredPayments = paymentsLog.filter(p => isDateInRange(p.date));
+              const filteredExpenses = expensesLog.filter(e => isDateInRange(e.date));
+
+              const exportToCSV = () => {
+                const rows = [];
+                rows.push(['Tipo', 'ID', 'Fecha', 'Concepto/Referencia', 'Monto', 'Moneda']);
+                
+                filteredPayments.forEach(p => {
+                  rows.push(['Ingreso (Pago)', p.id, p.date || '', `${p.method || ''} ${p.reference || ''}`.trim(), p.amount, p.currency || 'GTQ']);
+                });
+                
+                filteredExpenses.forEach(e => {
+                  rows.push(['Gasto', e.id, e.date || '', `${e.category || ''} - ${e.description || ''}`.trim(), e.amount, e.currency || 'GTQ']);
+                });
+              
+                const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + rows.map(e => e.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", `reporte_financiero_${reportStartDate || 'inicio'}_al_${reportEndDate || 'fin'}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+              };
+
+              const pendingInvoices = filteredInvoices.filter(i => i.paymentStatus === 'Pendiente');
+              const paidInvoices = filteredInvoices.filter(i => i.paymentStatus === 'Pagado');
+
+              const totalRevenueGTQ = filteredPayments
                 .filter(p => p.currency === 'GTQ' || !p.currency)
                 .reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
-              const totalRevenueUSD = paymentsLog
+              const totalRevenueUSD = filteredPayments
                 .filter(p => p.currency === 'USD')
                 .reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
               
-              const totalExpensesGTQ = expensesLog
+              const totalExpensesGTQ = filteredExpenses
                 .filter(e => e.currency === 'GTQ' || !e.currency)
                 .reduce((acc, e) => acc + (parseFloat(e.amount) || 0), 0);
-              const totalExpensesUSD = expensesLog
+              const totalExpensesUSD = filteredExpenses
                 .filter(e => e.currency === 'USD')
                 .reduce((acc, e) => acc + (parseFloat(e.amount) || 0), 0);
 
@@ -7918,7 +8660,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                         <div className="text-2xl font-black text-gray-800">Q{totalExpensesGTQ.toFixed(2)}</div>
                         <div className="text-sm font-semibold text-gray-500 mt-1">${totalExpensesUSD.toFixed(2)}</div>
                       </div>
-                      <div className="text-3xs text-red-600 font-bold bg-red-50 self-start px-2 py-0.5 rounded uppercase mt-auto">Registros de Gastos: {expensesLog.length}</div>
+                      <div className="text-3xs text-red-600 font-bold bg-red-50 self-start px-2 py-0.5 rounded uppercase mt-auto">Registros de Gastos: {filteredExpenses.length}</div>
                     </div>
 
                     {/* Net Balance Card */}
@@ -7992,15 +8734,15 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                       <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
                         <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
                           <CheckCircle2 className="h-4 w-4 text-green-500" />
-                          Últimos Ingresos ({paymentsLog.length})
+                          Últimos Ingresos ({filteredPayments.length})
                         </h3>
                       </div>
                       <div className="p-0 overflow-y-auto max-h-[400px]">
-                        {paymentsLog.length === 0 ? (
+                        {filteredPayments.length === 0 ? (
                           <div className="p-8 text-center text-gray-400 text-sm font-medium">No hay ingresos registrados.</div>
                         ) : (
                           <div className="divide-y divide-gray-100">
-                            {[...paymentsLog].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(pay => {
+                            {[...filteredPayments].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(pay => {
                               const curr = pay.currency || 'GTQ';
                               const sym = curr === 'USD' ? '$' : 'Q';
                               return (
@@ -8124,6 +8866,16 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                             >
                                               🖨️ PDF
                                             </button>
+                                            {invoice.paymentStatus === 'Pendiente' && (
+                                              <button
+                                                type="button"
+                                                onClick={() => handleOpenPaymentModal(invoice)}
+                                                className="bg-green-600 hover:bg-green-700 text-white font-extrabold text-4xs px-2.5 py-1 rounded transition uppercase tracking-wider flex items-center gap-1 cursor-pointer shadow-sm active:scale-95"
+                                                title="Registrar cobro / pago de esta factura"
+                                              >
+                                                💵 Cobrar
+                                              </button>
+                                            )}
                                             <button
                                               type="button"
                                               onClick={() => handleOpenEditInvoiceModal(invoice)}
@@ -8858,30 +9610,151 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                     })()}
 
                     {/* ==================== 9. REGISTRO DE PAGOS / COBROS (`pagos`) ==================== */}
-                    {adminSubTab === 'pagos' && (
-                      <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs space-y-6">
-                        <div>
-                          <h3 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display mb-1">💰 Caja Chica y Recibos de Pagos Recaudados</h3>
-                          <p className="text-4xs text-gray-500">Módulo de control de caja. Reciba pagos en efectivo, transferencia o contra-entrega (COD) para cancelar facturas pendientes, sumando saldo líquido en tiempo real.</p>
-                        </div>
+                    {adminSubTab === 'pagos' && (() => {
+                      const totalRecaudado = paymentsLog.reduce((sum, p) => sum + p.amount, 0);
+                      const pendingInvoices = invoices.filter(i => i.paymentStatus === 'Pendiente');
+                      const totalPendingAmount = pendingInvoices.reduce((sum, i) => sum + i.amount, 0);
 
-                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                          
-                          {/* Payments Log Ledger - LEFT */}
-                          <div className="lg:col-span-8 space-y-4">
+                      return (
+                        <div className="bg-white p-6 rounded-3xl border border-gray-150 shadow-xs space-y-6">
+                          {/* Title and top-right actions */}
+                          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                            <div>
+                              <h3 className="text-xs font-black text-brand-gray-dark uppercase tracking-wider font-display mb-1 flex items-center gap-1.5">
+                                <span className="bg-orange-50 text-brand-orange p-1.5 rounded-lg border border-orange-100">
+                                  <Wallet className="h-4 w-4" />
+                                </span>
+                                Caja Chica y Recibos de Pagos Recaudados
+                              </h3>
+                              <p className="text-4xs text-gray-500">Módulo de control de caja. Registre el cobro de facturas y visualice el historial de caja chica en tiempo real.</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPaymentInvoice('');
+                                setPaymentLocker('');
+                                setPaymentNotes('');
+                                setPaymentDiscountType('none');
+                                setPaymentDiscountValue(0);
+                                setPaymentInsuranceExtra(0);
+                                setPaymentLocalDeliveryExtra(0);
+                                setIsPaymentModalOpen(true);
+                              }}
+                              className="bg-brand-orange hover:bg-brand-orange-hover text-white text-3xs font-extrabold py-2 px-4 rounded-xl uppercase tracking-wider transition shadow-sm shadow-orange-100 hover:shadow-orange-200 active:scale-95 flex items-center gap-1 cursor-pointer"
+                            >
+                              <Plus className="h-3.5 w-3.5" /> Registrar Cobro Manual
+                            </button>
+                          </div>
+
+                          {/* Quick Metrics Row */}
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="bg-gradient-to-br from-green-50/50 to-emerald-50/20 border border-green-150 p-4 rounded-2xl flex items-center gap-4 shadow-3xs">
+                              <span className="p-3 bg-green-100/60 rounded-xl text-green-700 border border-green-200">
+                                <DollarSign className="h-5 w-5" />
+                              </span>
+                              <div>
+                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block leading-none mb-1">Total Recaudado (Caja)</span>
+                                <h4 className="text-sm font-black text-green-700 font-mono">Q {totalRecaudado.toFixed(2)}</h4>
+                                <span className="text-[8px] font-bold text-slate-500">Saldo líquido ingresado</span>
+                              </div>
+                            </div>
+
+                            <div className="bg-gradient-to-br from-orange-50/30 to-amber-50/10 border border-orange-150 p-4 rounded-2xl flex items-center gap-4 shadow-3xs">
+                              <span className="p-3 bg-orange-100/60 rounded-xl text-brand-orange border border-orange-200">
+                                <FileText className="h-5 w-5" />
+                              </span>
+                              <div>
+                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block leading-none mb-1">Facturas Pendientes</span>
+                                <h4 className="text-sm font-black text-brand-orange font-mono">{pendingInvoices.length}</h4>
+                                <span className="text-[8px] font-bold text-slate-500">Esperando cobro en ventanilla</span>
+                              </div>
+                            </div>
+
+                            <div className="bg-gradient-to-br from-slate-50 to-gray-50/50 border border-slate-200 p-4 rounded-2xl flex items-center gap-4 shadow-3xs">
+                              <span className="p-3 bg-slate-100 rounded-xl text-slate-600 border border-slate-200">
+                                <TrendingUp className="h-5 w-5" />
+                              </span>
+                              <div>
+                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block leading-none mb-1">Importe en Cartera</span>
+                                <h4 className="text-sm font-black text-slate-700 font-mono">Q {totalPendingAmount.toFixed(2)}</h4>
+                                <span className="text-[8px] font-bold text-slate-500">Total por cobrar</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Facturas Pendientes (Queue Board) */}
+                          <div className="space-y-3">
+                            <span className="text-4xs font-bold text-gray-400 uppercase tracking-widest block">Facturas Pendientes de Pago (Cola de Cobros)</span>
+                            {pendingInvoices.length > 0 ? (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {pendingInvoices.slice(0, 6).map(invoice => {
+                                  const parsed = parseInvoiceConcept(invoice.concept);
+                                  const currencySymbol = parsed.currency === 'USD' ? '$' : 'Q';
+                                  return (
+                                    <div key={invoice.id} className="bg-white border border-slate-200/80 p-4 rounded-2xl shadow-3xs flex flex-col justify-between space-y-3 hover:border-brand-orange/60 transition group hover:shadow-2xs">
+                                      <div className="space-y-1">
+                                        <div className="flex justify-between items-center">
+                                          <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-lg text-4xs font-black uppercase tracking-wider">{invoice.id}</span>
+                                          <span className="font-mono text-gray-400 text-4xs">Casillero: <strong className="text-slate-600">{invoice.lockerId || 'N/R'}</strong></span>
+                                        </div>
+                                        <div className="text-4xs text-gray-500 font-bold truncate" title={parsed.detail}>
+                                          {parsed.detail}
+                                        </div>
+                                        <div className="text-4xs text-gray-400 font-medium">
+                                          Fecha: <span className="font-mono">{invoice.date}</span>
+                                        </div>
+                                      </div>
+                                      
+                                      <div className="flex items-center justify-between border-t border-slate-100 pt-2.5">
+                                        <span className="font-mono font-black text-brand-orange text-xs">{currencySymbol} {invoice.amount.toFixed(2)}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleOpenPaymentModal(invoice)}
+                                          className="bg-green-600 hover:bg-green-700 text-white font-extrabold text-4xs px-3 py-1.5 rounded-xl transition uppercase tracking-wider flex items-center gap-1 cursor-pointer shadow-sm active:scale-95"
+                                        >
+                                          💵 Registrar Pago
+                                        </button>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                                {pendingInvoices.length > 6 && (
+                                  <div className="bg-slate-50/50 border border-dashed border-slate-200 p-4 rounded-2xl flex flex-col justify-center items-center text-center text-4xs font-bold text-slate-500 space-y-2">
+                                    <span>Hay {pendingInvoices.length - 6} facturas más pendientes de cobro en cola.</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => setAdminSubTab('facturacion')}
+                                      className="text-brand-orange hover:underline uppercase text-[9px] font-black"
+                                    >
+                                      Ver todas en Facturación &rarr;
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="bg-slate-50/50 border border-dashed border-slate-200 p-8 rounded-2xl text-center space-y-2">
+                                <div className="text-xs">🎉</div>
+                                <div className="text-4xs font-black text-slate-400 uppercase tracking-wider">¡Caja al día!</div>
+                                <p className="text-4xs text-slate-500">No hay facturas pendientes de cobro en este momento.</p>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Historical Payments Log Ledger Table (Full Width) */}
+                          <div className="space-y-3 pt-2">
                             <span className="text-4xs font-bold text-gray-400 uppercase tracking-widest block">Historial Ledger de Transacciones de Caja</span>
                             
-                            <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                            <div className="overflow-x-auto border border-gray-150 rounded-2xl">
                               <table className="w-full text-left border-collapse">
                                 <thead>
-                                  <tr className="bg-gray-100 border-b border-gray-200 text-4xs font-extrabold text-gray-500 uppercase tracking-wider">
-                                    <th className="py-2.5 px-4">Recibo ID</th>
-                                    <th className="py-2.5 px-3">Casillero</th>
-                                    <th className="py-2.5 px-3">Factura Relac.</th>
-                                    <th className="py-2.5 px-3">Fecha Recibo</th>
-                                    <th className="py-2.5 px-3">Método Pago</th>
-                                    <th className="py-2.5 px-3 text-right">Monto Recaudado</th>
-                                    <th className="py-2.5 px-4">Notas / Auditoría</th>
+                                  <tr className="bg-gray-50 border-b border-gray-150 text-4xs font-extrabold text-gray-500 uppercase tracking-wider">
+                                    <th className="py-3 px-4">Recibo ID</th>
+                                    <th className="py-3 px-3">Casillero</th>
+                                    <th className="py-3 px-3">Factura Relac.</th>
+                                    <th className="py-3 px-3">Fecha Recibo</th>
+                                    <th className="py-3 px-3">Método Pago</th>
+                                    <th className="py-3 px-3 text-right">Monto Recaudado</th>
+                                    <th className="py-3 px-4">Notas / Auditoría</th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100 text-3xs font-semibold text-brand-gray-dark">
@@ -8891,13 +9764,13 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                     const currencySymbol = parsed?.currency === 'USD' ? '$' : 'Q';
                                     return (
                                       <tr key={pay.id} className="hover:bg-gray-50/50">
-                                        <td className="py-3 px-4 font-bold text-brand-gray-dark uppercase">{pay.id}</td>
-                                        <td className="py-3 px-3 font-mono text-gray-500">{pay.lockerId}</td>
-                                        <td className="py-3 px-3 font-bold text-brand-orange uppercase">{pay.invoiceId}</td>
-                                        <td className="py-3 px-3 font-mono">{pay.date}</td>
-                                        <td className="py-3 px-3 font-bold">{pay.method}</td>
-                                        <td className="py-3 px-3 text-right font-mono text-green-700 font-black">{currencySymbol} {pay.amount.toFixed(2)}</td>
-                                        <td className="py-3 px-4 text-gray-400 italic">{pay.notes}</td>
+                                        <td className="py-3.5 px-4 font-bold text-brand-gray-dark uppercase">{pay.id}</td>
+                                        <td className="py-3.5 px-3 font-mono text-gray-500">{pay.lockerId}</td>
+                                        <td className="py-3.5 px-3 font-bold text-brand-orange uppercase">{pay.invoiceId}</td>
+                                        <td className="py-3.5 px-3 font-mono">{pay.date}</td>
+                                        <td className="py-3.5 px-3 font-bold">{pay.method}</td>
+                                        <td className="py-3.5 px-3 text-right font-mono text-green-700 font-black">{currencySymbol} {pay.amount.toFixed(2)}</td>
+                                        <td className="py-3.5 px-4 text-gray-400 italic">{pay.notes}</td>
                                       </tr>
                                     );
                                   })}
@@ -8906,259 +9779,9 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                             </div>
                           </div>
 
-                          {/* Record Payment Form - RIGHT */}
-                          <div className="lg:col-span-4 bg-gray-50 border border-gray-200 p-5 rounded-lg space-y-4">
-                            <h4 className="text-3xs font-extrabold text-brand-gray-dark uppercase tracking-wider border-b border-gray-200 pb-1.5">Registrar Cobro Recibido (Caja)</h4>
-                            
-                            <form 
-                              onSubmit={(e) => {
-                                e.preventDefault();
-                                
-                                const selectedInvoice = invoices.find(i => i.id === paymentInvoice);
-                                if (!selectedInvoice) {
-                                  alert('Seleccione una factura pendiente válida.');
-                                  return;
-                                }
-
-                                const originalAmount = selectedInvoice.amount;
-                                const netAmount = getNetPaymentAmount();
-                                
-                                // Calculate base after discount (before adding extra charges)
-                                let baseAfterDiscount = originalAmount;
-                                if (paymentDiscountType === 'fixed') {
-                                  baseAfterDiscount = Math.max(0, originalAmount - paymentDiscountValue);
-                                } else if (paymentDiscountType === 'percentage') {
-                                  const discount = originalAmount * (paymentDiscountValue / 100);
-                                  baseAfterDiscount = Math.max(0, originalAmount - discount);
-                                }
-                                const discountAmount = originalAmount - baseAfterDiscount;
-
-                                const currentDate = new Date().toISOString().split('T')[0];
-                                const receiptId = `PAG-${500 + paymentsLog.length + 1}`;
-                                
-                                let auditNotes = paymentNotes || 'Auditado en ventanilla';
-                                let conceptAdditions = '';
-
-                                if (paymentDiscountType !== 'none') {
-                                  auditNotes += ` (Descuento: Q ${discountAmount.toFixed(2)} - ${paymentDiscountType === 'fixed' ? 'Monto Fijo' : 'Porcentaje ' + paymentDiscountValue + '%'})`;
-                                  conceptAdditions += ` [Descuento: Q ${discountAmount.toFixed(2)} sobre Q ${originalAmount.toFixed(2)}]`;
-                                }
-                                if (paymentInsuranceExtra > 0) {
-                                  auditNotes += ` (Cargo Seguro: Q ${paymentInsuranceExtra.toFixed(2)})`;
-                                  conceptAdditions += ` [Cargo Seguro: Q ${paymentInsuranceExtra.toFixed(2)}]`;
-                                }
-                                if (paymentLocalDeliveryExtra > 0) {
-                                  auditNotes += ` (Envío Local: Q ${paymentLocalDeliveryExtra.toFixed(2)})`;
-                                  conceptAdditions += ` [Envío Local: Q ${paymentLocalDeliveryExtra.toFixed(2)}]`;
-                                }
-
-                                const updatedInvoice = { 
-                                  ...selectedInvoice, 
-                                  amount: netAmount,
-                                  paymentStatus: 'Pagado',
-                                  concept: selectedInvoice.concept + conceptAdditions
-                                };
-
-                                const newPayment = {
-                                  id: receiptId,
-                                  lockerId: paymentLocker,
-                                  date: currentDate,
-                                  method: paymentMethod,
-                                  invoiceId: paymentInvoice,
-                                  amount: netAmount,
-                                  notes: auditNotes
-                                };
-
-                                // Save to Supabase
-                                db.upsertInvoice(updatedInvoice);
-                                db.upsertPayment(newPayment);
-
-                                // Update invoice status
-                                setInvoices(prev => prev.map(inv => inv.id === paymentInvoice ? updatedInvoice : inv));
-
-                                // Append transaction receipt
-                                setPaymentsLog(prev => [
-                                  newPayment,
-                                  ...prev
-                                ]);
-
-                                alert(`¡Recibo de pago ${receiptId} registrado correctamente! Factura ${paymentInvoice} marcada como Pagada.`);
-                                
-                                // Reset fields
-                                setPaymentNotes('');
-                                setPaymentDiscountType('none');
-                                setPaymentDiscountValue(0);
-                                setPaymentInsuranceExtra(0);
-                                setPaymentLocalDeliveryExtra(0);
-                              }}
-                              className="space-y-3"
-                            >
-                              <div>
-                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Seleccionar Factura Pendiente *</label>
-                                <select
-                                  value={paymentInvoice}
-                                  onChange={(e) => {
-                                    setPaymentInvoice(e.target.value);
-                                    const match = invoices.find(i => i.id === e.target.value);
-                                    if (match) {
-                                      setPaymentLocker(match.lockerId);
-                                    }
-                                  }}
-                                  className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white font-mono text-brand-orange font-bold"
-                                >
-                                  <option value="">-- Facturas en Cola --</option>
-                                  {invoices.filter(i => i.paymentStatus === 'Pendiente').map(i => {
-                                    const parsed = parseInvoiceConcept(i.concept);
-                                    const currencySymbol = parsed.currency === 'USD' ? '$' : 'Q';
-                                    return (
-                                      <option key={i.id} value={i.id}>{i.id} &mdash; {i.lockerId} ({currencySymbol} {i.amount.toFixed(2)})</option>
-                                    );
-                                  })}
-                                </select>
-                              </div>
-
-                              {/* Descuentos (Cantidad Fija o Porcentaje/Totales) */}
-                              <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                  <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Tipo de Descuento</label>
-                                  <select
-                                    value={paymentDiscountType}
-                                    onChange={(e) => {
-                                      setPaymentDiscountType(e.target.value as any);
-                                      setPaymentDiscountValue(0);
-                                    }}
-                                    className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white font-semibold text-brand-gray-dark"
-                                  >
-                                    <option value="none">Ninguno</option>
-                                    <option value="fixed">Monto Fijo</option>
-                                    <option value="percentage">Porcentaje (%)</option>
-                                  </select>
-                                </div>
-                                
-                                {paymentDiscountType !== 'none' && (
-                                  <div>
-                                    <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">
-                                      {paymentDiscountType === 'fixed' ? 'Valor Descuento (Cantidad)' : 'Porcentaje (%)'}
-                                    </label>
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      step="any"
-                                      value={paymentDiscountValue}
-                                      onChange={(e) => setPaymentDiscountValue(parseFloat(e.target.value) || 0)}
-                                      className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark font-mono text-brand-orange"
-                                      placeholder={paymentDiscountType === 'fixed' ? 'Ej: 15.50' : 'Ej: 10'}
-                                    />
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* Cargos Extras (Seguro y Envío Local) */}
-                              <div className="grid grid-cols-2 gap-2">
-                                <div>
-                                  <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Cargo Seguro (Extra)</label>
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    step="any"
-                                    value={paymentInsuranceExtra || ''}
-                                    onChange={(e) => setPaymentInsuranceExtra(parseFloat(e.target.value) || 0)}
-                                    className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark font-mono text-green-600"
-                                    placeholder="Ej: 10.00"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Envío Local (Extra)</label>
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    step="any"
-                                    value={paymentLocalDeliveryExtra || ''}
-                                    onChange={(e) => setPaymentLocalDeliveryExtra(parseFloat(e.target.value) || 0)}
-                                    className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark font-mono text-green-600"
-                                    placeholder="Ej: 25.00"
-                                  />
-                                </div>
-                              </div>
-
-                              <div className="grid grid-cols-1 gap-1 text-4xs bg-slate-50 p-3 rounded-lg border border-slate-200 leading-relaxed text-slate-600">
-                                <div>Locker / Casillero: <strong className="text-brand-gray-dark">{paymentLocker || 'N/R'}</strong></div>
-                                {(() => {
-                                  const selectedInv = invoices.find(i => i.id === paymentInvoice);
-                                  const selectedInvParsed = selectedInv ? parseInvoiceConcept(selectedInv.concept) : null;
-                                  const selectedInvSymbol = selectedInvParsed?.currency === 'USD' ? '$' : 'Q';
-                                  const originalAmount = selectedInv ? selectedInv.amount : 0;
-                                  const netAmount = getNetPaymentAmount();
-                                  
-                                  // Base after discount
-                                  let baseAfterDiscount = originalAmount;
-                                  if (paymentDiscountType === 'fixed') {
-                                    baseAfterDiscount = Math.max(0, originalAmount - paymentDiscountValue);
-                                  } else if (paymentDiscountType === 'percentage') {
-                                    const discount = originalAmount * (paymentDiscountValue / 100);
-                                    baseAfterDiscount = Math.max(0, originalAmount - discount);
-                                  }
-                                  const discountAmount = originalAmount - baseAfterDiscount;
-
-                                  return (
-                                    <>
-                                      <div>Monto Original Factura: <strong>{selectedInvSymbol} {originalAmount.toFixed(2)}</strong></div>
-                                      {paymentDiscountType !== 'none' && (
-                                        <div className="text-red-600 font-bold">Descuento Aplicado: <strong>- {selectedInvSymbol} {discountAmount.toFixed(2)}</strong></div>
-                                      )}
-                                      {paymentInsuranceExtra > 0 && (
-                                        <div className="text-emerald-650 font-bold">Cargo Seguro Extra: <strong>+ {selectedInvSymbol} {paymentInsuranceExtra.toFixed(2)}</strong></div>
-                                      )}
-                                      {paymentLocalDeliveryExtra > 0 && (
-                                        <div className="text-emerald-650 font-bold">Envío Local Extra: <strong>+ {selectedInvSymbol} {paymentLocalDeliveryExtra.toFixed(2)}</strong></div>
-                                      )}
-                                      <div className="text-green-700 font-black border-t border-slate-200/60 pt-1 mt-1 text-3xs flex justify-between items-center bg-green-50/50 p-1.5 rounded">
-                                        <span>Total Neto a Cobrar:</span>
-                                        <span>{selectedInvSymbol} {netAmount.toFixed(2)}</span>
-                                      </div>
-                                    </>
-                                  );
-                                })()}
-                              </div>
-
-                              <div>
-                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Método de Recaudación *</label>
-                                <select
-                                  value={paymentMethod}
-                                  onChange={(e) => setPaymentMethod(e.target.value)}
-                                  className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white font-semibold"
-                                >
-                                  <option value="Transferencia Bancaria">Transferencia Bancaria</option>
-                                  <option value="Pago en Efectivo">Pago en Efectivo</option>
-                                  <option value="Tarjeta de Crédito">Tarjeta de Crédito/Débito</option>
-                                  <option value="Contra-Entrega (COD)">Contra-Entrega (COD)</option>
-                                </select>
-                              </div>
-
-                              <div>
-                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Notas / Código Referencia *</label>
-                                <input
-                                  type="text"
-                                  required
-                                  placeholder="Ej: Depósito Banrural Ref #8219"
-                                  value={paymentNotes}
-                                  onChange={(e) => setPaymentNotes(e.target.value)}
-                                  className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark"
-                                />
-                              </div>
-
-                              <button
-                                type="submit"
-                                className="w-full bg-brand-orange hover:bg-brand-orange-hover text-white text-3xs font-extrabold py-2 rounded uppercase tracking-wider transition cursor-pointer"
-                              >
-                                Registrar Recibo de Pago
-                              </button>
-                            </form>
-                          </div>
-
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
 
                     {/* ==================== 10. REGISTRO DE GASTOS (`gastos`) ==================== */}
                     {adminSubTab === 'gastos' && (
@@ -9221,7 +9844,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                   category: expenseCategory,
                                   description: expenseDescription,
                                   amount: expenseAmount,
-                                  cashier: 'Auditor Central'
+                                  cashier: currentUser?.name || 'Administrador'
                                 };
 
                                 // Save to Supabase
@@ -9325,15 +9948,21 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                           {/* Graphical Stats Cards */}
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             
-                            {/* Card 1: Load volume */}
-                            <div className="bg-gray-50 border border-gray-200 p-5 rounded-lg space-y-3">
-                              <span className="text-4xs font-bold text-gray-400 uppercase tracking-widest block">Volumen Acumulado de Carga</span>
-                              <div className="text-xl font-black text-brand-gray-dark font-mono">{totalWeightLbs.toFixed(1)} Lbs</div>
-                              <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
-                                <div className="bg-brand-orange h-full rounded-full" style={{ width: '74%' }} />
-                              </div>
-                              <span className="text-[10px] text-gray-500 block">+12.4% con respecto a la semana anterior</span>
-                            </div>
+                            {/* Card 1: Load volume - dynamic */}
+                            {(() => {
+                              const MAX_WEIGHT_REFERENCE = 2000;
+                              const volumePct = Math.min(100, Math.round((totalWeightLbs / MAX_WEIGHT_REFERENCE) * 100));
+                              return (
+                                <div className="bg-gray-50 border border-gray-200 p-5 rounded-lg space-y-3">
+                                  <span className="text-4xs font-bold text-gray-400 uppercase tracking-widest block">Volumen Acumulado de Carga</span>
+                                  <div className="text-xl font-black text-brand-gray-dark font-mono">{totalWeightLbs.toFixed(1)} Lbs</div>
+                                  <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                                    <div className="bg-brand-orange h-full rounded-full transition-all" style={{ width: `${volumePct}%` }} />
+                                  </div>
+                                  <span className="text-[10px] text-gray-500 block">{volumePct}% de capacidad de referencia ({MAX_WEIGHT_REFERENCE} Lbs)</span>
+                                </div>
+                              );
+                            })()}
 
                             {/* Card 2: Cash Revenue Net */}
                             <div className="bg-gray-50 border border-gray-200 p-5 rounded-lg space-y-3">
@@ -9357,19 +9986,49 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
 
                           </div>
 
-                          {/* Quick export simulator */}
+                          {/* CSV Export - real download */}
                           <div className="p-4 bg-orange-50/50 border border-brand-orange/20 rounded-lg flex flex-col sm:flex-row justify-between items-center gap-3">
-                            <span className="text-3xs text-brand-orange font-bold">¿Desea exportar el libro contable de caja consolidado o el manifiesto unificado en formato de hoja de cálculo?</span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                alert('Generando y descargando libro consolidado en formato CSV... (Simulación Exitosa).');
-                              }}
-                              className="bg-brand-gray-dark hover:bg-gray-800 text-white text-3xs font-extrabold px-4 py-2 rounded uppercase tracking-wider transition cursor-pointer flex items-center gap-1.5 shadow-3xs"
-                            >
-                              <FileSpreadsheet className="h-3.5 w-3.5 text-brand-orange animate-pulse" />
-                              Exportar Libro Ledger (.CSV)
-                            </button>
+                            <span className="text-3xs text-brand-orange font-bold">Exporte el libro contable de caja consolidado, el manifiesto de envíos o el ledger de gastos en formato CSV.</span>
+                            <div className="flex gap-2 flex-wrap">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const headers = ['ID Factura','Casillero','Fecha','Concepto','Monto (Q)','Estado Pago'];
+                                  const rows = invoices.map(i => [i.id, i.lockerId, i.date, `"${i.concept.replace(/"/g, '""')}"`, i.amount.toFixed(2), i.paymentStatus]);
+                                  const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+                                  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                                  const url = URL.createObjectURL(blob);
+                                  const a = document.createElement('a');
+                                  a.href = url;
+                                  a.download = `ShipFastGT_Facturas_${new Date().toISOString().split('T')[0]}.csv`;
+                                  a.click();
+                                  URL.revokeObjectURL(url);
+                                }}
+                                className="bg-brand-gray-dark hover:bg-gray-800 text-white text-3xs font-extrabold px-4 py-2 rounded uppercase tracking-wider transition cursor-pointer flex items-center gap-1.5 shadow-3xs"
+                              >
+                                <FileSpreadsheet className="h-3.5 w-3.5 text-brand-orange" />
+                                Facturas (.CSV)
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const headers = ['Tracking ID','Casillero','Remitente','Destinatario','Peso (Lbs)','Estado','Bodega','Última Actualización'];
+                                  const rows = shipments.map(s => [s.id, s.lockerId, `"${s.sender}"`, `"${s.receiver}"`, s.weight.toFixed(2), s.status, s.origin || '', s.lastUpdated]);
+                                  const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+                                  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                                  const url = URL.createObjectURL(blob);
+                                  const a = document.createElement('a');
+                                  a.href = url;
+                                  a.download = `ShipFastGT_Paquetes_${new Date().toISOString().split('T')[0]}.csv`;
+                                  a.click();
+                                  URL.revokeObjectURL(url);
+                                }}
+                                className="bg-brand-gray-dark hover:bg-gray-800 text-white text-3xs font-extrabold px-4 py-2 rounded uppercase tracking-wider transition cursor-pointer flex items-center gap-1.5 shadow-3xs"
+                              >
+                                <FileSpreadsheet className="h-3.5 w-3.5 text-brand-orange" />
+                                Paquetes (.CSV)
+                              </button>
+                            </div>
                           </div>
 
                         </div>
@@ -10988,11 +11647,11 @@ El Equipo de ShipFast GT`;
                   </button>
 
                   <button 
-                    onClick={() => setAiInput(`Rastrear envío ${shipments[1].id}`)}
+                    onClick={() => setAiInput(`Rastrear envío ${shipments.length > 1 ? shipments[1].id : shipments.length > 0 ? shipments[0].id : 'SF-XXXX-GT'}`)}
                     className="bg-white border border-gray-200 hover:border-brand-orange hover:bg-orange-50/25 p-2 rounded text-left transition cursor-pointer"
                   >
                     <span className="text-4xs font-bold text-gray-400 uppercase tracking-wider block">LOCALIZAR GUÍA</span>
-                    <span className="text-3xs text-brand-gray-dark font-semibold mt-0.5 block truncate">Estado de guía {shipments[1].id}</span>
+                    <span className="text-3xs text-brand-gray-dark font-semibold mt-0.5 block truncate">Estado de guía {shipments.length > 1 ? shipments[1].id : shipments.length > 0 ? shipments[0].id : 'SF-XXXX-GT'}</span>
                   </button>
 
                   <button 
@@ -11164,6 +11823,7 @@ El Equipo de ShipFast GT`;
                       <div className="flex flex-col">
                         <span className="text-[9px] font-bold text-gray-500 uppercase">CONSIGNATARIO:</span>
                         <span className="text-[10px] font-black text-black truncate uppercase leading-tight mt-0.5">{bulkPrintSticker.receiverName}</span>
+                        <span className="text-[8px] font-bold text-gray-400 mt-1 uppercase">{bulkPrintSticker.serviceType?.toUpperCase() || 'ESTÁNDAR'}</span>
                       </div>
                     </div>
 
@@ -11231,7 +11891,7 @@ El Equipo de ShipFast GT`;
                     {/* Label Footer */}
                     <div className="border-t border-black pt-1 flex justify-between items-center text-[7px] font-bold text-gray-500">
                       <span>GUÍA: {bulkPrintSticker.id || 'PENDIENTE'}</span>
-                      <span>2026-05-21 GT</span>
+                      <span>{new Date().toISOString().split('T')[0]} GT</span>
                     </div>
 
                   </div>
@@ -11286,6 +11946,7 @@ El Equipo de ShipFast GT`;
               </div>
             </div>
           )}
+
 
           {/* ==================== BODEGA INTERNACIONAL ZOOM OVERLAY ==================== */}
           {activeWarehouseModal && (
@@ -11429,6 +12090,7 @@ El Equipo de ShipFast GT`;
           )}
 
           {/* ==================== NUEVA PRE-ALERTA MANUAL CLIENT OVERLAY ==================== */}
+
           {isClientPreAlertModalOpen && (
             <div className="fixed inset-0 bg-brand-gray-dark/65 backdrop-blur-xs flex justify-center items-center z-[200] p-4 animate-fade-in">
               <div className="bg-white w-full max-w-lg rounded-3xl border border-slate-100 shadow-2xl overflow-hidden relative animate-zoom-in transition-all duration-300 font-sans">
@@ -12316,9 +12978,16 @@ El Equipo de ShipFast GT`;
             </div>
           )}
 
+
           {/* ==================== GLOBAL OMNI-SEARCH MODAL ==================== */}
           {isGlobalSearchOpen && (
-            <div className="fixed inset-0 bg-brand-gray-dark/65 backdrop-blur-xs flex justify-center items-start z-[200] p-4 pt-10 md:pt-16 overflow-y-auto animate-fade-in font-sans">
+<div
+              className="fixed inset-0 bg-brand-gray-dark/65 backdrop-blur-xs flex justify-center items-start z-[200] p-4 pt-10 md:pt-16 overflow-y-auto animate-fade-in font-sans"
+              onClick={(e) => { if (e.target === e.currentTarget) { setIsGlobalSearchOpen(false); setGlobalSearchQuery(''); } }}
+              onKeyDown={(e) => { if (e.key === 'Escape') { setIsGlobalSearchOpen(false); setGlobalSearchQuery(''); } }}
+              tabIndex={0}
+            >
+
               <div className="bg-white w-full max-w-4xl rounded-2xl border border-slate-100 shadow-2xl overflow-hidden relative animate-zoom-in flex flex-col max-h-[85vh]">
                 
                 {/* Modal Header */}
@@ -12510,12 +13179,13 @@ El Equipo de ShipFast GT`;
                                   <button
                                     type="button"
                                     onClick={() => {
+                                      setSelectedAdminShipment(s);
                                       setAdminSubTab('registro-paquetes');
                                       setIsGlobalSearchOpen(false);
                                     }}
                                     className="bg-slate-100 hover:bg-brand-orange hover:text-white text-slate-700 text-[8px] font-black px-2.5 py-1.5 rounded uppercase tracking-wider transition cursor-pointer self-center"
                                   >
-                                    Detalle
+                                    Ver Detalle
                                   </button>
                                 </div>
                               ))}
@@ -12658,6 +13328,68 @@ El Equipo de ShipFast GT`;
             <span className="hidden sm:inline">WhatsApp Soporte</span>
           </a>
 
+        </div>
+      )}
+
+      {/* Dispatch Container Modal */}
+      {isDispatchContainerModalOpen && (
+        <div className="fixed inset-0 bg-brand-gray-dark/85 backdrop-blur-xs flex justify-center items-center z-50 p-4 animate-fade-in">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col border border-gray-200">
+            <div className="bg-brand-gray-dark px-5 py-4 border-b border-brand-orange/30 flex justify-between items-center">
+              <h3 className="text-sm font-extrabold text-white uppercase tracking-wider font-display flex items-center gap-2">
+                <Truck className="h-4.5 w-4.5 text-brand-orange" />
+                Generar Despacho a Ruta
+              </h3>
+              <button 
+                onClick={() => setIsDispatchContainerModalOpen(false)}
+                className="text-gray-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-5 flex-1 bg-gray-50/50">
+              <p className="text-4xs text-gray-600 mb-4 leading-relaxed">
+                Está a punto de despachar <strong>{dispatchGroupsPending.reduce((acc, g) => acc + g.count, 0)}</strong> paquetes consolidados hacia ruta. Ingrese el identificador del contenedor o valija (ej. CONT-LRD-01) para agrupar las guías madre.
+              </p>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-4xs font-bold text-gray-700 uppercase mb-1">Nombre del Contenedor / Valija *</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ej: LRD-GUA-001"
+                    value={containerInputName}
+                    onChange={(e) => setContainerInputName(e.target.value)}
+                    className="w-full text-xs font-mono px-3 py-2 border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange focus:outline-none"
+                    autoFocus
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="bg-gray-100 px-5 py-3 border-t border-gray-200 flex justify-end gap-2">
+              <button
+                onClick={() => setIsDispatchContainerModalOpen(false)}
+                className="px-4 py-2 text-4xs font-bold text-gray-600 hover:text-gray-800 uppercase tracking-wider cursor-pointer transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  if (!containerInputName.trim()) {
+                    alert("Debe ingresar un nombre para el contenedor.");
+                    return;
+                  }
+                  executeDispatchToContainer(dispatchGroupsPending, containerInputName);
+                  setIsDispatchContainerModalOpen(false);
+                  setContainerInputName('');
+                  setDispatchGroupsPending([]);
+                }}
+                className="bg-brand-orange hover:bg-brand-orange-hover text-white px-5 py-2 rounded text-4xs font-extrabold uppercase tracking-wider shadow-sm transition-all cursor-pointer flex items-center gap-1.5"
+              >
+                <Send className="h-3.5 w-3.5" />
+                Confirmar Despacho
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
