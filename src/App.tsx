@@ -13505,7 +13505,13 @@ El Equipo de ShipFast GT`;
                     onChange={(e) => setContainerInputName(e.target.value)}
                     className="w-full text-xs font-mono px-3 py-2 border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange focus:outline-none"
                     autoFocus
+                    list="existing-containers-list"
                   />
+                  <datalist id="existing-containers-list">
+                    {Array.from(new Set(consolidatedGuides.map(g => g.containerName).filter(Boolean))).map((cName: any) => (
+                      <option key={cName} value={cName} />
+                    ))}
+                  </datalist>
                 </div>
               </div>
             </div>
