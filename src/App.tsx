@@ -4348,48 +4348,96 @@ Para proporcionarle información específica, puede solicitar:
                               Resultado del Rastreo
                             </h4>
                             
-                            <div className="space-y-2 relative z-10">
-                              <div className="flex justify-between items-center bg-white p-2 rounded shadow-2xs border border-blue-50/50">
-                                <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">Tracking ID:</span>
-                                <div className="text-right">
-                                  <span className="font-mono text-xs font-black text-brand-gray-dark block">
-                                    {publicTrackQuery.toUpperCase()}
-                                  </span>
-                                  {publicTrackResult.id !== publicTrackQuery.toUpperCase() && (
-                                    <span className="text-[8px] text-gray-400 font-mono">
-                                      Interno: {publicTrackResult.id}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                              
-                              <div className="flex justify-between items-center bg-white p-2 rounded shadow-2xs border border-blue-50/50">
-                                <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">Estado Actual:</span>
-                                <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider text-white shadow-3xs ${
-                                  publicTrackResult.status === 'Entregado' ? 'bg-green-500' :
-                                  publicTrackResult.status === 'Retrasado' ? 'bg-red-500' :
-                                  publicTrackResult.status === 'En Ruta' ? 'bg-yellow-500' :
-                                  publicTrackResult.status === 'En Sucursal' ? 'bg-blue-500' :
-                                  'bg-gray-400'
-                                }`}>
-                                  {publicTrackResult.status}
-                                </span>
-                              </div>
+                            <div className="space-y-4 relative z-10">
+                              {(() => {
+                                const s = (publicTrackResult.status || '').toLowerCase();
+                                let stepIndex = 1;
+                                if (s.includes('entregado')) stepIndex = 4;
+                                else if (s.includes('ruta') || s.includes('tránsito') || s.includes('retrasado')) stepIndex = 3;
+                                else if (s.includes('sucursal') || s.includes('miami') || s.includes('bodega')) stepIndex = 2;
+                                
+                                const steps = [
+                                  { num: 1, label: 'Pre-Alertado', icon: ClipboardList, desc: 'Registrado en sistema' },
+                                  { num: 2, label: 'En Bodega', icon: Building, desc: 'Recibido en origen' },
+                                  { num: 3, label: 'En Tránsito', icon: Truck, desc: 'En camino a destino' },
+                                  { num: 4, label: 'Entregado', icon: CheckCircle2, desc: 'Recibido por el cliente' }
+                                ];
 
-                              <div className="flex justify-between items-center bg-white p-2 rounded shadow-2xs border border-blue-50/50">
-                                <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">Ubicación:</span>
-                                <span className="font-semibold text-2xs text-gray-800 flex items-center gap-1">
-                                  <MapPin className="h-3 w-3 text-brand-orange" />
-                                  {publicTrackResult.history && publicTrackResult.history.length > 0 ? publicTrackResult.history[0].location : 'N/A'}
-                                </span>
-                              </div>
-                              
-                              <div className="flex justify-between items-center bg-white p-2 rounded shadow-2xs border border-blue-50/50">
-                                <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">Última Actualización:</span>
-                                <span className="font-medium text-[10px] text-gray-600">
-                                  {publicTrackResult.lastUpdated || 'N/A'}
-                                </span>
-                              </div>
+                                return (
+                                  <>
+                                    {/* Tracking Header Card */}
+                                    <div className="flex justify-between items-center bg-white p-3 rounded-lg shadow-xs border border-blue-100">
+                                      <div>
+                                        <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider block mb-0.5">Tracking ID</span>
+                                        <span className="font-mono text-xs font-black text-brand-gray-dark">{publicTrackQuery.toUpperCase()}</span>
+                                        {publicTrackResult.id !== publicTrackQuery.toUpperCase() && (
+                                          <span className="text-[8.5px] text-gray-400 font-mono block mt-0.5">INT: {publicTrackResult.id}</span>
+                                        )}
+                                      </div>
+                                      <div className="text-right">
+                                        <span className={`px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider text-white shadow-sm inline-block ${
+                                          publicTrackResult.status === 'Entregado' ? 'bg-green-500' :
+                                          publicTrackResult.status === 'Retrasado' ? 'bg-red-500' :
+                                          publicTrackResult.status === 'En Ruta' ? 'bg-yellow-500' :
+                                          publicTrackResult.status === 'En Sucursal' ? 'bg-blue-500' :
+                                          'bg-brand-gray-dark'
+                                        }`}>
+                                          {publicTrackResult.status}
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    {/* Vertical Timeline */}
+                                    <div className="relative pl-2.5 mt-5 space-y-5 before:absolute before:left-[26px] before:top-2 before:bottom-2 before:w-0.5 before:bg-blue-100/70">
+                                      {steps.map((step, idx) => {
+                                        const isCompleted = stepIndex >= step.num;
+                                        const isCurrent = stepIndex === step.num;
+                                        const Icon = step.icon;
+                                        
+                                        return (
+                                          <div key={idx} className="relative z-10 flex items-start gap-4">
+                                            <div className={`mt-0.5 flex items-center justify-center w-8 h-8 rounded-full border-2 shrink-0 shadow-sm transition-colors ${
+                                              isCompleted 
+                                                ? 'bg-brand-orange border-brand-orange text-white' 
+                                                : 'bg-white border-blue-100 text-gray-300'
+                                            } ${isCurrent ? 'ring-4 ring-orange-100 shadow-md' : ''}`}>
+                                              <Icon className={`w-4 h-4 ${isCurrent ? 'animate-pulse' : ''}`} />
+                                            </div>
+                                            
+                                            <div className={`flex-1 p-3 rounded-lg border transition-all ${
+                                              isCurrent 
+                                                ? 'bg-orange-50/80 border-orange-200 shadow-sm' 
+                                                : isCompleted 
+                                                  ? 'bg-white border-blue-100 shadow-2xs' 
+                                                  : 'bg-white/50 border-gray-100 opacity-60'
+                                            }`}>
+                                              <h5 className={`font-bold text-xs uppercase tracking-wider mb-0.5 ${
+                                                isCurrent ? 'text-brand-orange' : isCompleted ? 'text-gray-800' : 'text-gray-400'
+                                              }`}>
+                                                {step.label}
+                                              </h5>
+                                              <p className="text-[10px] text-gray-500 font-medium leading-tight">{step.desc}</p>
+                                              
+                                              {isCurrent && publicTrackResult.history && publicTrackResult.history.length > 0 && (
+                                                <div className="mt-2.5 pt-2 border-t border-orange-100 text-[9px] text-gray-600 space-y-1.5">
+                                                  <div className="flex items-start gap-1.5">
+                                                    <MapPin className="w-3.5 h-3.5 text-brand-orange shrink-0" />
+                                                    <span className="font-semibold text-gray-700 leading-snug">{publicTrackResult.history[0].location}</span>
+                                                  </div>
+                                                  <div className="flex items-center gap-1.5">
+                                                    <Clock className="w-3.5 h-3.5 text-brand-orange shrink-0" />
+                                                    <span>Actualizado: <strong className="font-medium text-gray-700">{publicTrackResult.lastUpdated}</strong></span>
+                                                  </div>
+                                                </div>
+                                              )}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </>
+                                );
+                              })()}
                             </div>
                           </div>
                         </div>
