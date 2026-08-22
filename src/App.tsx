@@ -1130,25 +1130,53 @@ Cargos de Flete y Tarifas Asignadas:
     }
 
     try {
+      // 1. Search in shipments (by id or original tracking in notes)
       const { data, error } = await supabase
         .from('shipments')
+        .select('*')
+        .or(`id.eq.${q},notes.ilike.%${q}%`)
+        .limit(1);
+
+      if (!error && data && data.length > 0) {
+        const match = data[0];
+        setPublicTrackResult({
+          ...match,
+          lockerId: match.locker_id,
+          serviceType: match.service_type,
+          lastUpdated: match.last_updated,
+          signeeName: match.signee_name,
+          signatureUrl: match.signature_url
+        } as Shipment);
+        return;
+      }
+
+      // 2. If not found, search in pre-alerts
+      const { data: paData, error: paError } = await supabase
+        .from('pre_alerts')
         .select('*')
         .eq('id', q)
         .single();
 
-      if (error || !data) {
-        setPublicTrackError(`No se encontró ningún paquete con el tracking: ${q}`);
+      if (!paError && paData) {
+        setPublicTrackResult({
+          id: paData.id,
+          status: 'Pre-Alertado',
+          history: [{ 
+            location: 'Sistema Web', 
+            date: paData.date_created.split('T')[0], 
+            time: '', 
+            status: 'Pre-Alertado', 
+            details: 'Registrado por el cliente. Esperando llegada a Miami.' 
+          }],
+          lastUpdated: paData.date_created.split('T')[0],
+          lockerId: paData.locker_id,
+          serviceType: 'Estándar',
+          notes: paData.description
+        } as unknown as Shipment);
         return;
       }
 
-      setPublicTrackResult({
-        ...data,
-        lockerId: data.locker_id,
-        serviceType: data.service_type,
-        lastUpdated: data.last_updated,
-        signeeName: data.signee_name,
-        signatureUrl: data.signature_url
-      } as Shipment);
+      setPublicTrackError(`No se encontró ningún paquete o pre-alerta con el tracking: ${q}`);
     } catch (err) {
       setPublicTrackError('Error al conectar con la base de datos. Intente de nuevo.');
     }
@@ -4323,7 +4351,16 @@ Para proporcionarle información específica, puede solicitar:
                             <div className="space-y-2 relative z-10">
                               <div className="flex justify-between items-center bg-white p-2 rounded shadow-2xs border border-blue-50/50">
                                 <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">Tracking ID:</span>
-                                <span className="font-mono text-xs font-black text-brand-gray-dark">{publicTrackResult.id}</span>
+                                <div className="text-right">
+                                  <span className="font-mono text-xs font-black text-brand-gray-dark block">
+                                    {publicTrackQuery.toUpperCase()}
+                                  </span>
+                                  {publicTrackResult.id !== publicTrackQuery.toUpperCase() && (
+                                    <span className="text-[8px] text-gray-400 font-mono">
+                                      Interno: {publicTrackResult.id}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                               
                               <div className="flex justify-between items-center bg-white p-2 rounded shadow-2xs border border-blue-50/50">
