@@ -169,7 +169,12 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<string>('my-locker');
 
   // Unified Access Landing Page States
-  const [accessTab, setAccessTab] = useState<'login' | 'signup' | 'quote'>('login');
+  const [accessTab, setAccessTab] = useState<'login' | 'signup' | 'quote' | 'track'>('login');
+  
+  // Public Tracking State
+  const [publicTrackQuery, setPublicTrackQuery] = useState('');
+  const [publicTrackResult, setPublicTrackResult] = useState<Shipment | null>(null);
+  const [publicTrackError, setPublicTrackError] = useState('');
   
   // Login fields
   const [loginIdentifier, setLoginIdentifier] = useState('');
@@ -1110,6 +1115,43 @@ Cargos de Flete y Tarifas Asignadas:
 
     // Send welcome email automatically & silently in the background!
     sendWelcomeEmailHelper(newProfile, true);
+  };
+
+  // Handle Public Tracking Lookup
+  const handlePublicTrack = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPublicTrackError('');
+    setPublicTrackResult(null);
+
+    const q = publicTrackQuery.trim().toUpperCase();
+    if (!q) {
+      setPublicTrackError('Por favor ingrese un número de tracking válido.');
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('shipments')
+        .select('*')
+        .eq('id', q)
+        .single();
+
+      if (error || !data) {
+        setPublicTrackError(`No se encontró ningún paquete con el tracking: ${q}`);
+        return;
+      }
+
+      setPublicTrackResult({
+        ...data,
+        lockerId: data.locker_id,
+        serviceType: data.service_type,
+        lastUpdated: data.last_updated,
+        signeeName: data.signee_name,
+        signatureUrl: data.signature_url
+      } as Shipment);
+    } catch (err) {
+      setPublicTrackError('Error al conectar con la base de datos. Intente de nuevo.');
+    }
   };
 
   // Handle Quote Calculation
@@ -3577,6 +3619,16 @@ Para proporcionarle información específica, puede solicitar:
                   >
                     Cotizar
                   </button>
+                  <button
+                    onClick={() => { setAccessTab('track'); setSignupSuccessLocker(null); }}
+                    className={`flex-1 text-center py-2 text-3xs font-extrabold uppercase tracking-wider rounded transition-all duration-200 ${
+                      accessTab === 'track' 
+                        ? 'bg-brand-orange text-white' 
+                        : 'text-gray-400 hover:text-white'
+                    }`}
+                  >
+                    Rastrear
+                  </button>
                 </div>
 
                 {/* Tab content wrappers */}
@@ -4207,6 +4259,101 @@ Para proporcionarle información específica, puede solicitar:
                                 ✓ ¡El enlace de esta cotización ha sido copiado al portapapeles!
                               </div>
                             )}
+                          </div>
+                        </div>
+                      )}
+                    </form>
+                  )}
+
+                  {/* ==================== TRACKING TAB ==================== */}
+                  {accessTab === 'track' && (
+                    <form onSubmit={handlePublicTrack} className="space-y-4">
+                      <div>
+                        <h3 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display mb-1 flex items-center gap-1.5">
+                          <Package className="h-4 w-4 text-brand-orange" />
+                          Rastrear Paquete
+                        </h3>
+                        <p className="text-4xs text-gray-500">Ingrese el número de tracking o identificador para conocer el estado actual de su envío en tiempo real.</p>
+                      </div>
+
+                      {publicTrackError && (
+                        <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-4xs font-bold rounded flex items-center gap-1.5">
+                          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                          {publicTrackError}
+                        </div>
+                      )}
+
+                      <div>
+                        <label className="block text-[10px] font-black text-gray-700 mb-1 uppercase tracking-wider">
+                          Número de Tracking *
+                        </label>
+                        <div className="relative">
+                          <Search className="h-3.5 w-3.5 text-gray-400 absolute left-3 top-1/2 transform -translate-y-1/2" />
+                          <input
+                            type="text"
+                            placeholder="Ej. TRACK-12345"
+                            className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded text-xs font-mono uppercase focus:ring-1 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
+                            value={publicTrackQuery}
+                            onChange={(e) => setPublicTrackQuery(e.target.value.toUpperCase())}
+                            required
+                          />
+                        </div>
+                      </div>
+
+                      <button
+                        type="submit"
+                        className="w-full bg-brand-orange hover:bg-brand-orange-hover text-white font-bold py-2.5 rounded uppercase tracking-wider text-2xs transition-colors shadow-md mt-2 flex items-center justify-center gap-2"
+                      >
+                        <Search className="h-4 w-4" />
+                        Rastrear Ahora
+                      </button>
+
+                      {publicTrackResult && (
+                        <div className="mt-4 border-t border-gray-200 pt-4 animate-fade-in">
+                          <div className="bg-blue-50 border border-blue-100 rounded p-4 relative overflow-hidden">
+                            <div className="absolute -right-4 -top-4 opacity-5">
+                              <Package className="h-24 w-24" />
+                            </div>
+                            
+                            <h4 className="text-3xs font-extrabold text-blue-900 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                              <ClipboardList className="h-3.5 w-3.5 text-brand-orange" />
+                              Resultado del Rastreo
+                            </h4>
+                            
+                            <div className="space-y-2 relative z-10">
+                              <div className="flex justify-between items-center bg-white p-2 rounded shadow-2xs border border-blue-50/50">
+                                <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">Tracking ID:</span>
+                                <span className="font-mono text-xs font-black text-brand-gray-dark">{publicTrackResult.id}</span>
+                              </div>
+                              
+                              <div className="flex justify-between items-center bg-white p-2 rounded shadow-2xs border border-blue-50/50">
+                                <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">Estado Actual:</span>
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider text-white shadow-3xs ${
+                                  publicTrackResult.status === 'Entregado' ? 'bg-green-500' :
+                                  publicTrackResult.status === 'Retrasado' ? 'bg-red-500' :
+                                  publicTrackResult.status === 'En Ruta' ? 'bg-yellow-500' :
+                                  publicTrackResult.status === 'En Sucursal' ? 'bg-blue-500' :
+                                  'bg-gray-400'
+                                }`}>
+                                  {publicTrackResult.status}
+                                </span>
+                              </div>
+
+                              <div className="flex justify-between items-center bg-white p-2 rounded shadow-2xs border border-blue-50/50">
+                                <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">Ubicación:</span>
+                                <span className="font-semibold text-2xs text-gray-800 flex items-center gap-1">
+                                  <MapPin className="h-3 w-3 text-brand-orange" />
+                                  {publicTrackResult.history && publicTrackResult.history.length > 0 ? publicTrackResult.history[0].location : 'N/A'}
+                                </span>
+                              </div>
+                              
+                              <div className="flex justify-between items-center bg-white p-2 rounded shadow-2xs border border-blue-50/50">
+                                <span className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">Última Actualización:</span>
+                                <span className="font-medium text-[10px] text-gray-600">
+                                  {publicTrackResult.lastUpdated || 'N/A'}
+                                </span>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       )}
