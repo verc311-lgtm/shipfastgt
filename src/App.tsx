@@ -4653,62 +4653,106 @@ Para proporcionarle información específica, puede solicitar:
                   {/* Bodegas de Envío / Direcciones Oficiales */}
                   <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-xs space-y-4">
                     <div>
-                      <h4 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display flex items-center gap-1.5">
+                      <h4 className="text-[11px] font-bold text-brand-gray-dark uppercase tracking-wider font-display flex items-center gap-1.5">
                         <MapPin className="h-4 w-4 text-brand-orange animate-bounce" />
-                        Direcciones de Bodega (Casillero)
+                        DIRECCIONES PARA ENVIO DE TUS PAQUETES
                       </h4>
-                      <p className="text-[10px] text-gray-400 font-semibold uppercase mt-0.5">Información sobre direcciones de recepción internacional</p>
-                    </div>
-
-                    <div className="p-4 bg-orange-50 border border-orange-200 rounded-xl text-center space-y-2">
-                      <span className="text-xl">📞</span>
-                      <h5 className="text-[10px] font-black text-amber-800 uppercase tracking-wider">Verificación de Bodegas Requerida</h5>
-                      <p className="text-[9.5px] text-amber-700 font-bold leading-normal uppercase tracking-wide">
-                        Escríbenos por WhatsApp para obtener las direcciones
-                      </p>
-                      <a
-                        href="https://wa.me/18028390011"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="block text-[11px] font-black text-brand-orange underline hover:text-brand-orange-hover"
-                      >
-                        +1(802)839-0011
-                      </a>
-                      <p className="text-[8.5px] text-slate-500 font-medium">
-                        Por motivos de actualización de seguridad y logística, todas nuestras direcciones de recepción internacional (EE.UU. y México) se encuentran temporalmente resguardadas. Ponte en contacto directo por WhatsApp para obtener las direcciones y habilitar tu despacho.
+                      <p className="text-[9px] text-brand-orange font-bold uppercase mt-1.5 bg-orange-50 inline-block px-2 py-1 rounded leading-tight">
+                        DIRECCIONES AUTORIZADAS POR SHIPFAST VERIFICA ACTUALIZAR LA DIRECCION
                       </p>
                     </div>
-                  </div>
 
-                  {/* Tracking lookup form */}
-                  <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-xs">
-                    <h4 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display mb-3 flex items-center gap-1.5">
-                      <Search className="h-4 w-4 text-brand-orange" />
-                      Buscar Guía Interna
-                    </h4>
-                    
-                    <form onSubmit={handleClientSearch} className="flex gap-1.5">
-                      <input
-                        type="text"
-                        placeholder="Ej: SF-8219-GT"
-                        value={clientSearchId}
-                        onChange={(e) => setClientSearchId(e.target.value)}
-                        className="flex-1 px-3 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-brand-orange uppercase font-semibold text-brand-gray-dark"
-                      />
-                      <button
-                        type="submit"
-                        className="bg-brand-orange hover:bg-brand-orange-hover text-white text-3xs font-bold px-4 py-1.5 rounded uppercase tracking-wider transition cursor-pointer"
-                      >
-                        Buscar
-                      </button>
-                    </form>
+                    <div className="space-y-4">
+                      {/* USA / Texas */}
+                      <div className="border border-gray-200 rounded-lg overflow-hidden relative">
+                        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200 p-2.5 flex items-center justify-between">
+                          <span className="text-3xs font-black uppercase text-indigo-900 flex items-center gap-2">
+                            <span className="text-sm shadow-sm rounded-sm">🇺🇸</span> USA (TEXAS)
+                          </span>
+                        </div>
+                        <div className="p-3.5 bg-white space-y-2.5 text-[10px]">
+                          <div className="grid grid-cols-12 gap-2">
+                            <div className="col-span-4 text-gray-400 font-bold uppercase text-[9px]">Nombre:</div>
+                            <div className="col-span-8 font-black text-brand-gray-dark uppercase">SFG + {currentUser.name.split(' ')[0]}</div>
+                          </div>
+                          <div className="grid grid-cols-12 gap-2">
+                            <div className="col-span-4 text-gray-400 font-bold uppercase text-[9px]">Apellido:</div>
+                            <div className="col-span-8 font-black text-brand-gray-dark uppercase">{currentUser.name.split(' ').slice(1).join(' ') || 'Logistics'}</div>
+                          </div>
+                          <div className="grid grid-cols-12 gap-2">
+                            <div className="col-span-4 text-gray-400 font-bold uppercase text-[9px]">Teléfono:</div>
+                            <div className="col-span-8 font-bold text-gray-700">+1 (802)839-0011</div>
+                          </div>
+                          <div className="grid grid-cols-12 gap-2">
+                            <div className="col-span-4 text-gray-400 font-bold uppercase text-[9px]">Dirección:</div>
+                            <div className="col-span-8 font-bold text-gray-700">1900 JUSTO PENN ST</div>
+                          </div>
+                          <div className="grid grid-cols-12 gap-2 bg-indigo-50/50 p-2 rounded -mx-2 border border-indigo-100">
+                            <div className="col-span-4 text-indigo-600 font-black uppercase text-[9px]">Suite/Apto:</div>
+                            <div className="col-span-8 font-black text-indigo-700">SFG + {currentUser.lockerId}</div>
+                          </div>
+                          <div className="grid grid-cols-12 gap-2">
+                            <div className="col-span-4 text-gray-400 font-bold uppercase text-[9px]">C.P.:</div>
+                            <div className="col-span-8 font-bold text-gray-700">78041</div>
+                          </div>
+                          <div className="grid grid-cols-12 gap-2">
+                            <div className="col-span-4 text-gray-400 font-bold uppercase text-[9px]">Estado:</div>
+                            <div className="col-span-8 font-bold text-gray-700">Texas</div>
+                          </div>
+                        </div>
+                      </div>
 
-                    {clientSearchError && (
-                      <p className="text-red-600 text-4xs font-bold mt-2 flex items-center gap-1">
-                        <AlertTriangle className="h-3 w-3" />
-                        {clientSearchError}
-                      </p>
-                    )}
+                      {/* Mexico / Tapachula */}
+                      <div className="border border-gray-200 rounded-lg overflow-hidden relative">
+                        <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border-b border-gray-200 p-2.5 flex items-center justify-between">
+                          <span className="text-3xs font-black uppercase text-teal-900 flex items-center gap-2">
+                            <span className="text-sm shadow-sm rounded-sm">🇲🇽</span> MEXICO (CHIAPAS)
+                          </span>
+                        </div>
+                        <div className="p-3.5 bg-white space-y-2.5 text-[10px]">
+                          <div className="grid grid-cols-12 gap-2">
+                            <div className="col-span-4 text-gray-400 font-bold uppercase text-[9px]">Nombre:</div>
+                            <div className="col-span-8 font-black text-brand-gray-dark uppercase">SFG + {currentUser.name.split(' ')[0]}</div>
+                          </div>
+                          <div className="grid grid-cols-12 gap-2">
+                            <div className="col-span-4 text-gray-400 font-bold uppercase text-[9px]">Apellido:</div>
+                            <div className="col-span-8 font-black text-brand-gray-dark uppercase">{currentUser.name.split(' ').slice(1).join(' ') || 'Logistics'}</div>
+                          </div>
+                          <div className="grid grid-cols-12 gap-2">
+                            <div className="col-span-4 text-gray-400 font-bold uppercase text-[9px]">Teléfono:</div>
+                            <div className="col-span-8 font-bold text-gray-700">9621027742</div>
+                          </div>
+                          <div className="grid grid-cols-12 gap-2">
+                            <div className="col-span-4 text-gray-400 font-bold uppercase text-[9px]">Dirección:</div>
+                            <div className="col-span-8 font-bold text-gray-700">13 AV SUR ENTRE 22 Y 24 OTE No.62 GUATEX</div>
+                          </div>
+                          <div className="grid grid-cols-12 gap-2 bg-teal-50/50 p-2 rounded -mx-2 border border-teal-100">
+                            <div className="col-span-4 text-teal-700 font-black uppercase text-[9px]">Ref/Apto:</div>
+                            <div className="col-span-8 font-black text-teal-800">SFG + {currentUser.lockerId} (Recibe Blanca Diaz o Jony Mazariegos)</div>
+                          </div>
+                          <div className="grid grid-cols-12 gap-2">
+                            <div className="col-span-4 text-gray-400 font-bold uppercase text-[9px]">Colonia:</div>
+                            <div className="col-span-8 font-bold text-gray-700">Calcaneo Beltran</div>
+                          </div>
+                          <div className="grid grid-cols-12 gap-2">
+                            <div className="col-span-4 text-gray-400 font-bold uppercase text-[9px]">Ciudad:</div>
+                            <div className="col-span-8 font-bold text-gray-700">Tapachula</div>
+                          </div>
+                          <div className="grid grid-cols-12 gap-2">
+                            <div className="col-span-4 text-gray-400 font-bold uppercase text-[9px]">Estado:</div>
+                            <div className="col-span-8 font-bold text-gray-700">Chiapas</div>
+                          </div>
+                          <div className="grid grid-cols-12 gap-2">
+                            <div className="col-span-4 text-gray-400 font-bold uppercase text-[9px]">C.P.:</div>
+                            <div className="col-span-8 font-bold text-gray-700">30790</div>
+                          </div>
+                          <div className="grid grid-cols-12 gap-2">
+                            <div className="col-span-4 text-gray-400 font-bold uppercase text-[9px]">CURP:</div>
+                            <div className="col-span-8 font-bold text-gray-700">GADB000327MCSBZLA7</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Pre-Alerts Status Panel */}
