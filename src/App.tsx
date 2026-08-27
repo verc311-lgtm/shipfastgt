@@ -4696,6 +4696,10 @@ Para proporcionarle información específica, puede solicitar:
                             <div className="col-span-8 font-bold text-gray-700">78041</div>
                           </div>
                           <div className="grid grid-cols-12 gap-2">
+                            <div className="col-span-4 text-gray-400 font-bold uppercase text-[9px]">Ciudad:</div>
+                            <div className="col-span-8 font-bold text-gray-700">Laredo</div>
+                          </div>
+                          <div className="grid grid-cols-12 gap-2">
                             <div className="col-span-4 text-gray-400 font-bold uppercase text-[9px]">Estado:</div>
                             <div className="col-span-8 font-bold text-gray-700">Texas</div>
                           </div>
