@@ -6915,16 +6915,22 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                               <div className="grid grid-cols-2 gap-4">
                                 <div>
                                   <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Casillero Destino *</label>
-                                  <select
+                                  <input
+                                    type="text"
+                                    list="lockers-list"
                                     value={warehouseLocker}
-                                    onChange={(e) => setWarehouseLocker(e.target.value)}
-                                    className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white font-mono text-brand-orange font-bold"
-                                  >
-                                    <option value="">-- Seleccionar Casillero --</option>
+                                    onChange={(e) => {
+                                      const val = e.target.value.split(' - ')[0].trim().toUpperCase();
+                                      setWarehouseLocker(val);
+                                    }}
+                                    placeholder="Buscar por Casillero o Nombre..."
+                                    className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white font-mono text-brand-orange font-bold uppercase"
+                                  />
+                                  <datalist id="lockers-list">
                                     {users.filter(u => u.role === 'client').map(u => (
-                                      <option key={u.lockerId} value={u.lockerId}>{u.lockerId} &mdash; {u.name}</option>
+                                      <option key={u.lockerId} value={`${u.lockerId} - ${u.name}`} />
                                     ))}
-                                  </select>
+                                  </datalist>
                                 </div>
 
                                 <div>
@@ -9296,16 +9302,22 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                               {!invoiceUnregistered ? (
                                 <div>
                                   <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Casillero Asignado *</label>
-                                  <select
+                                  <input
+                                    type="text"
+                                    list="lockers-list"
                                     value={invoiceLocker}
-                                    onChange={(e) => setInvoiceLocker(e.target.value)}
-                                    className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white font-mono text-brand-orange font-bold"
-                                  >
-                                    <option value="">-- Seleccionar Casillero --</option>
+                                    onChange={(e) => {
+                                      const val = e.target.value.split(' - ')[0].trim().toUpperCase();
+                                      setInvoiceLocker(val);
+                                    }}
+                                    placeholder="Buscar por Casillero o Nombre..."
+                                    className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white font-mono text-brand-orange font-bold uppercase"
+                                  />
+                                  <datalist id="lockers-list">
                                     {users.filter(u => u.role === 'client').map(u => (
-                                      <option key={u.lockerId} value={u.lockerId}>{u.lockerId} &mdash; {u.name}</option>
+                                      <option key={u.lockerId} value={`${u.lockerId} - ${u.name}`} />
                                     ))}
-                                  </select>
+                                  </datalist>
                                 </div>
                               ) : (
                                 <div>
@@ -9759,19 +9771,22 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                               {quoteClientType === 'registered' ? (
                                 <div className="p-4 bg-slate-50 border border-slate-200/50 rounded-2xl animate-fade-in">
                                   <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">Buscar y Seleccionar Casillero *</label>
-                                  <select
-                                    required
+                                  <input
+                                    type="text"
+                                    list="lockers-list"
                                     value={quoteLockerId}
-                                    onChange={(e) => setQuoteLockerId(e.target.value)}
-                                    className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-orange focus:border-brand-orange focus:outline-none font-bold text-brand-gray-dark bg-white"
-                                  >
-                                    <option value="">-- Seleccionar Casillero --</option>
-                                    {users.map(u => (
-                                      <option key={u.lockerId} value={u.lockerId}>
-                                        {u.name} (Locker: {u.lockerId})
-                                      </option>
+                                    onChange={(e) => {
+                                      const val = e.target.value.split(' - ')[0].trim().toUpperCase();
+                                      setQuoteLockerId(val);
+                                    }}
+                                    placeholder="Buscar por Casillero o Nombre..."
+                                    className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-orange focus:border-brand-orange focus:outline-none font-bold text-brand-gray-dark bg-white uppercase"
+                                  />
+                                  <datalist id="lockers-list">
+                                    {users.filter(u => u.role === 'client').map(u => (
+                                      <option key={u.lockerId} value={`${u.lockerId} - ${u.name}`} />
                                     ))}
-                                  </select>
+                                  </datalist>
                                 </div>
                               ) : (
                                 <div className="p-4 bg-slate-50 border border-slate-200/50 rounded-2xl space-y-4 animate-fade-in">
