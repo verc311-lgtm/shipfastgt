@@ -9064,17 +9064,17 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                           <div className="lg:col-span-8 space-y-4">
                             <span className="text-4xs font-bold text-gray-400 uppercase tracking-widest block">Libro Ledger de Facturas Emitidas</span>
                             
-                            <div className="overflow-x-auto border border-gray-200 rounded-lg">
-                              <table className="w-full text-left border-collapse">
+                            <div className="overflow-x-auto border border-gray-200 rounded-lg shadow-sm">
+                              <table className="w-full min-w-[1050px] text-left border-collapse">
                                 <thead>
                                   <tr className="bg-gray-100 border-b border-gray-200 text-4xs font-extrabold text-gray-500 uppercase tracking-wider">
-                                    <th className="py-2.5 px-4">Factura ID</th>
-                                    <th className="py-2.5 px-3">Casillero</th>
-                                    <th className="py-2.5 px-3">Fecha Emisión</th>
-                                    <th className="py-2.5 px-3">Concepto Descripción</th>
-                                    <th className="py-2.5 px-3 text-right">Importe Cobro</th>
-                                    <th className="py-2.5 px-4 text-center">Estado Pago</th>
-                                    <th className="py-2.5 px-4 text-center">Acciones</th>
+                                    <th className="py-2.5 px-4 whitespace-nowrap">Factura ID</th>
+                                    <th className="py-2.5 px-3 whitespace-nowrap">Casillero</th>
+                                    <th className="py-2.5 px-3 whitespace-nowrap">Fecha Emisión</th>
+                                    <th className="py-2.5 px-3 min-w-[280px]">Concepto Descripción</th>
+                                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Importe Cobro</th>
+                                    <th className="py-2.5 px-4 text-center whitespace-nowrap">Estado Pago</th>
+                                    <th className="py-2.5 px-4 text-center whitespace-nowrap min-w-[220px]">Acciones</th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100 text-3xs font-semibold text-brand-gray-dark">
