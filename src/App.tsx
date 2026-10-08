@@ -6649,7 +6649,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                         3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5, 8, 9, 7, 9, 3, 2, 3, 8, 4, 6, 2, 6
                       ];
 
-                      const inWarehouse = shipments.filter(s => s.status === 'En Sucursal');
+                      const inWarehouse = shipments.filter(s => s.status === 'En Sucursal' && !s.history.some(h => h.details && h.details.includes('SF-CONS-')));
                       const groups: { [key: string]: { lockerId: string; clientName: string; bodega: string; count: number; totalWeight: number; shipments: Shipment[] } } = {};
                       
                       inWarehouse.forEach(s => {
@@ -7107,10 +7107,10 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                   </>
                                 )}
                                 <span className="bg-blue-50 text-blue-700 text-[10px] font-bold px-2.5 py-1 rounded border border-blue-100 flex items-center gap-1 font-mono">
-                                  🇺🇸 USA: {shipments.filter(s => s.status === 'En Sucursal' && (s.origin === 'Laredo' || s.origin === 'USA')).length} paq.
+                                  🇺🇸 USA: {inWarehouse.filter(s => s.origin === 'Laredo' || s.origin === 'USA').length} paq.
                                 </span>
                                 <span className="bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2.5 py-1 rounded border border-emerald-100 flex items-center gap-1 font-mono">
-                                  🇲🇽 México: {shipments.filter(s => s.status === 'En Sucursal' && s.origin === 'Mexico').length} paq.
+                                  🇲🇽 México: {inWarehouse.filter(s => s.origin === 'Mexico').length} paq.
                                 </span>
                               </div>
                             </div>
