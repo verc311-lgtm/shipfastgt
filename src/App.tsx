@@ -13781,6 +13781,35 @@ El Equipo de ShipFast GT`;
                 ></textarea>
               </div>
 
+              <div className="grid grid-cols-2 gap-3 bg-white p-3 rounded border border-gray-200">
+                <div>
+                  <label className="block text-4xs font-bold text-gray-700 uppercase mb-1">Aplicar Descuento</label>
+                  <select 
+                    className="w-full text-xs px-3 py-2 border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange focus:outline-none bg-white"
+                    value={paymentDiscountType}
+                    onChange={(e) => setPaymentDiscountType(e.target.value as 'none' | 'fixed' | 'percentage')}
+                  >
+                    <option value="none">Sin Descuento</option>
+                    <option value="percentage">Porcentaje (%)</option>
+                    <option value="fixed">Monto Fijo</option>
+                  </select>
+                </div>
+                {paymentDiscountType !== 'none' && (
+                  <div className="animate-fade-in">
+                    <label className="block text-4xs font-bold text-brand-orange uppercase mb-1">Valor a descontar</label>
+                    <input 
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className="w-full text-xs px-3 py-2 border-2 border-brand-orange/50 rounded focus:border-brand-orange focus:outline-none bg-orange-50/20 font-mono"
+                      value={paymentDiscountValue || ''}
+                      onChange={(e) => setPaymentDiscountValue(parseFloat(e.target.value) || 0)}
+                      placeholder={paymentDiscountType === 'percentage' ? "Ej. 10 para 10%" : "Ej. 50.00"}
+                    />
+                  </div>
+                )}
+              </div>
+
               <div className="bg-brand-gray-dark p-3 rounded-lg flex justify-between items-center mt-2 shadow-inner">
                 <span className="text-4xs font-bold text-gray-400 uppercase tracking-widest">Total a Cobrar</span>
                 <span className="text-brand-orange font-black font-mono text-lg">
