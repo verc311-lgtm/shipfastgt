@@ -2015,6 +2015,34 @@ Cargos de Flete y Tarifas Asignadas:
     setIsPaymentModalOpen(true);
   };
 
+  const handleConfirmPayment = async () => {
+    const selectedInvoice = invoices.find(i => i.id === paymentInvoice);
+    if (!selectedInvoice) return;
+
+    const amount = getNetPaymentAmount();
+    const newPayment = {
+      id: `REC-${Math.floor(1000 + Math.random() * 9000)}`,
+      date: new Date().toISOString().split('T')[0],
+      invoiceId: paymentInvoice,
+      lockerId: paymentLocker,
+      amount: amount,
+      method: paymentMethod,
+      notes: paymentNotes
+    };
+
+    // save payment
+    await db.upsertPayment(newPayment);
+    setPaymentsLog(prev => [newPayment, ...prev]);
+
+    // update invoice
+    const updatedInvoice = { ...selectedInvoice, paymentStatus: 'Pagado' };
+    await db.upsertInvoice(updatedInvoice);
+    setInvoices(prev => prev.map(inv => inv.id === paymentInvoice ? updatedInvoice : inv));
+
+    setIsPaymentModalOpen(false);
+    alert('¡Pago registrado correctamente y factura marcada como Pagada!');
+  };
+
   // Generate professional print-ready HTML Invoice PDF
   const handlePrintInvoicePDF = (invoice: any) => {
     const parsed = parseInvoiceConcept(invoice.concept);
@@ -13701,6 +13729,79 @@ El Equipo de ShipFast GT`;
               >
                 <Send className="h-3.5 w-3.5" />
                 Confirmar Despacho
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Modal */}
+      {isPaymentModalOpen && (
+        <div className="fixed inset-0 bg-brand-gray-dark/85 backdrop-blur-xs flex justify-center items-center z-50 p-4 animate-fade-in">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col border border-gray-200">
+            <div className="bg-brand-gray-dark px-5 py-4 border-b border-brand-orange/30 flex justify-between items-center">
+              <h3 className="text-sm font-extrabold text-white uppercase tracking-wider font-display flex items-center gap-2">
+                <span className="text-brand-orange">💵</span> Registrar Pago
+              </h3>
+              <button 
+                onClick={() => setIsPaymentModalOpen(false)}
+                className="text-gray-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-5 flex-1 bg-gray-50/50 space-y-4">
+              <p className="text-4xs text-gray-600 mb-2 leading-relaxed">
+                Está a punto de registrar un pago para la factura <strong className="text-brand-gray-dark uppercase">{paymentInvoice}</strong> del casillero <strong className="text-brand-orange">{paymentLocker}</strong>.
+              </p>
+              
+              <div>
+                <label className="block text-4xs font-bold text-gray-700 uppercase mb-1">Método de Pago</label>
+                <select 
+                  className="w-full text-xs px-3 py-2 border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange focus:outline-none bg-white"
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                >
+                  <option value="Transferencia Bancaria">Transferencia Bancaria</option>
+                  <option value="Efectivo">Efectivo</option>
+                  <option value="Tarjeta de Crédito / Débito">Tarjeta de Crédito / Débito</option>
+                  <option value="Depósito en Cuenta">Depósito en Cuenta</option>
+                  <option value="Enlace de Pago">Enlace de Pago (Visanet / Stripe)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-4xs font-bold text-gray-700 uppercase mb-1">Notas / Auditoría (Opcional)</label>
+                <textarea
+                  className="w-full text-xs px-3 py-2 border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange focus:outline-none bg-white"
+                  rows={2}
+                  placeholder="Ej. No. Transferencia, banco, nombre depositante..."
+                  value={paymentNotes}
+                  onChange={(e) => setPaymentNotes(e.target.value)}
+                ></textarea>
+              </div>
+
+              <div className="bg-brand-gray-dark p-3 rounded-lg flex justify-between items-center mt-2 shadow-inner">
+                <span className="text-4xs font-bold text-gray-400 uppercase tracking-widest">Total a Cobrar</span>
+                <span className="text-brand-orange font-black font-mono text-lg">
+                  {invoices.find(i => i.id === paymentInvoice) ? (parseInvoiceConcept(invoices.find(i => i.id === paymentInvoice).concept).currency === 'USD' ? '$' : 'Q') : 'Q'}
+                  {getNetPaymentAmount().toFixed(2)}
+                </span>
+              </div>
+            </div>
+
+            <div className="bg-gray-100 px-5 py-3 border-t border-gray-200 flex justify-end gap-2">
+              <button
+                onClick={() => setIsPaymentModalOpen(false)}
+                className="px-4 py-2 text-4xs font-bold text-gray-600 hover:text-gray-800 uppercase tracking-wider cursor-pointer transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmPayment}
+                className="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded text-4xs font-extrabold uppercase tracking-wider shadow-sm transition-all cursor-pointer flex items-center gap-1.5"
+              >
+                Confirmar Ingreso
               </button>
             </div>
           </div>
