@@ -346,6 +346,13 @@ export default function App() {
   const [invoiceCurrency, setInvoiceCurrency] = useState<'GTQ' | 'USD'>('GTQ');
   const [activePreAlertInvoice, setActivePreAlertInvoice] = useState<PreAlert | null>(null);
   
+  // Invoice Filter & Search States
+  const [invoiceSearchQuery, setInvoiceSearchQuery] = useState('');
+  const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<'all' | 'Pendiente' | 'Pagado'>('all');
+  const [invoiceStartDate, setInvoiceStartDate] = useState('');
+  const [invoiceEndDate, setInvoiceEndDate] = useState('');
+  const [showCreateInvoicePanel, setShowCreateInvoicePanel] = useState(false);
+  
   // Invoice Editing States
   const [isEditInvoiceModalOpen, setIsEditInvoiceModalOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<any | null>(null);
@@ -9047,327 +9054,855 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
             })()}
 
 \n                    {/* ==================== 8. FACTURACIÓN Y COBROS (`facturacion`) ==================== */}
-                    {adminSubTab === 'facturacion' && (
-                      <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs space-y-6">
-                        <div>
-                          <h3 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display mb-1">💰 Facturación y Control de Fletes de Clientes</h3>
-                          <p className="text-4xs text-gray-500">Módulo de contabilidad. Genere facturas directas con importes fijos expresados puramente en Quetzales (Q), libres de recargos automáticos o fórmulas de IVA.</p>
-                        </div>
+                    {adminSubTab === 'facturacion' && (() => {
+                      // Financial KPIs Calculations
+                      const totalFacturadoGTQ = invoices.reduce((sum, inv) => {
+                        const parsed = parseInvoiceConcept(inv.concept);
+                        const amt = parsed.currency === 'USD' ? inv.amount * 8 : inv.amount;
+                        return sum + amt;
+                      }, 0);
 
-                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                      const pendingInvoices = invoices.filter(i => i.paymentStatus === 'Pendiente');
+                      const paidInvoices = invoices.filter(i => i.paymentStatus === 'Pagado');
+
+                      const totalPendingGTQ = pendingInvoices.reduce((sum, inv) => {
+                        const parsed = parseInvoiceConcept(inv.concept);
+                        const amt = parsed.currency === 'USD' ? inv.amount * 8 : inv.amount;
+                        return sum + amt;
+                      }, 0);
+
+                      const totalPaidGTQ = paidInvoices.reduce((sum, inv) => {
+                        const parsed = parseInvoiceConcept(inv.concept);
+                        const amt = parsed.currency === 'USD' ? inv.amount * 8 : inv.amount;
+                        return sum + amt;
+                      }, 0);
+
+                      const uniqueDebtors = new Set(pendingInvoices.map(i => i.lockerId || 'manual')).size;
+
+                      // Filtered and Sorted Invoices
+                      const filteredInvoices = invoices.filter(invoice => {
+                        if (invoiceStatusFilter !== 'all' && invoice.paymentStatus !== invoiceStatusFilter) {
+                          return false;
+                        }
+                        if (invoiceStartDate && invoice.date < invoiceStartDate) {
+                          return false;
+                        }
+                        if (invoiceEndDate && invoice.date > invoiceEndDate) {
+                          return false;
+                        }
+                        if (invoiceSearchQuery.trim()) {
+                          const q = invoiceSearchQuery.toLowerCase().trim();
+                          const parsed = parseInvoiceConcept(invoice.concept);
+                          const clientUser = users.find(u => u.lockerId === invoice.lockerId);
+                          const clientName = (clientUser?.name || '').toLowerCase();
+                          const manualName = (parsed.manualClientName || '').toLowerCase();
+                          const invId = (invoice.id || '').toLowerCase();
+                          const lockerId = (invoice.lockerId || '').toLowerCase();
+                          const detail = (parsed.detail || '').toLowerCase();
+                          const amountStr = invoice.amount.toString();
+
+                          const matches = invId.includes(q) ||
+                            lockerId.includes(q) ||
+                            clientName.includes(q) ||
+                            manualName.includes(q) ||
+                            detail.includes(q) ||
+                            amountStr.includes(q);
+
+                          if (!matches) return false;
+                        }
+                        return true;
+                      });
+
+                      const sortedInvoices = [...filteredInvoices].sort((a, b) => {
+                        const dateComp = (b.date || '').localeCompare(a.date || '');
+                        if (dateComp !== 0) return dateComp;
+                        return (b.id || '').localeCompare(a.id || '');
+                      });
+
+                      const filteredTotalGTQ = sortedInvoices.reduce((sum, inv) => {
+                        const parsed = parseInvoiceConcept(inv.concept);
+                        const amt = parsed.currency === 'USD' ? inv.amount * 8 : inv.amount;
+                        return sum + amt;
+                      }, 0);
+
+                      // CSV Export Handler
+                      const handleExportInvoicesCSV = () => {
+                        const headers = ['No. Factura', 'Casillero', 'Cliente', 'Fecha', 'Concepto', 'Divisa', 'Importe', 'Estado'];
+                        const rows = sortedInvoices.map(inv => {
+                          const parsed = parseInvoiceConcept(inv.concept);
+                          const clientUser = users.find(u => u.lockerId === inv.lockerId);
+                          const clientName = inv.lockerId 
+                            ? (clientUser ? clientUser.name : `Casillero ${inv.lockerId}`)
+                            : (parsed.manualClientName || 'Cliente Manual');
+                          return [
+                            inv.id,
+                            inv.lockerId || 'N/R',
+                            `"${(clientName || '').replace(/"/g, '""')}"`,
+                            inv.date,
+                            `"${(parsed.detail || '').replace(/"/g, '""')}"`,
+                            parsed.currency || 'GTQ',
+                            inv.amount.toFixed(2),
+                            inv.paymentStatus
+                          ];
+                        });
+                        
+                        const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+                        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                        const url = URL.createObjectURL(blob);
+                        const link = document.createElement('a');
+                        link.setAttribute('href', url);
+                        link.setAttribute('download', `Facturas_ShipFastGT_${new Date().toISOString().split('T')[0]}.csv`);
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                      };
+
+                      return (
+                        <div className="space-y-6">
                           
-                          {/* Invoice table list - LEFT */}
-                          <div className="lg:col-span-8 space-y-4">
-                            <span className="text-4xs font-bold text-gray-400 uppercase tracking-widest block">Libro Ledger de Facturas Emitidas</span>
+                          {/* Top Header & Main Actions */}
+                          <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-2xs flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="p-2 bg-orange-50 text-brand-orange rounded-lg border border-orange-100">
+                                  <FileSpreadsheet className="h-5 w-5" />
+                                </span>
+                                <div>
+                                  <h3 className="text-sm font-extrabold text-brand-gray-dark uppercase tracking-wider font-display">
+                                    Centro de Facturación y Control de Cobros
+                                  </h3>
+                                  <p className="text-3xs text-gray-500 font-medium">
+                                    Gestión contable centralizada. Administre fletes, cobros pendientes, pagos confirmados y links Stripe.
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
                             
-                            <div className="overflow-x-auto border border-gray-200 rounded-lg shadow-sm">
-                              <table className="w-full min-w-[1050px] text-left border-collapse">
-                                <thead>
-                                  <tr className="bg-gray-100 border-b border-gray-200 text-4xs font-extrabold text-gray-500 uppercase tracking-wider">
-                                    <th className="py-2.5 px-4 whitespace-nowrap">Factura ID</th>
-                                    <th className="py-2.5 px-3 whitespace-nowrap">Casillero</th>
-                                    <th className="py-2.5 px-3 whitespace-nowrap">Fecha Emisión</th>
-                                    <th className="py-2.5 px-3 min-w-[280px]">Concepto Descripción</th>
-                                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Importe Cobro</th>
-                                    <th className="py-2.5 px-4 text-center whitespace-nowrap">Estado Pago</th>
-                                    <th className="py-2.5 px-4 text-center whitespace-nowrap min-w-[220px]">Acciones</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-100 text-3xs font-semibold text-brand-gray-dark">
-                                  {invoices.map(invoice => {
-                                    const parsed = parseInvoiceConcept(invoice.concept);
-                                    return (
-                                      <tr key={invoice.id} className="hover:bg-gray-50/50">
-                                        <td className="py-3 px-4 font-bold text-brand-gray-dark uppercase">{invoice.id}</td>
-                                        <td className="py-3 px-3 font-mono text-gray-500">{invoice.lockerId || 'N/R'}</td>
-                                        <td className="py-3 px-3 font-mono">{invoice.date}</td>
-                                        <td className="py-3 px-3">
-                                          <div className="flex flex-col gap-0.5">
-                                            <span className="font-bold text-brand-gray-dark">{parsed.detail}</span>
-                                            {parsed.manualClientName && (
-                                              <span className="text-4xs text-gray-400 font-extrabold uppercase flex items-center gap-1">
-                                                👤 Cliente: {parsed.manualClientName} (No Registrado)
-                                              </span>
-                                            )}
-                                            {parsed.purchaseLink && (
-                                              <a
-                                                href={parsed.purchaseLink}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="text-4xs text-brand-orange hover:text-brand-orange-hover hover:underline font-extrabold flex items-center gap-0.5"
-                                              >
-                                                🔗 Link Compra
-                                              </a>
-                                            )}
-                                            {parsed.stripeLink && (
-                                              <div className="flex items-center gap-2 mt-1">
-                                                <a
-                                                  href={parsed.stripeLink}
-                                                  target="_blank"
-                                                  rel="noopener noreferrer"
-                                                  className="bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-[9px] px-2 py-0.5 rounded uppercase tracking-wider flex items-center gap-0.5 shadow-sm"
-                                                >
-                                                  💳 Pagar (Stripe)
-                                                </a>
-                                                <button
-                                                  type="button"
-                                                  onClick={() => {
-                                                    navigator.clipboard.writeText(parsed.stripeLink);
-                                                    alert('¡Enlace de pago de Stripe copiado al portapapeles!');
-                                                  }}
-                                                  className="text-[9px] font-bold text-gray-500 hover:text-gray-700 hover:underline uppercase tracking-wide cursor-pointer bg-slate-100 hover:bg-slate-200 px-1.5 py-0.5 rounded border border-slate-200"
-                                                >
-                                                  📋 Copiar Link
-                                                </button>
-                                              </div>
-                                            )}
-                                          </div>
-                                        </td>
-                                        <td className="py-3 px-3 text-right font-mono text-brand-orange font-black">{parsed.currency === 'USD' ? '$' : 'Q'} {invoice.amount.toFixed(2)}</td>
-                                        <td className="py-3 px-4 text-center">
-                                          <span className={`px-2 py-0.5 rounded text-4xs font-extrabold uppercase border ${
-                                            invoice.paymentStatus === 'Pagado'
-                                              ? 'bg-green-50 border-green-200 text-green-700'
-                                              : 'bg-red-50 border-red-200 text-red-700 font-extrabold animate-pulse'
-                                          }`}>
-                                            {invoice.paymentStatus}
-                                          </span>
-                                        </td>
-                                        <td className="py-3 px-4 text-center">
-                                          <div className="flex gap-1.5 justify-center items-center">
-                                            <button
-                                              type="button"
-                                              onClick={() => handlePrintInvoicePDF(invoice)}
-                                              className="bg-brand-gray-dark hover:bg-brand-gray-dark/80 text-white font-extrabold text-4xs px-2.5 py-1 rounded transition uppercase tracking-wider flex items-center gap-1 cursor-pointer"
-                                              title="Generar Factura en PDF profesional"
-                                            >
-                                              🖨️ PDF
-                                            </button>
-                                            {invoice.paymentStatus === 'Pendiente' && (
-                                              <button
-                                                type="button"
-                                                onClick={() => handleOpenPaymentModal(invoice)}
-                                                className="bg-green-600 hover:bg-green-700 text-white font-extrabold text-4xs px-2.5 py-1 rounded transition uppercase tracking-wider flex items-center gap-1 cursor-pointer shadow-sm active:scale-95"
-                                                title="Registrar cobro / pago de esta factura"
-                                              >
-                                                💵 Cobrar
-                                              </button>
-                                            )}
-                                            <button
-                                              type="button"
-                                              onClick={() => handleOpenEditInvoiceModal(invoice)}
-                                              className="bg-brand-orange hover:bg-brand-orange-hover text-white font-extrabold text-4xs px-2.5 py-1 rounded transition uppercase tracking-wider flex items-center gap-1 cursor-pointer"
-                                              title="Editar factura y agregar cargos adicionales"
-                                            >
-                                              ✏️ Editar
-                                            </button>
-                                            <button
-                                              type="button"
-                                              onClick={() => handleDeleteInvoice(invoice.id)}
-                                              className="bg-red-600 hover:bg-red-700 text-white font-bold text-4xs px-2.5 py-1 rounded transition uppercase tracking-wider flex items-center gap-1 cursor-pointer"
-                                              title="Eliminar Factura"
-                                            >
-                                              🗑️
-                                            </button>
-                                          </div>
-                                        </td>
-                                      </tr>
-                                    );
-                                  })}
-                                </tbody>
-                              </table>
+                            <div className="flex items-center gap-2.5 w-full md:w-auto">
+                              <button
+                                type="button"
+                                onClick={handleExportInvoicesCSV}
+                                className="flex-1 md:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-3xs font-extrabold uppercase tracking-wider transition cursor-pointer shadow-3xs"
+                                title="Descargar reporte en formato Excel / CSV"
+                              >
+                                <FileDown className="h-3.5 w-3.5 text-gray-500" />
+                                Exportar CSV
+                              </button>
+                              
+                              <button
+                                type="button"
+                                onClick={() => setShowCreateInvoicePanel(!showCreateInvoicePanel)}
+                                className={`flex-1 md:flex-initial inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-3xs font-extrabold uppercase tracking-wider transition cursor-pointer shadow-sm ${
+                                  showCreateInvoicePanel
+                                    ? 'bg-gray-800 hover:bg-gray-900 text-white'
+                                    : 'bg-brand-orange hover:bg-brand-orange-hover text-white'
+                                }`}
+                              >
+                                {showCreateInvoicePanel ? (
+                                  <>
+                                    <X className="h-3.5 w-3.5" />
+                                    Cerrar Formulario
+                                  </>
+                                ) : (
+                                  <>
+                                    <Plus className="h-3.5 w-3.5" />
+                                    Nueva Factura Manual
+                                  </>
+                                )}
+                              </button>
                             </div>
                           </div>
 
-                          {/* Invoice form manual creator - RIGHT */}
-                          <div className="lg:col-span-4 bg-gray-50 border border-gray-200 p-5 rounded-lg space-y-4">
-                            <h4 className="text-3xs font-extrabold text-brand-gray-dark uppercase tracking-wider border-b border-gray-200 pb-1.5">Emitir Factura Manual</h4>
+                          {/* Financial KPI Cards */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                             
-                            <form 
-                              onSubmit={(e) => {
-                                e.preventDefault();
-                                if (!invoiceConcept.trim()) {
-                                  alert('Ingrese el concepto del cobro.');
-                                  return;
-                                }
-                                if (invoiceUnregistered && !invoiceManualName.trim()) {
-                                  alert('Ingrese el nombre del cliente no registrado.');
-                                  return;
-                                }
+                            {/* Card 1: Total Facturado */}
+                            <div className="bg-white p-4 rounded-xl border border-blue-100 shadow-2xs hover:shadow-xs transition relative overflow-hidden">
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <span className="text-[10px] font-black uppercase tracking-wider text-gray-400 block mb-0.5">Total Facturado</span>
+                                  <span className="text-xl font-black text-blue-900 font-mono tracking-tight">Q {totalFacturadoGTQ.toFixed(2)}</span>
+                                  <span className="text-4xs text-gray-500 font-bold block mt-1">
+                                    {invoices.length} facturas registradas
+                                  </span>
+                                </div>
+                                <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                                  <DollarSign className="h-5 w-5" />
+                                </div>
+                              </div>
+                            </div>
 
-                                const currentDate = new Date().toISOString().split('T')[0];
-                                const invoiceId = `FAC-${1000 + invoices.length + 1}`;
-                                const conceptPayload = JSON.stringify({
-                                  detail: invoiceConcept.trim(),
-                                  manualClientName: invoiceUnregistered ? invoiceManualName.trim() : '',
-                                  purchaseLink: invoicePurchaseLink.trim(),
-                                  stripeLink: invoiceStripeLink.trim(),
-                                  currency: invoiceCurrency
-                                });
-
-                                const selectedLockerId = invoiceUnregistered 
-                                  ? null 
-                                  : (invoiceLocker || (users.filter(u => u.role === 'client')[0]?.lockerId || null));
-
-                                const newInvoice = {
-                                  id: invoiceId,
-                                  lockerId: selectedLockerId,
-                                  date: currentDate,
-                                  concept: conceptPayload,
-                                  amount: invoiceAmount,
-                                  paymentStatus: 'Pendiente'
-                                };
-
-                                // Save to Supabase
-                                db.upsertInvoice(newInvoice);
-
-                                setInvoices(prev => [
-                                  newInvoice,
-                                  ...prev
-                                ]);
-
-                                const currencySymbol = invoiceCurrency === 'USD' ? '$' : 'Q';
-                                alert(`Factura manual ${invoiceId} emitida por un valor de ${currencySymbol} ${invoiceAmount.toFixed(2)} asociada a ${invoiceUnregistered ? `cliente manual: ${invoiceManualName}` : `casillero ${selectedLockerId}`}.`);
-                                
-                                // Reset fields
-                                setInvoiceConcept('');
-                                setInvoiceAmount(120.00);
-                                setInvoiceManualName('');
-                                setInvoicePurchaseLink('');
-                                setInvoiceStripeLink('');
-                                setInvoiceUnregistered(false);
-                                setInvoiceLocker('');
-                                setInvoiceCurrency('GTQ');
-                              }}
-                              className="space-y-3"
+                            {/* Card 2: Saldo por Cobrar (Pendiente) */}
+                            <div 
+                              onClick={() => setInvoiceStatusFilter('Pendiente')}
+                              className="bg-white p-4 rounded-xl border border-amber-200 shadow-2xs hover:border-amber-400 hover:shadow-xs transition relative overflow-hidden cursor-pointer group"
+                              title="Haga clic para ver solo facturas pendientes"
                             >
-                              {/* Checkbox Cliente No Registrado */}
-                              <div className="flex items-center gap-2 py-1">
-                                <input
-                                  type="checkbox"
-                                  id="invoiceUnregistered"
-                                  checked={invoiceUnregistered}
-                                  onChange={(e) => {
-                                    setInvoiceUnregistered(e.target.checked);
-                                    if (e.target.checked) {
-                                      setInvoiceLocker('');
-                                    }
-                                  }}
-                                  className="h-3.5 w-3.5 rounded border-gray-300 text-brand-orange focus:ring-brand-orange cursor-pointer"
-                                />
-                                <label htmlFor="invoiceUnregistered" className="text-4xs font-extrabold text-brand-gray-dark uppercase tracking-wider cursor-pointer select-none">
-                                  👤 Cliente No Registrado
-                                </label>
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <div className="flex items-center gap-1.5 mb-0.5">
+                                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-700">Por Cobrar (Pendiente)</span>
+                                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+                                  </div>
+                                  <span className="text-xl font-black text-amber-600 font-mono tracking-tight">Q {totalPendingGTQ.toFixed(2)}</span>
+                                  <span className="text-4xs text-amber-700 font-bold block mt-1 group-hover:underline">
+                                    {pendingInvoices.length} facturas por cobrar →
+                                  </span>
+                                </div>
+                                <div className="p-2 bg-amber-50 text-amber-600 rounded-lg">
+                                  <Clock className="h-5 w-5" />
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Card 3: Total Cobrado (Pagado) */}
+                            <div 
+                              onClick={() => setInvoiceStatusFilter('Pagado')}
+                              className="bg-white p-4 rounded-xl border border-green-200 shadow-2xs hover:border-green-400 hover:shadow-xs transition relative overflow-hidden cursor-pointer group"
+                              title="Haga clic para ver solo facturas pagadas"
+                            >
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <span className="text-[10px] font-black uppercase tracking-wider text-green-700 block mb-0.5">Total Cobrado</span>
+                                  <span className="text-xl font-black text-green-600 font-mono tracking-tight">Q {totalPaidGTQ.toFixed(2)}</span>
+                                  <span className="text-4xs text-green-700 font-bold block mt-1 group-hover:underline">
+                                    {paidInvoices.length} facturas cobradas →
+                                  </span>
+                                </div>
+                                <div className="p-2 bg-green-50 text-green-600 rounded-lg">
+                                  <CheckCircle2 className="h-5 w-5" />
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Card 4: Clientes con Deuda */}
+                            <div className="bg-white p-4 rounded-xl border border-purple-100 shadow-2xs hover:shadow-xs transition relative overflow-hidden">
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <span className="text-[10px] font-black uppercase tracking-wider text-purple-700 block mb-0.5">Clientes con Saldo</span>
+                                  <span className="text-xl font-black text-purple-900 font-mono tracking-tight">{uniqueDebtors} clientes</span>
+                                  <span className="text-4xs text-gray-500 font-bold block mt-1">
+                                    Cuentas con fletes pendientes
+                                  </span>
+                                </div>
+                                <div className="p-2 bg-purple-50 text-purple-600 rounded-lg">
+                                  <Users className="h-5 w-5" />
+                                </div>
+                              </div>
+                            </div>
+
+                          </div>
+
+                          {/* Collapsible Manual Invoice Creation Form */}
+                          {showCreateInvoicePanel && (
+                            <div className="bg-white rounded-xl border-2 border-brand-orange/40 shadow-md p-6 animate-fade-in relative">
+                              <div className="flex justify-between items-center border-b border-gray-100 pb-3 mb-4">
+                                <div className="flex items-center gap-2">
+                                  <span className="w-2.5 h-2.5 rounded-full bg-brand-orange"></span>
+                                  <h4 className="text-xs font-black text-brand-gray-dark uppercase tracking-wider font-display">
+                                    Emisión de Factura Manual de Flete / Cobro
+                                  </h4>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setShowCreateInvoicePanel(false)}
+                                  className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition"
+                                  title="Cerrar"
+                                >
+                                  <X className="h-4 w-4" />
+                                </button>
                               </div>
 
-                              {/* Conditionally show select or text input */}
-                              {!invoiceUnregistered ? (
-                                <div>
-                                  <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Casillero Asignado *</label>
-                                  <input
-                                    type="text"
-                                    list="lockers-list"
-                                    value={invoiceLocker}
-                                    onChange={(e) => {
-                                      const val = e.target.value.split(' - ')[0].trim().toUpperCase();
-                                      setInvoiceLocker(val);
-                                    }}
-                                    placeholder="Buscar por Casillero o Nombre..."
-                                    className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white font-mono text-brand-orange font-bold uppercase"
-                                  />
-                                  <datalist id="lockers-list">
-                                    {users.filter(u => u.role === 'client').map(u => (
-                                      <option key={u.lockerId} value={`${u.lockerId} - ${u.name}`} />
-                                    ))}
-                                  </datalist>
-                                </div>
-                              ) : (
-                                <div>
-                                  <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Nombre del Cliente *</label>
-                                  <input
-                                    type="text"
-                                    required
-                                    placeholder="Nombre de la persona (manual)"
-                                    value={invoiceManualName}
-                                    onChange={(e) => setInvoiceManualName(e.target.value)}
-                                    className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark"
-                                  />
-                                </div>
-                              )}
+                              <form 
+                                onSubmit={(e) => {
+                                  e.preventDefault();
+                                  if (!invoiceConcept.trim()) {
+                                    alert('Ingrese el concepto del cobro.');
+                                    return;
+                                  }
+                                  if (invoiceUnregistered && !invoiceManualName.trim()) {
+                                    alert('Ingrese el nombre del cliente no registrado.');
+                                    return;
+                                  }
 
-                              <div>
-                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Concepto Detalle *</label>
+                                  const currentDate = new Date().toISOString().split('T')[0];
+                                  const invoiceId = `FAC-${1000 + invoices.length + 1}`;
+                                  const conceptPayload = JSON.stringify({
+                                    detail: invoiceConcept.trim(),
+                                    manualClientName: invoiceUnregistered ? invoiceManualName.trim() : '',
+                                    purchaseLink: invoicePurchaseLink.trim(),
+                                    stripeLink: invoiceStripeLink.trim(),
+                                    currency: invoiceCurrency
+                                  });
+
+                                  const selectedLockerId = invoiceUnregistered 
+                                    ? null 
+                                    : (invoiceLocker || (users.filter(u => u.role === 'client')[0]?.lockerId || null));
+
+                                  const newInvoice = {
+                                    id: invoiceId,
+                                    lockerId: selectedLockerId,
+                                    date: currentDate,
+                                    concept: conceptPayload,
+                                    amount: invoiceAmount,
+                                    paymentStatus: 'Pendiente'
+                                  };
+
+                                  db.upsertInvoice(newInvoice);
+
+                                  setInvoices(prev => [
+                                    newInvoice,
+                                    ...prev
+                                  ]);
+
+                                  const currencySymbol = invoiceCurrency === 'USD' ? '$' : 'Q';
+                                  alert(`Factura manual ${invoiceId} emitida por un valor de ${currencySymbol} ${invoiceAmount.toFixed(2)} asociada a ${invoiceUnregistered ? `cliente manual: ${invoiceManualName}` : `casillero ${selectedLockerId}`}.`);
+                                  
+                                  setInvoiceConcept('');
+                                  setInvoiceAmount(120.00);
+                                  setInvoiceManualName('');
+                                  setInvoicePurchaseLink('');
+                                  setInvoiceStripeLink('');
+                                  setInvoiceUnregistered(false);
+                                  setInvoiceLocker('');
+                                  setInvoiceCurrency('GTQ');
+                                  setShowCreateInvoicePanel(false);
+                                }}
+                                className="space-y-4"
+                              >
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                  
+                                  {/* Columna 1: Cliente */}
+                                  <div className="space-y-3 bg-gray-50/70 p-4 rounded-xl border border-gray-150">
+                                    <span className="text-[10px] font-black uppercase tracking-wider text-brand-orange block">1. Destinatario</span>
+                                    
+                                    <div className="flex items-center gap-2 py-1">
+                                      <input
+                                        type="checkbox"
+                                        id="invoiceUnregistered"
+                                        checked={invoiceUnregistered}
+                                        onChange={(e) => {
+                                          setInvoiceUnregistered(e.target.checked);
+                                          if (e.target.checked) {
+                                            setInvoiceLocker('');
+                                          }
+                                        }}
+                                        className="h-3.5 w-3.5 rounded border-gray-300 text-brand-orange focus:ring-brand-orange cursor-pointer"
+                                      />
+                                      <label htmlFor="invoiceUnregistered" className="text-3xs font-extrabold text-brand-gray-dark uppercase tracking-wider cursor-pointer select-none">
+                                        👤 Cliente Manual (Sin Casillero)
+                                      </label>
+                                    </div>
+
+                                    {!invoiceUnregistered ? (
+                                      <div>
+                                        <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Casillero Asignado *</label>
+                                        <input
+                                          type="text"
+                                          list="lockers-list"
+                                          value={invoiceLocker}
+                                          onChange={(e) => {
+                                            const val = e.target.value.split(' - ')[0].trim().toUpperCase();
+                                            setInvoiceLocker(val);
+                                          }}
+                                          placeholder="Buscar Casillero o Nombre..."
+                                          className="w-full px-3 py-2 text-3xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-orange bg-white font-mono text-brand-orange font-bold uppercase"
+                                        />
+                                        <datalist id="lockers-list">
+                                          {users.filter(u => u.role === 'client').map(u => (
+                                            <option key={u.lockerId} value={`${u.lockerId} - ${u.name}`} />
+                                          ))}
+                                        </datalist>
+                                      </div>
+                                    ) : (
+                                      <div>
+                                        <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Nombre Completo *</label>
+                                        <input
+                                          type="text"
+                                          required
+                                          placeholder="Nombre del cliente particular"
+                                          value={invoiceManualName}
+                                          onChange={(e) => setInvoiceManualName(e.target.value)}
+                                          className="w-full px-3 py-2 text-3xs border border-gray-300 rounded-lg font-semibold text-brand-gray-dark bg-white"
+                                        />
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Columna 2: Concepto y Enlaces */}
+                                  <div className="space-y-3 bg-gray-50/70 p-4 rounded-xl border border-gray-150">
+                                    <span className="text-[10px] font-black uppercase tracking-wider text-brand-orange block">2. Concepto & Enlaces</span>
+                                    
+                                    <div>
+                                      <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Concepto del Cobro *</label>
+                                      <input
+                                        type="text"
+                                        required
+                                        placeholder="Ej: Flete de paquete SF-4912-GT"
+                                        value={invoiceConcept}
+                                        onChange={(e) => setInvoiceConcept(e.target.value)}
+                                        className="w-full px-3 py-2 text-3xs border border-gray-300 rounded-lg font-semibold text-brand-gray-dark bg-white"
+                                      />
+                                    </div>
+
+                                    <div>
+                                      <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Link de Pago Stripe (Opcional)</label>
+                                      <input
+                                        type="url"
+                                        placeholder="https://buy.stripe.com/..."
+                                        value={invoiceStripeLink}
+                                        onChange={(e) => setInvoiceStripeLink(e.target.value)}
+                                        className="w-full px-3 py-2 text-3xs border border-gray-300 rounded-lg font-semibold text-brand-gray-dark font-mono text-xs bg-white"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  {/* Columna 3: Divisa e Importe */}
+                                  <div className="space-y-3 bg-gray-50/70 p-4 rounded-xl border border-gray-150 flex flex-col justify-between">
+                                    <div>
+                                      <span className="text-[10px] font-black uppercase tracking-wider text-brand-orange block mb-3">3. Moneda & Monto</span>
+                                      
+                                      <div className="grid grid-cols-2 gap-3 mb-3">
+                                        <div>
+                                          <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Divisa *</label>
+                                          <select
+                                            value={invoiceCurrency}
+                                            onChange={(e) => setInvoiceCurrency(e.target.value as 'GTQ' | 'USD')}
+                                            className="w-full px-3 py-2 text-3xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-orange bg-white font-semibold text-brand-gray-dark"
+                                          >
+                                            <option value="GTQ">Quetzales (Q)</option>
+                                            <option value="USD">Dólares ($)</option>
+                                          </select>
+                                        </div>
+
+                                        <div>
+                                          <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">
+                                            Importe *
+                                          </label>
+                                          <input
+                                            type="number"
+                                            step="0.01"
+                                            min="1"
+                                            required
+                                            value={invoiceAmount}
+                                            onChange={(e) => setInvoiceAmount(Number(e.target.value))}
+                                            className="w-full px-3 py-2 text-3xs border border-gray-300 rounded-lg font-bold font-mono text-brand-gray-dark bg-white"
+                                          />
+                                        </div>
+                                      </div>
+
+                                      <div>
+                                        <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Link de Compra / Tienda (Opcional)</label>
+                                        <input
+                                          type="url"
+                                          placeholder="https://tienda.com/producto"
+                                          value={invoicePurchaseLink}
+                                          onChange={(e) => setInvoicePurchaseLink(e.target.value)}
+                                          className="w-full px-3 py-2 text-3xs border border-gray-300 rounded-lg font-semibold text-brand-gray-dark font-mono text-xs bg-white"
+                                        />
+                                      </div>
+                                    </div>
+
+                                    <div className="flex gap-2 pt-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => setShowCreateInvoicePanel(false)}
+                                        className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 text-3xs font-extrabold py-2 rounded-lg uppercase tracking-wider transition cursor-pointer"
+                                      >
+                                        Cancelar
+                                      </button>
+                                      <button
+                                        type="submit"
+                                        className="flex-2 bg-brand-orange hover:bg-brand-orange-hover text-white text-3xs font-extrabold py-2 rounded-lg uppercase tracking-wider transition cursor-pointer shadow-md"
+                                      >
+                                        Emitir Factura
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                </div>
+                              </form>
+                            </div>
+                          )}
+
+                          {/* Interactive Search & Filter Toolbar */}
+                          <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-2xs space-y-3">
+                            <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
+                              
+                              {/* Search Input Bar */}
+                              <div className="relative flex-1">
+                                <Search className="h-4 w-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
                                 <input
                                   type="text"
-                                  required
-                                  placeholder="Ej: Flete de paquete SF-4912-GT"
-                                  value={invoiceConcept}
-                                  onChange={(e) => setInvoiceConcept(e.target.value)}
-                                  className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark"
+                                  value={invoiceSearchQuery}
+                                  onChange={(e) => setInvoiceSearchQuery(e.target.value)}
+                                  placeholder="Buscar por Factura ID (ej: FAC-1002), Casillero, Nombre de Cliente, Tracking o Concepto..."
+                                  className="w-full pl-9 pr-8 py-2 text-3xs border border-gray-300 rounded-lg font-semibold text-brand-gray-dark bg-white focus:ring-2 focus:ring-brand-orange focus:border-brand-orange outline-none transition"
                                 />
+                                {invoiceSearchQuery && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setInvoiceSearchQuery('')}
+                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 font-bold p-0.5"
+                                  >
+                                    <X className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
                               </div>
 
-                              <div>
-                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Link de la Compra (Opcional)</label>
-                                <input
-                                  type="url"
-                                  placeholder="https://ejemplo.com/compra/item"
-                                  value={invoicePurchaseLink}
-                                  onChange={(e) => setInvoicePurchaseLink(e.target.value)}
-                                  className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark font-mono text-xs"
-                                />
-                              </div>
-
-                              <div>
-                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Link de Pago Stripe (Opcional)</label>
-                                <input
-                                  type="url"
-                                  placeholder="https://buy.stripe.com/..."
-                                  value={invoiceStripeLink}
-                                  onChange={(e) => setInvoiceStripeLink(e.target.value)}
-                                  className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark font-mono text-xs"
-                                />
-                              </div>
-
-                              <div>
-                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Divisa *</label>
-                                <select
-                                  value={invoiceCurrency}
-                                  onChange={(e) => setInvoiceCurrency(e.target.value as 'GTQ' | 'USD')}
-                                  className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white font-semibold text-brand-gray-dark"
+                              {/* Status Filter Buttons / Tabs */}
+                              <div className="flex items-center gap-1.5 bg-gray-100 p-1 rounded-lg border border-gray-200 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => setInvoiceStatusFilter('all')}
+                                  className={`px-3 py-1.5 rounded-md text-3xs font-extrabold uppercase tracking-wider transition ${
+                                    invoiceStatusFilter === 'all'
+                                      ? 'bg-white text-brand-gray-dark shadow-xs'
+                                      : 'text-gray-500 hover:text-gray-800'
+                                  }`}
                                 >
-                                  <option value="GTQ">Quetzales (Q)</option>
-                                  <option value="USD">Dólares ($)</option>
-                                </select>
+                                  Todas ({invoices.length})
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setInvoiceStatusFilter('Pendiente')}
+                                  className={`px-3 py-1.5 rounded-md text-3xs font-extrabold uppercase tracking-wider transition flex items-center gap-1 ${
+                                    invoiceStatusFilter === 'Pendiente'
+                                      ? 'bg-amber-500 text-white shadow-xs'
+                                      : 'text-amber-700 hover:bg-amber-50'
+                                  }`}
+                                >
+                                  <Clock className="h-3 w-3" />
+                                  Pendientes ({pendingInvoices.length})
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setInvoiceStatusFilter('Pagado')}
+                                  className={`px-3 py-1.5 rounded-md text-3xs font-extrabold uppercase tracking-wider transition flex items-center gap-1 ${
+                                    invoiceStatusFilter === 'Pagado'
+                                      ? 'bg-green-600 text-white shadow-xs'
+                                      : 'text-green-700 hover:bg-green-50'
+                                  }`}
+                                >
+                                  <CheckCircle2 className="h-3 w-3" />
+                                  Pagadas ({paidInvoices.length})
+                                </button>
                               </div>
 
-                              <div>
-                                <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">
-                                  Importe en {invoiceCurrency === 'GTQ' ? 'Quetzales (Q)' : 'Dólares ($)'} *
-                                </label>
-                                <input
-                                  type="number"
-                                  min="1"
-                                  required
-                                  value={invoiceAmount}
-                                  onChange={(e) => setInvoiceAmount(Number(e.target.value))}
-                                  className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-bold font-mono text-brand-gray-dark"
-                                />
+                            </div>
+
+                            {/* Secondary Filter Row: Dates & Reset */}
+                            <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-gray-100 text-3xs">
+                              <div className="flex items-center gap-2">
+                                <span className="font-extrabold text-gray-400 uppercase text-4xs">Filtrar Fecha:</span>
+                                <div className="flex items-center gap-1.5">
+                                  <input 
+                                    type="date"
+                                    value={invoiceStartDate}
+                                    onChange={(e) => setInvoiceStartDate(e.target.value)}
+                                    className="px-2 py-1 text-3xs border border-gray-300 rounded-md font-semibold text-brand-gray-dark bg-white focus:ring-1 focus:ring-brand-orange"
+                                    title="Desde fecha"
+                                  />
+                                  <span className="text-gray-400 font-bold">-</span>
+                                  <input 
+                                    type="date"
+                                    value={invoiceEndDate}
+                                    onChange={(e) => setInvoiceEndDate(e.target.value)}
+                                    className="px-2 py-1 text-3xs border border-gray-300 rounded-md font-semibold text-brand-gray-dark bg-white focus:ring-1 focus:ring-brand-orange"
+                                    title="Hasta fecha"
+                                  />
+                                </div>
                               </div>
 
-                              <button
-                                type="submit"
-                                className="w-full bg-brand-orange hover:bg-brand-orange-hover text-white text-3xs font-extrabold py-2 rounded uppercase tracking-wider transition cursor-pointer"
-                              >
-                                Emitir Factura Manual
-                              </button>
-                            </form>
+                              {(invoiceSearchQuery || invoiceStatusFilter !== 'all' || invoiceStartDate || invoiceEndDate) && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setInvoiceSearchQuery('');
+                                    setInvoiceStatusFilter('all');
+                                    setInvoiceStartDate('');
+                                    setInvoiceEndDate('');
+                                  }}
+                                  className="text-brand-orange hover:text-brand-orange-hover font-extrabold uppercase text-4xs ml-auto cursor-pointer flex items-center gap-1 hover:underline"
+                                >
+                                  <X className="h-3 w-3" /> Limpiar Filtros
+                                </button>
+                              )}
+
+                              <div className="ml-auto text-4xs text-gray-500 font-extrabold uppercase tracking-wider">
+                                Mostrando <span className="text-brand-orange font-black">{sortedInvoices.length}</span> de {invoices.length} facturas 
+                                {filteredTotalGTQ > 0 && (
+                                  <span className="ml-2 pl-2 border-l border-gray-200 text-gray-700">
+                                    Monto Filtrado: <strong className="text-brand-gray-dark font-mono">Q {filteredTotalGTQ.toFixed(2)}</strong>
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Full-Width Organized Invoices Table */}
+                          <div className="bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden">
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-left border-collapse">
+                                <thead>
+                                  <tr className="bg-gray-100 border-b border-gray-200 text-4xs font-black text-gray-500 uppercase tracking-wider">
+                                    <th className="py-3 px-4 whitespace-nowrap">No. Factura</th>
+                                    <th className="py-3 px-4 min-w-[200px]">Casillero & Cliente</th>
+                                    <th className="py-3 px-3 whitespace-nowrap">Fecha Emisión</th>
+                                    <th className="py-3 px-4 min-w-[320px]">Concepto y Detalles</th>
+                                    <th className="py-3 px-4 text-right whitespace-nowrap">Monto Total</th>
+                                    <th className="py-3 px-4 text-center whitespace-nowrap">Estado Pago</th>
+                                    <th className="py-3 px-4 text-center whitespace-nowrap min-w-[220px]">Acciones</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100 text-3xs font-semibold text-brand-gray-dark">
+                                  {sortedInvoices.length === 0 ? (
+                                    <tr>
+                                      <td colSpan={7} className="py-12 text-center text-gray-400">
+                                        <div className="flex flex-col items-center justify-center gap-2">
+                                          <Search className="h-8 w-8 text-gray-300" />
+                                          <p className="font-extrabold text-xs uppercase text-gray-500 tracking-wider">
+                                            No se encontraron facturas
+                                          </p>
+                                          <p className="text-4xs text-gray-400 max-w-sm">
+                                            No hay registros que coincidan con los filtros o el texto de búsqueda ingresado.
+                                          </p>
+                                          {(invoiceSearchQuery || invoiceStatusFilter !== 'all' || invoiceStartDate || invoiceEndDate) && (
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setInvoiceSearchQuery('');
+                                                setInvoiceStatusFilter('all');
+                                                setInvoiceStartDate('');
+                                                setInvoiceEndDate('');
+                                              }}
+                                              className="mt-2 px-3 py-1 bg-gray-100 hover:bg-gray-200 text-brand-gray-dark rounded-md text-4xs font-extrabold uppercase transition"
+                                            >
+                                              Restablecer Filtros
+                                            </button>
+                                          )}
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  ) : (
+                                    sortedInvoices.map(invoice => {
+                                      const parsed = parseInvoiceConcept(invoice.concept);
+                                      const clientUser = users.find(u => u.lockerId === invoice.lockerId);
+                                      const clientName = invoice.lockerId 
+                                        ? (clientUser ? clientUser.name : 'Cliente Registrado')
+                                        : (parsed.manualClientName || 'Cliente No Registrado');
+
+                                      const { insurance, delivery } = parseExtraCharges(parsed.detail);
+                                      const cleanedDetail = cleanConceptDetail(parsed.detail);
+                                      const currSym = parsed.currency === 'USD' ? '$' : 'Q';
+
+                                      return (
+                                        <tr key={invoice.id} className="hover:bg-orange-50/20 transition-colors">
+                                          
+                                          {/* Factura ID */}
+                                          <td className="py-3 px-4 whitespace-nowrap">
+                                            <div className="flex items-center gap-1.5 font-mono">
+                                              <span className="font-black text-2xs text-brand-gray-dark bg-gray-100 px-2 py-0.5 rounded border border-gray-200">
+                                                {invoice.id}
+                                              </span>
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  navigator.clipboard.writeText(invoice.id);
+                                                  alert(`ID ${invoice.id} copiado al portapapeles.`);
+                                                }}
+                                                className="p-1 text-gray-400 hover:text-brand-orange hover:bg-orange-50 rounded transition cursor-pointer"
+                                                title="Copiar ID"
+                                              >
+                                                <Copy className="h-3 w-3" />
+                                              </button>
+                                            </div>
+                                          </td>
+
+                                          {/* Casillero & Cliente */}
+                                          <td className="py-3 px-4">
+                                            <div className="space-y-0.5">
+                                              <div className="flex items-center gap-1.5">
+                                                {invoice.lockerId ? (
+                                                  <span className="font-mono text-4xs font-black bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded border border-blue-200 shrink-0">
+                                                    {invoice.lockerId}
+                                                  </span>
+                                                ) : (
+                                                  <span className="text-4xs font-extrabold bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded border border-purple-200 shrink-0">
+                                                    MANUAL
+                                                  </span>
+                                                )}
+                                                <span className="font-bold text-2xs text-gray-900 leading-tight">
+                                                  {clientName}
+                                                </span>
+                                              </div>
+                                              {clientUser?.phone && (
+                                                <span className="text-4xs text-gray-400 block font-normal">
+                                                  📞 {clientUser.phone}
+                                                </span>
+                                              )}
+                                            </div>
+                                          </td>
+
+                                          {/* Fecha */}
+                                          <td className="py-3 px-3 whitespace-nowrap font-mono text-gray-600 text-4xs">
+                                            <div className="flex items-center gap-1">
+                                              <Clock className="h-3 w-3 text-gray-400 shrink-0" />
+                                              {invoice.date}
+                                            </div>
+                                          </td>
+
+                                          {/* Concepto & Detalles */}
+                                          <td className="py-3 px-4">
+                                            <div className="flex flex-col gap-1 max-w-md">
+                                              <span className="font-semibold text-2xs text-gray-800 leading-snug">
+                                                {cleanedDetail}
+                                              </span>
+
+                                              {/* Badges for Extras / Links */}
+                                              <div className="flex flex-wrap gap-1.5 items-center">
+                                                {insurance > 0 && (
+                                                  <span className="inline-flex items-center gap-0.5 bg-green-50 text-green-700 border border-green-200 px-1.5 py-0.5 rounded text-[9px] font-extrabold">
+                                                    🛡️ Seguro: {currSym} {insurance.toFixed(2)}
+                                                  </span>
+                                                )}
+                                                {delivery > 0 && (
+                                                  <span className="inline-flex items-center gap-0.5 bg-blue-50 text-blue-700 border border-blue-200 px-1.5 py-0.5 rounded text-[9px] font-extrabold">
+                                                    🚚 Envío: {currSym} {delivery.toFixed(2)}
+                                                  </span>
+                                                )}
+                                                {parsed.purchaseLink && (
+                                                  <a
+                                                    href={parsed.purchaseLink}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-[9.5px] text-brand-orange hover:underline font-extrabold inline-flex items-center gap-0.5 bg-orange-50 px-1.5 py-0.5 rounded border border-orange-100"
+                                                  >
+                                                    <Link className="h-2.5 w-2.5" /> Compra
+                                                  </a>
+                                                )}
+                                                {parsed.stripeLink && (
+                                                  <div className="inline-flex items-center gap-1">
+                                                    <a
+                                                      href={parsed.stripeLink}
+                                                      target="_blank"
+                                                      rel="noopener noreferrer"
+                                                      className="bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-[9px] px-2 py-0.5 rounded uppercase tracking-wider inline-flex items-center gap-1 shadow-2xs"
+                                                    >
+                                                      <CreditCard className="h-2.5 w-2.5" /> Stripe
+                                                    </a>
+                                                    <button
+                                                      type="button"
+                                                      onClick={() => {
+                                                        navigator.clipboard.writeText(parsed.stripeLink);
+                                                        alert('¡Enlace de pago Stripe copiado al portapapeles!');
+                                                      }}
+                                                      className="text-[9px] text-gray-500 hover:text-gray-700 bg-gray-100 px-1 py-0.5 rounded border border-gray-200"
+                                                      title="Copiar Link de Stripe"
+                                                    >
+                                                      <Copy className="h-2.5 w-2.5" />
+                                                    </button>
+                                                  </div>
+                                                )}
+                                              </div>
+                                            </div>
+                                          </td>
+
+                                          {/* Importe */}
+                                          <td className="py-3 px-4 text-right whitespace-nowrap">
+                                            <span className="font-mono text-xs font-black text-brand-orange">
+                                              {currSym} {invoice.amount.toFixed(2)}
+                                            </span>
+                                            {parsed.currency === 'USD' && (
+                                              <span className="block text-[8.5px] text-gray-400 font-mono font-normal">
+                                                ≈ Q {(invoice.amount * 8).toFixed(2)}
+                                              </span>
+                                            )}
+                                          </td>
+
+                                          {/* Estado Pago */}
+                                          <td className="py-3 px-4 text-center whitespace-nowrap">
+                                            <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-4xs font-black uppercase tracking-wider border shadow-3xs ${
+                                              invoice.paymentStatus === 'Pagado'
+                                                ? 'bg-green-50 border-green-200 text-green-700'
+                                                : 'bg-amber-50 border-amber-200 text-amber-700 animate-pulse'
+                                            }`}>
+                                              {invoice.paymentStatus === 'Pagado' ? (
+                                                <>
+                                                  <CheckCircle2 className="h-3 w-3 text-green-600" />
+                                                  Pagada
+                                                </>
+                                              ) : (
+                                                <>
+                                                  <Clock className="h-3 w-3 text-amber-600" />
+                                                  Pendiente
+                                                </>
+                                              )}
+                                            </span>
+                                          </td>
+
+                                          {/* Acciones */}
+                                          <td className="py-3 px-4 text-center whitespace-nowrap">
+                                            <div className="flex gap-1.5 justify-center items-center">
+                                              <button
+                                                type="button"
+                                                onClick={() => handlePrintInvoicePDF(invoice)}
+                                                className="bg-brand-gray-dark hover:bg-gray-800 text-white font-extrabold text-4xs px-2.5 py-1 rounded-md transition uppercase tracking-wider flex items-center gap-1 cursor-pointer shadow-3xs"
+                                                title="Generar Factura en PDF profesional"
+                                              >
+                                                <Printer className="h-3 w-3" /> PDF
+                                              </button>
+                                              {invoice.paymentStatus === 'Pendiente' && (
+                                                <button
+                                                  type="button"
+                                                  onClick={() => handleOpenPaymentModal(invoice)}
+                                                  className="bg-green-600 hover:bg-green-700 text-white font-extrabold text-4xs px-2.5 py-1 rounded-md transition uppercase tracking-wider flex items-center gap-1 cursor-pointer shadow-3xs active:scale-95"
+                                                  title="Registrar cobro / pago de esta factura"
+                                                >
+                                                  <Wallet className="h-3 w-3" /> Cobrar
+                                                </button>
+                                              )}
+                                              <button
+                                                type="button"
+                                                onClick={() => handleOpenEditInvoiceModal(invoice)}
+                                                className="bg-brand-orange hover:bg-brand-orange-hover text-white font-extrabold text-4xs px-2 py-1 rounded-md transition uppercase tracking-wider flex items-center gap-1 cursor-pointer shadow-3xs"
+                                                title="Editar factura y cargos adicionales"
+                                              >
+                                                <Edit className="h-3 w-3" />
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => handleDeleteInvoice(invoice.id)}
+                                                className="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold text-4xs px-2 py-1 rounded-md transition cursor-pointer shadow-3xs"
+                                                title="Eliminar Factura"
+                                              >
+                                                <Trash2 className="h-3 w-3" />
+                                              </button>
+                                            </div>
+                                          </td>
+
+                                        </tr>
+                                      );
+                                    })
+                                  )}
+                                </tbody>
+                              </table>
+                            </div>
+
+                            {/* Table Footer Summary */}
+                            <div className="bg-gray-50 px-5 py-3 border-t border-gray-200 flex flex-col sm:flex-row justify-between items-center text-4xs font-bold text-gray-500 uppercase tracking-wider gap-2">
+                              <span>Total en libro: {invoices.length} facturas</span>
+                              <span>
+                                Saldo Total Pendiente: <strong className="text-amber-600 font-mono text-3xs">Q {totalPendingGTQ.toFixed(2)}</strong>
+                              </span>
+                            </div>
+
                           </div>
 
                         </div>
-                      </div>
-                    )}
-                    {/* ==================== NUEVO MÓDULO DE COTIZACIONES (`cotizaciones`) ==================== */}
+                      );
+                    })()}
+{/* ==================== NUEVO MÓDULO DE COTIZACIONES (`cotizaciones`) ==================== */}
                     {adminSubTab === 'cotizaciones' && (() => {
                       // Handle SVG PDF generation
                       const handleGenerateQuotationPDF = (e: React.FormEvent) => {
