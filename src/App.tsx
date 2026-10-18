@@ -6501,35 +6501,16 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                                   const insuranceFeeGtq = insuranceFeeUsd * 8.00;
                                                   const totalCharge = flete + insuranceFeeGtq;
 
-                                                  const invoiceId = `FAC-${1000 + invoices.length + 1}`;
-                                                  const newInvoice = {
-                                                    id: invoiceId,
-                                                    lockerId: pa.lockerId,
-                                                    date: currentDate,
-                                                    concept: isShein
-                                                      ? `Flete Especial Bolsa Shein ${generatedId}${insuranceFeeGtq > 0 ? ` + Seguro 5% (Q ${insuranceFeeGtq.toFixed(2)})` : ''}`
-                                                      : `Cargo Flete Almacén USA ${generatedId} (${pa.weightEst} Lbs)${insuranceFeeGtq > 0 ? ` + Seguro 5% (Q ${insuranceFeeGtq.toFixed(2)})` : ''}`,
-                                                    amount: totalCharge,
-                                                    paymentStatus: 'Pendiente'
-                                                  };
+                                               // Save to Supabase (sin generar factura)
+                                               db.upsertPreAlert({ ...pa, status: 'Recibido' });
+                                               db.upsertShipment(newShip);
 
-                                              // Save to Supabase
-                                              db.upsertPreAlert({ ...pa, status: 'Recibido' });
-                                              db.upsertShipment(newShip);
-                                              db.upsertInvoice(newInvoice);
+                                               setShipments([newShip, ...shipments]);
 
-                                              setShipments([newShip, ...shipments]);
+                                               // Trigger background receipt email to client!
+                                               sendPreAlertReceivedEmailHelper(pa, generatedId, flete, insuranceFeeGtq, totalCharge, true);
 
-                                              // Generate invoice
-                                              setInvoices(prev => [
-                                                newInvoice,
-                                                ...prev
-                                              ]);
-
-                                              // Trigger background receipt email to client!
-                                              sendPreAlertReceivedEmailHelper(pa, generatedId, flete, insuranceFeeGtq, totalCharge, true);
-
-                                              alert(`Paquete pre-alertado registrado como recibido en Bodega USA. Se ha asignado la guía: ${generatedId} y se ha creado una factura de flete por Q ${flete.toFixed(2)}.`);
+                                               alert(`Paquete pre-alertado registrado como recibido en Bodega USA. Se ha asignado la guía: ${generatedId}.`);
                                             }}
                                             className="bg-brand-orange hover:bg-brand-orange-hover text-white px-2 py-0.5 rounded text-4xs font-black uppercase transition cursor-pointer shadow-3xs flex items-center gap-0.5"
                                           >
@@ -6594,35 +6575,16 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                                   const insuranceFeeGtq = insuranceFeeUsd * 8.00;
                                                   const totalCharge = flete + insuranceFeeGtq;
 
-                                                  const invoiceId = `FAC-${1000 + invoices.length + 1}`;
-                                                  const newInvoice = {
-                                                    id: invoiceId,
-                                                    lockerId: pa.lockerId,
-                                                    date: currentDate,
-                                                    concept: isShein
-                                                      ? `Flete Especial Bolsa Shein ${generatedId}${insuranceFeeGtq > 0 ? ` + Seguro 5% (Q ${insuranceFeeGtq.toFixed(2)})` : ''}`
-                                                      : `Cargo Flete Almacén México ${generatedId} (${pa.weightEst} Lbs)${insuranceFeeGtq > 0 ? ` + Seguro 5% (Q ${insuranceFeeGtq.toFixed(2)})` : ''}`,
-                                                    amount: totalCharge,
-                                                    paymentStatus: 'Pendiente'
-                                                  };
+                                               // Save to Supabase (sin generar factura)
+                                               db.upsertPreAlert({ ...pa, status: 'Recibido' });
+                                               db.upsertShipment(newShip);
 
-                                              // Save to Supabase
-                                              db.upsertPreAlert({ ...pa, status: 'Recibido' });
-                                              db.upsertShipment(newShip);
-                                              db.upsertInvoice(newInvoice);
+                                               setShipments([newShip, ...shipments]);
 
-                                              setShipments([newShip, ...shipments]);
+                                               // Trigger background receipt email to client!
+                                               sendPreAlertReceivedEmailHelper(pa, generatedId, flete, insuranceFeeGtq, totalCharge, false);
 
-                                              // Generate invoice
-                                              setInvoices(prev => [
-                                                newInvoice,
-                                                ...prev
-                                              ]);
-
-                                              // Trigger background receipt email to client!
-                                              sendPreAlertReceivedEmailHelper(pa, generatedId, flete, insuranceFeeGtq, totalCharge, false);
-
-                                              alert(`Paquete pre-alertado registrado como recibido en Bodega México. Se ha asignado la guía: ${generatedId} y se ha creado una factura de flete por Q ${flete.toFixed(2)}.`);
+                                               alert(`Paquete pre-alertado registrado como recibido en Bodega México. Se ha asignado la guía: ${generatedId}.`);
                                             }}
                                             className="bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-0.5 rounded text-4xs font-black uppercase transition cursor-pointer shadow-3xs flex items-center gap-0.5"
                                           >
