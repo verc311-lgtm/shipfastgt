@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db, supabase } from './supabaseClient';
 import { MailPromoModal } from './components/MailPromoModal';
+import { GUATEMALA_LOCATIONS } from './guatemalaLocations';
 import {
   Package, 
   Truck, 
@@ -199,7 +200,12 @@ export default function App() {
   const [signupName, setSignupName] = useState('');
   const [signupEmail, setSignupEmail] = useState('');
   const [signupPhone, setSignupPhone] = useState('+502 '); // default prefix +502
+  const [signupDepartment, setSignupDepartment] = useState('');
+  const [signupMunicipality, setSignupMunicipality] = useState('');
+  const [signupZonaAldea, setSignupZonaAldea] = useState('');
   const [signupAddress, setSignupAddress] = useState('');
+  const [signupReference, setSignupReference] = useState('');
+  const [signupInstructions, setSignupInstructions] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
   const [signupSuccessLocker, setSignupSuccessLocker] = useState<string | null>(null);
   const [signupAgency, setSignupAgency] = useState<'SFG' | 'SFA'>('SFG');
@@ -1075,7 +1081,7 @@ Cargos de Flete y Tarifas Asignadas:
   // Handle Registration
   const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!signupName.trim() || !signupEmail.trim() || !signupAddress.trim() || !signupPassword.trim()) {
+    if (!signupName.trim() || !signupEmail.trim() || !signupDepartment.trim() || !signupMunicipality.trim() || !signupZonaAldea.trim() || !signupAddress.trim() || !signupPassword.trim()) {
       alert('Por favor complete todos los campos obligatorios.');
       return;
     }
@@ -1091,10 +1097,19 @@ Cargos de Flete y Tarifas Asignadas:
     const clientCount = users.filter(u => u.role === 'client').length;
     const generatedLockerId = `${signupAgency}${clientCount}`;
 
-    // For Agencia (SFA), force the physical address just in case
-    const finalAddress = signupAgency === 'SFA'
-      ? 'Plaza Los Arcos, 20 calle 5-35. Zona 10, Local #6, Ciudad de Guatemala'
-      : signupAddress;
+    const addressParts = [
+      signupAddress.trim(),
+      signupZonaAldea.trim(),
+      signupMunicipality.trim(),
+      signupDepartment.trim()
+    ];
+    if (signupReference.trim()) {
+      addressParts.push(`Ref: ${signupReference.trim()}`);
+    }
+    if (signupInstructions.trim()) {
+      addressParts.push(`Ind: ${signupInstructions.trim()}`);
+    }
+    const finalAddress = addressParts.join(', ');
 
     const newProfile: UserProfile = {
       lockerId: generatedLockerId,
@@ -1116,7 +1131,12 @@ Cargos de Flete y Tarifas Asignadas:
     setSignupName('');
     setSignupEmail('');
     setSignupPhone('+502 ');
+    setSignupDepartment('');
+    setSignupMunicipality('');
+    setSignupZonaAldea('');
     setSignupAddress('');
+    setSignupReference('');
+    setSignupInstructions('');
     setSignupPassword('');
     setSignupAgency('SFG');
 
@@ -3966,38 +3986,99 @@ Para proporcionarle información específica, puede solicitar:
                               <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Selecciona tu Agencia para tu Casillero *</label>
                               <select
                                 value={signupAgency}
-                                onChange={(e) => {
-                                  const selectedPrefix = e.target.value as 'SFG' | 'SFA';
-                                  setSignupAgency(selectedPrefix);
-                                  if (selectedPrefix === 'SFA') {
-                                    setSignupAddress('Plaza Los Arcos, 20 calle 5-35. Zona 10, Local #6, Ciudad de Guatemala');
-                                  } else {
-                                    setSignupAddress('');
-                                  }
-                                }}
+                                onChange={(e) => setSignupAgency(e.target.value as 'SFG' | 'SFA')}
                                 className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-brand-orange bg-white font-semibold text-brand-gray-dark cursor-pointer"
                               >
                                 <option value="SFG">Entregas a Domicilio (Envios a Toda la Republica) SFG</option>
-                                <option value="SFA">Agencia ( Ciudad de Guatemala) SFA</option>
                               </select>
                             </div>
 
-                            <div>
-                              <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Dirección de Entrega / Envío *</label>
-                              <input
-                                type="text"
-                                required
-                                disabled={signupAgency === 'SFA'}
-                                placeholder={signupAgency === 'SFA' ? "Dirección de la agencia central asignada" : "Ej: Calzada San Juan 10-20, Zona 7, Guatemala"}
-                                value={signupAddress}
-                                onChange={(e) => setSignupAddress(e.target.value)}
-                                className={`w-full px-3 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-brand-orange ${
-                                  signupAgency === 'SFA' ? 'bg-gray-50 text-gray-500 font-semibold cursor-not-allowed' : ''
-                                }`}
-                              />
-                              {signupAgency === 'SFA' && (
-                                <span className="text-[9px] text-brand-orange font-bold block mt-1">📍 Dirección de la sucursal seleccionada (tus paquetes llegarán aquí para retiro).</span>
-                              )}
+                            <div className="pt-2 border-t border-gray-200 space-y-2.5">
+                              <h4 className="text-[11px] font-bold text-brand-gray-dark">Dirección de entrega</h4>
+                              
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                                <div>
+                                  <label className="text-[10px] font-semibold text-gray-600 block mb-1">Departamento *</label>
+                                  <select
+                                    required
+                                    value={signupDepartment}
+                                    onChange={(e) => {
+                                      setSignupDepartment(e.target.value);
+                                      setSignupMunicipality('');
+                                    }}
+                                    className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-brand-orange bg-white"
+                                  >
+                                    <option value="">Seleccionar departamento</option>
+                                    {Object.keys(GUATEMALA_LOCATIONS).map((dept) => (
+                                      <option key={dept} value={dept}>{dept}</option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                <div>
+                                  <label className="text-[10px] font-semibold text-gray-600 block mb-1">Municipio *</label>
+                                  <select
+                                    required
+                                    disabled={!signupDepartment}
+                                    value={signupMunicipality}
+                                    onChange={(e) => setSignupMunicipality(e.target.value)}
+                                    className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-brand-orange bg-white disabled:bg-gray-50 disabled:text-gray-400"
+                                  >
+                                    <option value="">Seleccionar municipio</option>
+                                    {signupDepartment && GUATEMALA_LOCATIONS[signupDepartment]?.map((muni) => (
+                                      <option key={muni} value={muni}>{muni}</option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                <div>
+                                  <label className="text-[10px] font-semibold text-gray-600 block mb-1">Zona / Aldea *</label>
+                                  <input
+                                    type="text"
+                                    required
+                                    placeholder="Ej: Zona 1 / Aldea..."
+                                    value={signupZonaAldea}
+                                    onChange={(e) => setSignupZonaAldea(e.target.value)}
+                                    className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-brand-orange bg-white"
+                                  />
+                                </div>
+                              </div>
+
+                              <div>
+                                <label className="text-[10px] font-semibold text-gray-600 block mb-1">Dirección del destinatario *</label>
+                                <input
+                                  type="text"
+                                  required
+                                  placeholder="Calle, número, colonia"
+                                  value={signupAddress}
+                                  onChange={(e) => setSignupAddress(e.target.value)}
+                                  className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-brand-orange"
+                                />
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                <div>
+                                  <label className="text-[10px] font-semibold text-gray-600 block mb-1">Punto de Referencia</label>
+                                  <input
+                                    type="text"
+                                    placeholder="Última casa a la izquierda"
+                                    value={signupReference}
+                                    onChange={(e) => setSignupReference(e.target.value)}
+                                    className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-brand-orange"
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="text-[10px] font-semibold text-gray-600 block mb-1">Indicaciones <span className="text-gray-400 font-normal">(opcional)</span></label>
+                                  <input
+                                    type="text"
+                                    placeholder="Entregar a la puerta"
+                                    value={signupInstructions}
+                                    onChange={(e) => setSignupInstructions(e.target.value)}
+                                    className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-brand-orange"
+                                  />
+                                </div>
+                              </div>
                             </div>
 
                             <div>
