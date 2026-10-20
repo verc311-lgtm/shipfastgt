@@ -483,6 +483,8 @@ export default function App() {
   });
 
   const [adminSearch, setAdminSearch] = useState('');
+  const [userDirectorySearch, setUserDirectorySearch] = useState('');
+  const [userDirectoryRoleFilter, setUserDirectoryRoleFilter] = useState<'todos' | 'client' | 'staff'>('todos');
   const [adminStatusFilter, setAdminStatusFilter] = useState<string>('todos');
   const [adminServiceFilter, setAdminServiceFilter] = useState<string>('todos');
   const [adminPreAlertStatusFilter, setAdminPreAlertStatusFilter] = useState<string>('todos');
@@ -9134,7 +9136,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
               );
             })()}
 
-\n                    {/* ==================== 8. FACTURACIÓN Y COBROS (`facturacion`) ==================== */}
+                    {/* ==================== 8. FACTURACIÓN Y COBROS (`facturacion`) ==================== */}
                     {adminSubTab === 'facturacion' && (() => {
                       // Financial KPIs Calculations
                       const totalFacturadoGTQ = invoices.reduce((sum, inv) => {
@@ -11217,97 +11219,244 @@ El Equipo de ShipFast GT`;
                         alert(`¡Correo de bienvenida para ${selectedUserForEdit.name} copiado al portapapeles con éxito!`);
                       };
 
+                      const totalClientsCount = users.filter(u => u.role === 'client').length;
+                      const totalStaffCount = users.filter(u => u.role !== 'client').length;
+
+                      const filteredUsers = users.filter(u => {
+                        if (userDirectoryRoleFilter === 'client' && u.role !== 'client') return false;
+                        if (userDirectoryRoleFilter === 'staff' && u.role === 'client') return false;
+
+                        if (userDirectorySearch.trim()) {
+                          const q = userDirectorySearch.toLowerCase().trim();
+                          const matchLocker = (u.lockerId || '').toLowerCase().includes(q);
+                          const matchName = (u.name || '').toLowerCase().includes(q);
+                          const matchEmail = (u.email || '').toLowerCase().includes(q);
+                          const matchPhone = (u.phone || '').toLowerCase().includes(q);
+                          const matchAddr = (u.address || '').toLowerCase().includes(q);
+                          return matchLocker || matchName || matchEmail || matchPhone || matchAddr;
+                        }
+                        return true;
+                      });
+
                       return (
-                        <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs space-y-6">
-                          <div>
-                            <h3 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display mb-1">👥 Usuarios, Pilotos y Operadores de Distribución</h3>
-                            <p className="text-4xs text-gray-500">Módulo de recursos humanos. Gestione los perfiles de operadores de bodega central y pilotos/mensajeros de ruta. Valide teléfonos con el código de país obligatorio (+502).</p>
+                        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-2xs space-y-6">
+                          {/* Header & Quick Stats */}
+                          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-100 pb-4">
+                            <div>
+                              <h3 className="text-sm font-black text-brand-gray-dark uppercase tracking-wider font-display mb-1 flex items-center gap-2">
+                                <span>👥 Directorio de Clientes y Operadores</span>
+                              </h3>
+                              <p className="text-4xs text-gray-500">Gestione casilleros de clientes, direcciones de entrega, perfiles de operadores y mensajeros autorizados.</p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <div className="bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-lg text-center">
+                                <span className="text-[9px] font-bold text-slate-400 uppercase block">Total Registros</span>
+                                <span className="text-sm font-black text-brand-gray-dark font-mono">{users.length}</span>
+                              </div>
+                              <div className="bg-orange-50/60 border border-brand-orange/20 px-3.5 py-2 rounded-lg text-center">
+                                <span className="text-[9px] font-bold text-brand-orange uppercase block">Clientes</span>
+                                <span className="text-sm font-black text-brand-orange font-mono">{totalClientsCount}</span>
+                              </div>
+                              <div className="bg-blue-50/60 border border-blue-200 px-3.5 py-2 rounded-lg text-center">
+                                <span className="text-[9px] font-bold text-blue-600 uppercase block">Staff / Operadores</span>
+                                <span className="text-sm font-black text-blue-700 font-mono">{totalStaffCount}</span>
+                              </div>
+                            </div>
                           </div>
 
-                          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                             
-                            {/* Operator directories - LEFT */}
+                            {/* Directory Table - LEFT */}
                             <div className="lg:col-span-8 space-y-4">
-                              <span className="text-4xs font-bold text-gray-400 uppercase tracking-widest block">Directorio Logístico de Pilotos y Mensajeros Autorizados</span>
-                              
-                              <div className="overflow-x-auto border border-gray-200 rounded-lg">
-                                <table className="w-full text-left border-collapse">
-                                  <thead>
-                                    <tr className="bg-gray-100 border-b border-gray-200 text-4xs font-extrabold text-gray-500 uppercase tracking-wider">
-                                      <th className="py-2.5 px-4">Identificador</th>
-                                      <th className="py-2.5 px-3">Nombre Completo</th>
-                                      <th className="py-2.5 px-3">Rol / Función</th>
-                                      <th className="py-2.5 px-3">Número de Teléfono (+502)</th>
-                                      <th className="py-2.5 px-4">Correo</th>
-                                      <th className="py-2.5 px-4 text-center">Acciones</th>
+                              {/* Search and Filters Bar */}
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200/80">
+                                <div className="relative flex-1">
+                                  <Search className="h-3.5 w-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                                  <input
+                                    type="text"
+                                    value={userDirectorySearch}
+                                    onChange={(e) => setUserDirectorySearch(e.target.value)}
+                                    placeholder="Buscar por casillero (SFG...), nombre, teléfono, correo o dirección..."
+                                    className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-orange/30 focus:border-brand-orange font-medium"
+                                  />
+                                  {userDirectorySearch && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setUserDirectorySearch('')}
+                                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                    >
+                                      <X className="h-3.5 w-3.5" />
+                                    </button>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1 bg-white p-1 rounded-lg border border-gray-200 self-start sm:self-auto">
+                                  <button
+                                    type="button"
+                                    onClick={() => setUserDirectoryRoleFilter('todos')}
+                                    className={`px-2.5 py-1 rounded-md text-4xs font-extrabold uppercase tracking-wider transition cursor-pointer ${
+                                      userDirectoryRoleFilter === 'todos'
+                                        ? 'bg-brand-gray-dark text-white'
+                                        : 'text-gray-500 hover:bg-gray-100'
+                                    }`}
+                                  >
+                                    Todos ({users.length})
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setUserDirectoryRoleFilter('client')}
+                                    className={`px-2.5 py-1 rounded-md text-4xs font-extrabold uppercase tracking-wider transition cursor-pointer ${
+                                      userDirectoryRoleFilter === 'client'
+                                        ? 'bg-brand-orange text-white'
+                                        : 'text-gray-500 hover:bg-gray-100'
+                                    }`}
+                                  >
+                                    Clientes ({totalClientsCount})
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setUserDirectoryRoleFilter('staff')}
+                                    className={`px-2.5 py-1 rounded-md text-4xs font-extrabold uppercase tracking-wider transition cursor-pointer ${
+                                      userDirectoryRoleFilter === 'staff'
+                                        ? 'bg-blue-600 text-white'
+                                        : 'text-gray-500 hover:bg-gray-100'
+                                    }`}
+                                  >
+                                    Operadores ({totalStaffCount})
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Clean Organized Table */}
+                              <div className="overflow-x-auto border border-gray-200 rounded-xl shadow-2xs max-h-[620px] overflow-y-auto">
+                                <table className="w-full text-left border-collapse min-w-[680px]">
+                                  <thead className="sticky top-0 z-10">
+                                    <tr className="bg-slate-100 border-b border-gray-200 text-[10px] font-black text-slate-600 uppercase tracking-wider">
+                                      <th className="py-3 px-3.5 w-24">Casillero</th>
+                                      <th className="py-3 px-3">Usuario / Rol</th>
+                                      <th className="py-3 px-3">Contacto (Tel / Email)</th>
+                                      <th className="py-3 px-3">Dirección de Entrega</th>
+                                      <th className="py-3 px-3.5 text-center w-24">Acción</th>
                                     </tr>
                                   </thead>
-                                  <tbody className="divide-y divide-gray-100 text-3xs font-semibold text-brand-gray-dark">
-                                    {users.map((u, uIdx) => (
-                                      <tr 
-                                        key={uIdx} 
-                                        onClick={() => setSelectedUserForEdit(u)}
-                                        className={`hover:bg-gray-50/70 transition cursor-pointer ${
-                                          selectedUserForEdit?.lockerId === u.lockerId ? 'bg-orange-50/50 hover:bg-orange-50' : ''
-                                        }`}
-                                      >
-                                        <td className="py-3 px-4 font-mono font-bold text-gray-400">{u.lockerId}</td>
-                                        <td className="py-3 px-3 font-bold">{u.name}</td>
-                                        <td className="py-3 px-3">
-                                          <span className={`px-2 py-0.5 rounded text-4xs font-extrabold uppercase border ${
-                                            u.role === 'admin' 
-                                              ? 'bg-brand-orange/10 border-brand-orange/30 text-brand-orange' 
-                                              : 'bg-gray-50 border-gray-200 text-gray-600'
-                                          }`}>
-                                            {u.role === 'admin' ? 'Administrador Central' : 
-                                             u.role === 'driver' ? 'Mensajero Motorizado' :
-                                             u.role === 'pilot' ? 'Piloto de Carga' :
-                                             u.role === 'operator' ? 'Despachador de Bodega' :
-                                             u.role === 'auditor' ? 'Auditor Contable' : 'Cliente'}
-                                          </span>
-                                        </td>
-                                        <td className="py-3 px-3 font-mono font-bold text-brand-gray-dark">{u.phone}</td>
-                                        <td className="py-3 px-4 font-mono text-gray-400">{u.email}</td>
-                                        <td className="py-3 px-4 text-center" onClick={(e) => e.stopPropagation()}>
-                                          <button
-                                            type="button"
-                                            onClick={() => setSelectedUserForEdit(u)}
-                                            className="px-2.5 py-1 bg-brand-orange/10 hover:bg-brand-orange text-brand-orange hover:text-white rounded border border-brand-orange/20 text-5xs font-black uppercase tracking-wider transition cursor-pointer"
-                                          >
-                                            Editar
-                                          </button>
+                                  <tbody className="divide-y divide-gray-100 text-xs bg-white">
+                                    {filteredUsers.length === 0 ? (
+                                      <tr>
+                                        <td colSpan={5} className="py-8 text-center text-gray-400 text-xs font-medium">
+                                          No se encontraron usuarios que coincidan con la búsqueda.
                                         </td>
                                       </tr>
-                                    ))}
+                                    ) : (
+                                      filteredUsers.map((u, uIdx) => {
+                                        const isSelected = selectedUserForEdit?.lockerId === u.lockerId;
+                                        return (
+                                          <tr 
+                                            key={uIdx} 
+                                            onClick={() => setSelectedUserForEdit(u)}
+                                            className={`hover:bg-orange-50/40 transition cursor-pointer ${
+                                              isSelected ? 'bg-orange-50/80 ring-1 ring-inset ring-brand-orange/30' : ''
+                                            }`}
+                                          >
+                                            <td className="py-3 px-3.5 align-top whitespace-nowrap">
+                                              <span className="inline-block px-2 py-1 rounded-md font-mono font-black text-3xs bg-slate-100 text-brand-gray-dark border border-slate-200">
+                                                {u.lockerId}
+                                              </span>
+                                            </td>
+                                            <td className="py-3 px-3 align-top">
+                                              <div className="font-bold text-brand-gray-dark text-xs leading-snug">{u.name}</div>
+                                              <span className={`inline-block mt-1 px-2 py-0.5 rounded text-[9px] font-extrabold uppercase border ${
+                                                u.role === 'admin' 
+                                                  ? 'bg-brand-orange/10 border-brand-orange/30 text-brand-orange' 
+                                                  : u.role === 'client'
+                                                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                                                  : 'bg-blue-50 border-blue-200 text-blue-700'
+                                              }`}>
+                                                {u.role === 'admin' ? 'Administrador' : 
+                                                 u.role === 'driver' ? 'Mensajero' :
+                                                 u.role === 'pilot' ? 'Piloto' :
+                                                 u.role === 'operator' ? 'Bodega' :
+                                                 u.role === 'auditor' ? 'Auditor' : 'Cliente'}
+                                              </span>
+                                            </td>
+                                            <td className="py-3 px-3 align-top whitespace-nowrap">
+                                              <div className="font-mono font-bold text-brand-gray-dark text-3xs flex items-center gap-1">
+                                                <span>📞</span> {u.phone || 'Sin teléfono'}
+                                              </div>
+                                              <div className="font-mono text-gray-500 text-4xs mt-0.5 truncate max-w-[190px]" title={u.email}>
+                                                ✉️ {u.email || 'Sin correo'}
+                                              </div>
+                                            </td>
+                                            <td className="py-3 px-3 align-top">
+                                              <p className="text-3xs text-gray-600 font-medium line-clamp-2 leading-relaxed max-w-[260px]" title={u.address}>
+                                                {u.address || <span className="italic text-gray-400">Sin dirección registrada</span>}
+                                              </p>
+                                            </td>
+                                            <td className="py-3 px-3.5 align-top text-center whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                                              <button
+                                                type="button"
+                                                onClick={() => setSelectedUserForEdit(u)}
+                                                className={`px-3 py-1.5 rounded-lg border text-4xs font-black uppercase tracking-wider transition cursor-pointer ${
+                                                  isSelected
+                                                    ? 'bg-brand-orange text-white border-brand-orange shadow-2xs'
+                                                    : 'bg-white hover:bg-brand-orange text-brand-orange hover:text-white border-brand-orange/30'
+                                                }`}
+                                              >
+                                                Ver / Editar
+                                              </button>
+                                            </td>
+                                          </tr>
+                                        );
+                                      })
+                                    )}
                                   </tbody>
                                 </table>
                               </div>
                             </div>
 
                             {/* Operator register/edit - RIGHT */}
-                            <div className="lg:col-span-4 bg-gray-50 border border-gray-200 p-5 rounded-lg space-y-4 shadow-xs">
+                            <div className="lg:col-span-4 bg-slate-50 border border-slate-200/90 p-5 rounded-xl space-y-4 shadow-xs sticky top-4">
                               {selectedUserForEdit ? (
                                 <div className="space-y-4 animate-fade-in">
-                                  <div className="flex justify-between items-center border-b border-gray-200 pb-1.5">
-                                    <h4 className="text-3xs font-extrabold text-brand-orange uppercase tracking-wider">Detalles / Editar Perfil</h4>
+                                  <div className="flex justify-between items-center border-b border-gray-200 pb-2.5">
+                                    <div>
+                                      <span className="text-[9px] font-black text-brand-orange uppercase tracking-widest block">Ficha de Usuario</span>
+                                      <h4 className="text-xs font-black text-brand-gray-dark uppercase tracking-wider">{selectedUserForEdit.lockerId} — {selectedUserForEdit.name}</h4>
+                                    </div>
                                     <button
                                       type="button"
                                       onClick={() => setSelectedUserForEdit(null)}
-                                      className="text-5xs text-gray-500 hover:text-gray-700 font-bold bg-white border border-gray-250 px-2 py-0.5 rounded cursor-pointer transition shadow-3xs"
+                                      className="text-4xs text-gray-600 hover:text-brand-gray-dark font-bold bg-white border border-gray-300 px-2.5 py-1 rounded-md cursor-pointer transition shadow-3xs"
                                     >
-                                      Volver
+                                      ✕ Cerrar
                                     </button>
                                   </div>
 
                                   <form onSubmit={handleSaveEditedUser} className="space-y-3">
-                                    <div>
-                                      <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Identificador (Casillero)</label>
-                                      <input
-                                        type="text"
-                                        disabled
-                                        value={selectedUserForEdit.lockerId}
-                                        className="w-full px-3 py-1.5 text-3xs border border-gray-200 rounded font-bold font-mono text-gray-400 bg-gray-100 cursor-not-allowed"
-                                      />
+                                    <div className="grid grid-cols-2 gap-2.5">
+                                      <div>
+                                        <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Casillero ID</label>
+                                        <input
+                                          type="text"
+                                          disabled
+                                          value={selectedUserForEdit.lockerId}
+                                          className="w-full px-3 py-1.5 text-xs border border-gray-200 rounded-md font-bold font-mono text-gray-500 bg-gray-100 cursor-not-allowed"
+                                        />
+                                      </div>
+
+                                      <div>
+                                        <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Rol / Función *</label>
+                                        <select
+                                          value={selectedUserForEdit.role}
+                                          onChange={(e) => setSelectedUserForEdit({ ...selectedUserForEdit, role: e.target.value })}
+                                          className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded-md focus:border-brand-orange focus:ring-1 focus:ring-brand-orange bg-white font-semibold text-brand-gray-dark outline-hidden"
+                                        >
+                                          <option value="client">Cliente</option>
+                                          <option value="admin">Administrador Central</option>
+                                          <option value="driver">Mensajero Motorizado</option>
+                                          <option value="pilot">Piloto de Carga</option>
+                                          <option value="operator">Despachador Bodega</option>
+                                          <option value="auditor">Auditor Contable</option>
+                                        </select>
+                                      </div>
                                     </div>
 
                                     <div>
@@ -11317,35 +11466,32 @@ El Equipo de ShipFast GT`;
                                         required
                                         value={selectedUserForEdit.name}
                                         onChange={(e) => setSelectedUserForEdit({ ...selectedUserForEdit, name: e.target.value })}
-                                        className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark bg-white focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-hidden"
+                                        className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-md font-semibold text-brand-gray-dark bg-white focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-hidden"
                                       />
                                     </div>
 
-                                    <div>
-                                      <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Rol / Función *</label>
-                                      <select
-                                        value={selectedUserForEdit.role}
-                                        onChange={(e) => setSelectedUserForEdit({ ...selectedUserForEdit, role: e.target.value })}
-                                        className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded focus:border-brand-orange focus:ring-1 focus:ring-brand-orange bg-white font-semibold text-brand-gray-dark outline-hidden"
-                                      >
-                                        <option value="client">Cliente</option>
-                                        <option value="admin">Administrador Central</option>
-                                        <option value="driver">Mensajero Motorizado (Local)</option>
-                                        <option value="pilot">Piloto de Carga Troncal</option>
-                                        <option value="operator">Despachador de Bodega</option>
-                                        <option value="auditor">Auditor Contable</option>
-                                      </select>
-                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                                      <div>
+                                        <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Teléfono (+502) *</label>
+                                        <input
+                                          type="text"
+                                          required
+                                          value={selectedUserForEdit.phone}
+                                          onChange={(e) => setSelectedUserForEdit({ ...selectedUserForEdit, phone: e.target.value })}
+                                          className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-md font-bold font-mono text-brand-gray-dark bg-white focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-hidden"
+                                        />
+                                      </div>
 
-                                    <div>
-                                      <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Número de Teléfono (+502) *</label>
-                                      <input
-                                        type="text"
-                                        required
-                                        value={selectedUserForEdit.phone}
-                                        onChange={(e) => setSelectedUserForEdit({ ...selectedUserForEdit, phone: e.target.value })}
-                                        className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-bold font-mono text-brand-gray-dark bg-white focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-hidden"
-                                      />
+                                      <div>
+                                        <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Contraseña Acceso</label>
+                                        <input
+                                          type="text"
+                                          value={selectedUserForEdit.password || ''}
+                                          onChange={(e) => setSelectedUserForEdit({ ...selectedUserForEdit, password: e.target.value })}
+                                          placeholder="Contraseña"
+                                          className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-md font-bold font-mono text-brand-gray-dark bg-white focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-hidden"
+                                        />
+                                      </div>
                                     </div>
 
                                     <div>
@@ -11355,38 +11501,27 @@ El Equipo de ShipFast GT`;
                                         required
                                         value={selectedUserForEdit.email}
                                         onChange={(e) => setSelectedUserForEdit({ ...selectedUserForEdit, email: e.target.value })}
-                                        className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark bg-white focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-hidden"
+                                        className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-md font-semibold text-brand-gray-dark bg-white focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-hidden"
                                       />
                                     </div>
 
                                     <div>
-                                      <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Dirección Registrada *</label>
+                                      <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Dirección de Entrega Registrada *</label>
                                       <textarea
-                                        rows={2}
+                                        rows={3}
                                         required
                                         value={selectedUserForEdit.address || ''}
                                         onChange={(e) => setSelectedUserForEdit({ ...selectedUserForEdit, address: e.target.value })}
-                                        className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark bg-white resize-none focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-hidden"
-                                      />
-                                    </div>
-
-                                    <div>
-                                      <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Contraseña de Acceso</label>
-                                      <input
-                                        type="text"
-                                        value={selectedUserForEdit.password || ''}
-                                        onChange={(e) => setSelectedUserForEdit({ ...selectedUserForEdit, password: e.target.value })}
-                                        placeholder="Ingrese contraseña"
-                                        className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-bold font-mono text-brand-gray-dark bg-white focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-hidden"
+                                        className="w-full px-3 py-2 text-xs border border-gray-300 rounded-md font-semibold text-brand-gray-dark bg-white resize-y focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-hidden leading-relaxed"
                                       />
                                     </div>
 
                                     <div className="flex gap-2 pt-2">
                                       <button
                                         type="submit"
-                                        className="flex-1 bg-brand-orange hover:bg-brand-orange-hover text-white text-3xs font-extrabold py-2 rounded uppercase tracking-wider transition cursor-pointer text-center"
+                                        className="flex-1 bg-brand-orange hover:bg-brand-orange-hover text-white text-3xs font-extrabold py-2.5 rounded-lg uppercase tracking-wider transition cursor-pointer text-center shadow-xs"
                                       >
-                                        Guardar
+                                        💾 Guardar Cambios
                                       </button>
                                       <button
                                         type="button"
@@ -11395,14 +11530,14 @@ El Equipo de ShipFast GT`;
                                             handleDeleteUser(selectedUserForEdit.lockerId);
                                           }
                                         }}
-                                        className="px-3 bg-red-600 hover:bg-red-700 text-white text-3xs font-extrabold py-2 rounded uppercase tracking-wider transition cursor-pointer text-center"
+                                        className="px-3.5 bg-red-600 hover:bg-red-700 text-white text-3xs font-extrabold py-2.5 rounded-lg uppercase tracking-wider transition cursor-pointer text-center"
                                       >
                                         Eliminar
                                       </button>
                                     </div>
 
-                                    <div className="border-t border-gray-250 pt-3 mt-3 space-y-2">
-                                      <label className="text-4xs font-bold text-gray-500 uppercase block mb-0.5">Correo y Notificaciones</label>
+                                    <div className="border-t border-gray-200 pt-3 mt-3 space-y-2">
+                                      <label className="text-4xs font-bold text-gray-500 uppercase block mb-0.5">Acciones de Correo y Bienvenida</label>
                                       <div className="flex gap-2">
                                         <button
                                           type="button"
@@ -11415,16 +11550,16 @@ El Equipo de ShipFast GT`;
                                             setMailPromoImageName('');
                                             setIsMailModalOpen(true);
                                           }}
-                                          className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-4xs font-extrabold py-2 rounded uppercase tracking-wider transition cursor-pointer text-center flex items-center justify-center gap-1"
+                                          className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-4xs font-extrabold py-2 rounded-lg uppercase tracking-wider transition cursor-pointer text-center flex items-center justify-center gap-1"
                                         >
                                           ✉️ Enviar Correo
                                         </button>
                                         <button
                                           type="button"
                                           onClick={handleCopyWelcomeEmail}
-                                          className="flex-1 bg-gray-600 hover:bg-gray-700 text-white text-4xs font-extrabold py-2 rounded uppercase tracking-wider transition cursor-pointer text-center flex items-center justify-center gap-1"
+                                          className="flex-1 bg-slate-700 hover:bg-slate-800 text-white text-4xs font-extrabold py-2 rounded-lg uppercase tracking-wider transition cursor-pointer text-center flex items-center justify-center gap-1"
                                         >
-                                          📋 Copiar Texto
+                                          📋 Copiar Bienvenida
                                         </button>
                                       </div>
                                     </div>
@@ -11432,7 +11567,10 @@ El Equipo de ShipFast GT`;
                                 </div>
                               ) : (
                                 <div className="space-y-4">
-                                  <h4 className="text-3xs font-extrabold text-brand-gray-dark uppercase tracking-wider border-b border-gray-200 pb-1.5">Registrar Nuevo Operador</h4>
+                                  <div>
+                                    <h4 className="text-xs font-black text-brand-gray-dark uppercase tracking-wider border-b border-gray-200 pb-2">Registrar Nuevo Operador</h4>
+                                    <p className="text-4xs text-gray-500 mt-1">Haga clic en cualquier usuario de la tabla para ver su dirección completa o editar sus datos.</p>
+                                  </div>
                                   
                                   <form onSubmit={handleAddOperator} className="space-y-3">
                                     <div>
@@ -11442,7 +11580,7 @@ El Equipo de ShipFast GT`;
                                         required
                                         placeholder="Nombre del conductor/operario"
                                         id="opNameInput"
-                                        className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-hidden"
+                                        className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-md font-semibold text-brand-gray-dark bg-white focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-hidden"
                                       />
                                     </div>
 
@@ -11450,7 +11588,7 @@ El Equipo de ShipFast GT`;
                                       <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Función Operativa *</label>
                                       <select
                                         id="opRoleSelect"
-                                        className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange bg-white font-semibold outline-hidden"
+                                        className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-md focus:ring-1 focus:ring-brand-orange bg-white font-semibold outline-hidden"
                                       >
                                         <option value="driver">Mensajero Motorizado (Local)</option>
                                         <option value="pilot">Piloto de Carga Troncal</option>
@@ -11466,7 +11604,7 @@ El Equipo de ShipFast GT`;
                                         required
                                         defaultValue="+502 "
                                         id="opPhoneInput"
-                                        className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-bold font-mono text-brand-gray-dark focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-hidden"
+                                        className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-md font-bold font-mono text-brand-gray-dark bg-white focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-hidden"
                                       />
                                     </div>
 
@@ -11477,13 +11615,13 @@ El Equipo de ShipFast GT`;
                                         required
                                         placeholder="operador@shipfast.gt"
                                         id="opEmailInput"
-                                        className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-hidden"
+                                        className="w-full px-3 py-1.5 text-xs border border-gray-300 rounded-md font-semibold text-brand-gray-dark bg-white focus:border-brand-orange focus:ring-1 focus:ring-brand-orange outline-hidden"
                                       />
                                     </div>
 
                                     <button
                                       type="submit"
-                                      className="w-full bg-brand-orange hover:bg-brand-orange-hover text-white text-3xs font-extrabold py-2 rounded uppercase tracking-wider transition cursor-pointer"
+                                      className="w-full bg-brand-orange hover:bg-brand-orange-hover text-white text-3xs font-extrabold py-2.5 rounded-lg uppercase tracking-wider transition cursor-pointer shadow-xs"
                                     >
                                       Registrar Colaborador
                                     </button>
