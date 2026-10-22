@@ -4728,6 +4728,32 @@ Para proporcionarle información específica, puede solicitar:
             {currentUser.role === 'client' && activeTab === 'my-locker' && (
               <div className="space-y-6 flex-1 min-h-0 flex flex-col">
                 
+                {/* Banner de Atención al Cliente, Teléfono y Horario en Grande */}
+                <div className="bg-brand-gray-dark text-white p-5 rounded-xl border-2 border-brand-orange shadow-lg flex flex-col md:flex-row items-center justify-between gap-4 shrink-0">
+                  <div className="flex items-center gap-4 text-center md:text-left">
+                    <div className="bg-brand-orange/20 border border-brand-orange/40 p-3.5 rounded-xl hidden sm:flex items-center justify-center">
+                      <span className="text-3xl">📞</span>
+                    </div>
+                    <div>
+                      <span className="text-[11px] font-black text-brand-orange uppercase tracking-widest block mb-0.5">
+                        CENTRO DE ATENCIÓN Y SOPORTE AL CLIENTE
+                      </span>
+                      <div className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-white">
+                        +502-3599-2026
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bg-white/10 border border-white/15 px-5 py-3 rounded-xl text-center md:text-right flex flex-col justify-center">
+                    <span className="text-[10px] font-extrabold text-gray-300 uppercase tracking-widest flex items-center justify-center md:justify-end gap-1.5 mb-0.5">
+                      <Clock className="h-4 w-4 text-brand-orange" />
+                      HORARIO DE ATENCIÓN
+                    </span>
+                    <span className="text-lg sm:text-xl font-black text-brand-orange tracking-wide">
+                      9:00 AM a 5:00 PM
+                    </span>
+                  </div>
+                </div>
+
                 {/* Banner de Recordatorios de Seguro y Pre-alertas */}
                 <div className="bg-gradient-to-r from-brand-orange/15 via-amber-500/10 to-transparent border-l-4 border-brand-orange p-4 rounded-r-lg shadow-3xs flex items-start gap-3.5 shrink-0 animate-slide-in">
                   <span className="text-xl mt-0.5 select-none">📢</span>
