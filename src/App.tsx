@@ -423,6 +423,7 @@ export default function App() {
   const [expenseDate, setExpenseDate] = useState(() => new Date().toISOString().split('T')[0]);
 
   // Financial Report Filters
+  const [reportSelectedMonth, setReportSelectedMonth] = useState<string>(() => new Date().toISOString().slice(0, 7)); // e.g. '2026-10' or 'all' or 'custom'
   const [reportStartDate, setReportStartDate] = useState('');
   const [reportEndDate, setReportEndDate] = useState('');
 
@@ -8948,34 +8949,174 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
 
                                 {/* ==================== ADMIN: REPORTES FINANCIEROS TAB ==================== */}
             {adminSubTab === 'reportes-financieros' && (() => {
+              const MONTH_NAMES = [
+                'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+              ];
+
+              const normalizeYearMonth = (dateStr: string): string => {
+                if (!dateStr) return '';
+                const clean = dateStr.trim();
+                // YYYY-MM-DD or ISO
+                if (/^\d{4}-\d{2}/.test(clean)) {
+                  return clean.slice(0, 7);
+                }
+                const parsed = new Date(clean);
+                if (!isNaN(parsed.getTime())) {
+                  const y = parsed.getFullYear();
+                  const m = String(parsed.getMonth() + 1).padStart(2, '0');
+                  return `${y}-${m}`;
+                }
+                return '';
+              };
+
+              const normalizeIsoDate = (dateStr: string): string => {
+                if (!dateStr) return '';
+                const clean = dateStr.trim();
+                if (/^\d{4}-\d{2}-\d{2}/.test(clean)) {
+                  return clean.slice(0, 10);
+                }
+                const parsed = new Date(clean);
+                if (!isNaN(parsed.getTime())) {
+                  const y = parsed.getFullYear();
+                  const m = String(parsed.getMonth() + 1).padStart(2, '0');
+                  const d = String(parsed.getDate()).padStart(2, '0');
+                  return `${y}-${m}-${d}`;
+                }
+                return clean;
+              };
+
+              const formatMonthLabel = (ym: string) => {
+                if (!ym || !ym.includes('-')) return ym;
+                const [y, m] = ym.split('-');
+                const mIdx = parseInt(m, 10) - 1;
+                return `${MONTH_NAMES[mIdx] || m} ${y}`;
+              };
+
+              // Build list of available months (last 12 months + any month in data)
+              const monthSet = new Set<string>();
+              const now = new Date();
+              for (let i = 0; i < 12; i++) {
+                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                monthSet.add(ym);
+              }
+              paymentsLog.forEach(p => { const ym = normalizeYearMonth(p.date); if (ym) monthSet.add(ym); });
+              expensesLog.forEach(e => { const ym = normalizeYearMonth(e.date); if (ym) monthSet.add(ym); });
+              invoices.forEach(inv => { const ym = normalizeYearMonth(inv.date); if (ym) monthSet.add(ym); });
+              const availableMonths = Array.from(monthSet).sort((a, b) => b.localeCompare(a));
+
               const isDateInRange = (dateStr: string) => {
-                if (!dateStr) return true;
-                if (reportStartDate && dateStr < reportStartDate) return false;
-                if (reportEndDate && dateStr > reportEndDate) return false;
-                return true;
+                if (!dateStr) return false;
+                if (reportSelectedMonth === 'all') return true;
+                if (reportSelectedMonth === 'custom') {
+                  const iso = normalizeIsoDate(dateStr);
+                  if (reportStartDate && iso < reportStartDate) return false;
+                  if (reportEndDate && iso > reportEndDate) return false;
+                  return true;
+                }
+                return normalizeYearMonth(dateStr) === reportSelectedMonth;
               };
 
               const filteredInvoices = invoices.filter(i => isDateInRange(i.date));
               const filteredPayments = paymentsLog.filter(p => isDateInRange(p.date));
               const filteredExpenses = expensesLog.filter(e => isDateInRange(e.date));
 
+              // Helper to determine payment currency accurately
+              const getPaymentCurrency = (p: any): 'GTQ' | 'USD' => {
+                if (p.currency === 'USD') return 'USD';
+                if (p.currency === 'GTQ') return 'GTQ';
+                const assoc = invoices.find(i => i.id === p.invoiceId);
+                if (assoc) {
+                  const parsed = parseInvoiceConcept(assoc.concept);
+                  if (parsed?.currency === 'USD') return 'USD';
+                }
+                return 'GTQ';
+              };
+
+              // Monthly summary across all months that have activity (or current month)
+              const activeMonthsSet = new Set<string>();
+              activeMonthsSet.add(new Date().toISOString().slice(0, 7));
+              paymentsLog.forEach(p => { const ym = normalizeYearMonth(p.date); if (ym) activeMonthsSet.add(ym); });
+              expensesLog.forEach(e => { const ym = normalizeYearMonth(e.date); if (ym) activeMonthsSet.add(ym); });
+              invoices.forEach(inv => { const ym = normalizeYearMonth(inv.date); if (ym) activeMonthsSet.add(ym); });
+
+              const monthlySummaryRows = Array.from(activeMonthsSet)
+                .sort((a, b) => b.localeCompare(a))
+                .map(ym => {
+                  const mPayments = paymentsLog.filter(p => normalizeYearMonth(p.date) === ym);
+                  const mExpenses = expensesLog.filter(e => normalizeYearMonth(e.date) === ym);
+                  const mInvoices = invoices.filter(i => normalizeYearMonth(i.date) === ym);
+                  const mPending = mInvoices.filter(i => i.paymentStatus === 'Pendiente');
+
+                  const revGTQ = mPayments
+                    .filter(p => getPaymentCurrency(p) === 'GTQ')
+                    .reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
+                  const revUSD = mPayments
+                    .filter(p => getPaymentCurrency(p) === 'USD')
+                    .reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
+
+                  const expGTQ = mExpenses
+                    .filter(e => (e.currency || 'GTQ') === 'GTQ')
+                    .reduce((acc, e) => acc + (parseFloat(e.amount) || 0), 0);
+
+                  const pendGTQ = mPending.reduce((acc, i) => {
+                    const parsed = parseInvoiceConcept(i.concept);
+                    if ((parsed?.currency || 'GTQ') === 'GTQ') return acc + (parseFloat(i.amount) || 0);
+                    return acc;
+                  }, 0);
+
+                  return {
+                    ym,
+                    label: formatMonthLabel(ym),
+                    paymentsCount: mPayments.length,
+                    expensesCount: mExpenses.length,
+                    revGTQ,
+                    revUSD,
+                    expGTQ,
+                    netGTQ: revGTQ - expGTQ,
+                    pendGTQ,
+                    pendingCount: mPending.length
+                  };
+                });
+
               const exportToCSV = () => {
                 const rows = [];
-                rows.push(['Tipo', 'ID', 'Fecha', 'Concepto/Referencia', 'Monto', 'Moneda']);
+                rows.push(['Periodo', 'Tipo', 'ID', 'Fecha', 'Casillero / Categoría', 'Concepto / Notas', 'Monto', 'Moneda']);
                 
                 filteredPayments.forEach(p => {
-                  rows.push(['Ingreso (Pago)', p.id, p.date || '', `${p.method || ''} ${p.reference || ''}`.trim(), p.amount, p.currency || 'GTQ']);
+                  const curr = getPaymentCurrency(p);
+                  rows.push([
+                    reportSelectedMonth === 'all' ? 'Histórico' : reportSelectedMonth,
+                    'Ingreso (Pago)',
+                    p.id,
+                    p.date || '',
+                    p.lockerId || '',
+                    `${p.method || ''} - Factura ${p.invoiceId || ''} (${p.notes || ''})`.trim(),
+                    p.amount,
+                    curr
+                  ]);
                 });
                 
                 filteredExpenses.forEach(e => {
-                  rows.push(['Gasto', e.id, e.date || '', `${e.category || ''} - ${e.description || ''}`.trim(), e.amount, e.currency || 'GTQ']);
+                  rows.push([
+                    reportSelectedMonth === 'all' ? 'Histórico' : reportSelectedMonth,
+                    'Gasto Operativo',
+                    e.id,
+                    e.date || '',
+                    e.category || '',
+                    `${e.description || ''} (Reg: ${e.cashier || ''})`.trim(),
+                    e.amount,
+                    e.currency || 'GTQ'
+                  ]);
                 });
               
                 const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + rows.map(e => e.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
                 const encodedUri = encodeURI(csvContent);
                 const link = document.createElement("a");
                 link.setAttribute("href", encodedUri);
-                link.setAttribute("download", `reporte_financiero_${reportStartDate || 'inicio'}_al_${reportEndDate || 'fin'}.csv`);
+                const periodTag = reportSelectedMonth === 'all' ? 'historico_completo' : reportSelectedMonth === 'custom' ? `${reportStartDate || 'inicio'}_a_${reportEndDate || 'fin'}` : reportSelectedMonth;
+                link.setAttribute("download", `reporte_financiero_${periodTag}.csv`);
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
@@ -8985,10 +9126,10 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
               const paidInvoices = filteredInvoices.filter(i => i.paymentStatus === 'Pagado');
 
               const totalRevenueGTQ = filteredPayments
-                .filter(p => p.currency === 'GTQ' || !p.currency)
+                .filter(p => getPaymentCurrency(p) === 'GTQ')
                 .reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
               const totalRevenueUSD = filteredPayments
-                .filter(p => p.currency === 'USD')
+                .filter(p => getPaymentCurrency(p) === 'USD')
                 .reduce((acc, p) => acc + (parseFloat(p.amount) || 0), 0);
               
               const totalExpensesGTQ = filteredExpenses
@@ -9013,34 +9154,102 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                 return acc;
               }, 0);
 
+              const currentPeriodTitle = reportSelectedMonth === 'all'
+                ? 'Todo el Historial'
+                : reportSelectedMonth === 'custom'
+                ? `Rango: ${reportStartDate || '...'} al ${reportEndDate || '...'}`
+                : formatMonthLabel(reportSelectedMonth);
+
               return (
                 <div className="flex flex-col gap-6 w-full animate-fade-in pb-20">
-                  <div className="flex items-center justify-between bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                  {/* Top Header & Month Selector Controls */}
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
                     <div>
-                      <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-3">
-                        <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
                           <Wallet className="h-6 w-6" />
                         </div>
-                        Reportes Financieros
-                      </h2>
-                      <p className="text-sm text-gray-500 mt-1">
-                        Resumen contable, ingresos, gastos y facturación.
-                      </p>
+                        <div>
+                          <h2 className="text-xl font-black text-gray-800 uppercase tracking-wide flex items-center gap-2">
+                            Reportes Financieros Mensuales
+                            <span className="text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-brand-orange/10 text-brand-orange border border-brand-orange/20">
+                              {currentPeriodTitle}
+                            </span>
+                          </h2>
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            Control exacto de pagos recibidos, gastos operativos, utilidad neta y cuentas por cobrar por cada mes.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Period Filter Controls */}
+                    <div className="flex flex-wrap items-center gap-2.5 bg-slate-50 p-2.5 rounded-xl border border-slate-200/80">
+                      <div className="flex items-center gap-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider whitespace-nowrap">
+                          📅 Mes Contable:
+                        </label>
+                        <select
+                          value={reportSelectedMonth}
+                          onChange={(e) => setReportSelectedMonth(e.target.value)}
+                          className="px-3 py-1.5 text-xs font-bold text-brand-gray-dark bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-orange cursor-pointer"
+                        >
+                          <option value="all">📊 Todo el Historial (Acumulado)</option>
+                          <option value="custom">🗓️ Rango de Fechas Personalizado</option>
+                          <optgroup label="Seleccionar Mes Exacto">
+                            {availableMonths.map(ym => (
+                              <option key={ym} value={ym}>
+                                {formatMonthLabel(ym)} ({ym})
+                              </option>
+                            ))}
+                          </optgroup>
+                        </select>
+                      </div>
+
+                      {reportSelectedMonth === 'custom' && (
+                        <div className="flex items-center gap-2 animate-fade-in">
+                          <input
+                            type="date"
+                            value={reportStartDate}
+                            onChange={(e) => setReportStartDate(e.target.value)}
+                            className="px-2.5 py-1 text-xs border border-gray-300 rounded-lg bg-white font-mono"
+                          />
+                          <span className="text-xs text-gray-400 font-bold">a</span>
+                          <input
+                            type="date"
+                            value={reportEndDate}
+                            onChange={(e) => setReportEndDate(e.target.value)}
+                            className="px-2.5 py-1 text-xs border border-gray-300 rounded-lg bg-white font-mono"
+                          />
+                        </div>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={exportToCSV}
+                        className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-3xs font-extrabold uppercase tracking-wider rounded-lg transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                      >
+                        <FileSpreadsheet className="h-3.5 w-3.5" />
+                        Exportar Excel / CSV
+                      </button>
                     </div>
                   </div>
 
+                  {/* KPI Cards for Selected Month */}
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     {/* Revenue Card */}
                     <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col gap-3 relative overflow-hidden group">
                       <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition">
                         <TrendingUp className="h-16 w-16 text-green-500" />
                       </div>
-                      <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Total Ingresos</h3>
+                      <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Ingresos ({currentPeriodTitle})</h3>
                       <div>
-                        <div className="text-2xl font-black text-gray-800">Q{totalRevenueGTQ.toFixed(2)}</div>
-                        <div className="text-sm font-semibold text-gray-500 mt-1">${totalRevenueUSD.toFixed(2)}</div>
+                        <div className="text-2xl font-black text-emerald-700 font-mono">Q{totalRevenueGTQ.toFixed(2)}</div>
+                        <div className="text-sm font-semibold text-gray-500 mt-1 font-mono">${totalRevenueUSD.toFixed(2)}</div>
                       </div>
-                      <div className="text-3xs text-green-600 font-bold bg-green-50 self-start px-2 py-0.5 rounded uppercase mt-auto">Facturas Cobradas: {paidInvoices.length}</div>
+                      <div className="text-3xs text-green-700 font-bold bg-green-50 border border-green-200 self-start px-2.5 py-0.5 rounded uppercase mt-auto">
+                        Pagos Recibidos: {filteredPayments.length} | Facturas Pagadas: {paidInvoices.length}
+                      </div>
                     </div>
 
                     {/* Expenses Card */}
@@ -9048,12 +9257,14 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                       <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition">
                         <TrendingUp className="h-16 w-16 text-red-500 rotate-180" />
                       </div>
-                      <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Total Gastos</h3>
+                      <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Gastos ({currentPeriodTitle})</h3>
                       <div>
-                        <div className="text-2xl font-black text-gray-800">Q{totalExpensesGTQ.toFixed(2)}</div>
-                        <div className="text-sm font-semibold text-gray-500 mt-1">${totalExpensesUSD.toFixed(2)}</div>
+                        <div className="text-2xl font-black text-red-600 font-mono">Q{totalExpensesGTQ.toFixed(2)}</div>
+                        <div className="text-sm font-semibold text-gray-500 mt-1 font-mono">${totalExpensesUSD.toFixed(2)}</div>
                       </div>
-                      <div className="text-3xs text-red-600 font-bold bg-red-50 self-start px-2 py-0.5 rounded uppercase mt-auto">Registros de Gastos: {filteredExpenses.length}</div>
+                      <div className="text-3xs text-red-600 font-bold bg-red-50 border border-red-200 self-start px-2.5 py-0.5 rounded uppercase mt-auto">
+                        Registros de Gastos: {filteredExpenses.length}
+                      </div>
                     </div>
 
                     {/* Net Balance Card */}
@@ -9061,12 +9272,14 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                       <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition">
                         <DollarSign className="h-16 w-16 text-blue-500" />
                       </div>
-                      <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Balance Neto</h3>
+                      <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Balance Neto ({currentPeriodTitle})</h3>
                       <div>
-                        <div className={`text-2xl font-black ${balanceGTQ >= 0 ? 'text-blue-600' : 'text-red-600'}`}>Q{balanceGTQ.toFixed(2)}</div>
-                        <div className={`text-sm font-semibold mt-1 ${balanceUSD >= 0 ? 'text-blue-500' : 'text-red-500'}`}>${balanceUSD.toFixed(2)}</div>
+                        <div className={`text-2xl font-black font-mono ${balanceGTQ >= 0 ? 'text-blue-600' : 'text-red-600'}`}>Q{balanceGTQ.toFixed(2)}</div>
+                        <div className={`text-sm font-semibold mt-1 font-mono ${balanceUSD >= 0 ? 'text-blue-500' : 'text-red-500'}`}>${balanceUSD.toFixed(2)}</div>
                       </div>
-                      <div className="text-3xs text-blue-600 font-bold bg-blue-50 self-start px-2 py-0.5 rounded uppercase mt-auto">Utilidad Calculada</div>
+                      <div className="text-3xs text-blue-700 font-bold bg-blue-50 border border-blue-200 self-start px-2.5 py-0.5 rounded uppercase mt-auto">
+                        Utilidad Neta (Ingresos - Gastos)
+                      </div>
                     </div>
 
                     {/* Pending Invoices Card */}
@@ -9076,43 +9289,122 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                       </div>
                       <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Pendiente de Cobro</h3>
                       <div>
-                        <div className="text-2xl font-black text-gray-800">Q{pendingTotalGTQ.toFixed(2)}</div>
-                        <div className="text-sm font-semibold text-gray-500 mt-1">${pendingTotalUSD.toFixed(2)}</div>
+                        <div className="text-2xl font-black text-orange-600 font-mono">Q{pendingTotalGTQ.toFixed(2)}</div>
+                        <div className="text-sm font-semibold text-gray-500 mt-1 font-mono">${pendingTotalUSD.toFixed(2)}</div>
                       </div>
-                      <div className="text-3xs text-orange-600 font-bold bg-orange-50 self-start px-2 py-0.5 rounded uppercase mt-auto">Facturas Pendientes: {pendingInvoices.length}</div>
+                      <div className="text-3xs text-orange-700 font-bold bg-orange-50 border border-orange-200 self-start px-2.5 py-0.5 rounded uppercase mt-auto">
+                        Facturas Pendientes: {pendingInvoices.length}
+                      </div>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* List of Pending Invoices */}
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
-                      <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
-                        <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
-                          <ClipboardList className="h-4 w-4 text-orange-500" />
-                          Facturas Pendientes ({pendingInvoices.length})
+                  {/* Tabla de Desglose Contable Mes a Mes */}
+                  <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="p-4 border-b border-gray-100 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <h3 className="text-xs font-black text-brand-gray-dark uppercase tracking-wider flex items-center gap-2">
+                          📊 Resumen Contable Mes a Mes (Comparativo Exacto)
                         </h3>
+                        <p className="text-4xs text-gray-500">Haz clic en cualquier mes de la tabla para filtrar y ver el detalle exacto de sus pagos y gastos abajo.</p>
                       </div>
-                      <div className="p-0 overflow-y-auto max-h-[400px]">
-                        {pendingInvoices.length === 0 ? (
-                          <div className="p-8 text-center text-gray-400 text-sm font-medium">No hay facturas pendientes.</div>
+                      {reportSelectedMonth !== 'all' && (
+                        <button
+                          type="button"
+                          onClick={() => setReportSelectedMonth('all')}
+                          className="text-4xs font-black text-brand-orange hover:underline uppercase cursor-pointer self-start sm:self-auto"
+                        >
+                          Ver Todo el Historial &rarr;
+                        </button>
+                      )}
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse min-w-[700px]">
+                        <thead>
+                          <tr className="bg-gray-50 border-b border-gray-200 text-[10px] font-black text-gray-500 uppercase tracking-wider">
+                            <th className="py-3 px-4">Mes / Año</th>
+                            <th className="py-3 px-3 text-center">N° Pagos</th>
+                            <th className="py-3 px-3 text-right">Total Ingresos (Pagos)</th>
+                            <th className="py-3 px-3 text-center">N° Gastos</th>
+                            <th className="py-3 px-3 text-right">Total Gastos</th>
+                            <th className="py-3 px-3 text-right">Utilidad / Balance Neto</th>
+                            <th className="py-3 px-4 text-right">Por Cobrar (Pendiente)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 text-xs font-semibold">
+                          {monthlySummaryRows.map(row => {
+                            const isCurrentSelected = reportSelectedMonth === row.ym;
+                            return (
+                              <tr
+                                key={row.ym}
+                                onClick={() => setReportSelectedMonth(row.ym)}
+                                className={`hover:bg-orange-50/40 transition cursor-pointer ${
+                                  isCurrentSelected ? 'bg-orange-50/80 font-bold ring-1 ring-inset ring-brand-orange/30' : ''
+                                }`}
+                              >
+                                <td className="py-3 px-4 flex items-center gap-2">
+                                  <span className={`w-2 h-2 rounded-full ${isCurrentSelected ? 'bg-brand-orange' : 'bg-gray-300'}`}></span>
+                                  <span className="font-black text-brand-gray-dark uppercase">{row.label}</span>
+                                </td>
+                                <td className="py-3 px-3 text-center font-mono text-gray-600">{row.paymentsCount}</td>
+                                <td className="py-3 px-3 text-right font-mono font-black text-emerald-700">
+                                  Q{row.revGTQ.toFixed(2)}
+                                  {row.revUSD > 0 && <span className="block text-[10px] text-emerald-600">+ ${row.revUSD.toFixed(2)}</span>}
+                                </td>
+                                <td className="py-3 px-3 text-center font-mono text-gray-600">{row.expensesCount}</td>
+                                <td className="py-3 px-3 text-right font-mono font-black text-red-600">
+                                  -Q{row.expGTQ.toFixed(2)}
+                                </td>
+                                <td className={`py-3 px-3 text-right font-mono font-black ${row.netGTQ >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                                  Q{row.netGTQ.toFixed(2)}
+                                </td>
+                                <td className="py-3 px-4 text-right font-mono text-orange-600 font-bold">
+                                  Q{row.pendGTQ.toFixed(2)} <span className="text-[10px] text-gray-400">({row.pendingCount})</span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Detailed Breakdown Columns for the Selected Period: Pagos, Gastos, Facturas Pendientes */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* 1. Ingresos / Pagos del Mes */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
+                      <div className="p-4 border-b border-gray-100 bg-emerald-50/50 flex items-center justify-between">
+                        <h3 className="text-xs font-black text-emerald-900 uppercase tracking-wider flex items-center gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                          Pagos Recibidos ({filteredPayments.length})
+                        </h3>
+                        <span className="text-xs font-black font-mono text-emerald-700">Q{totalRevenueGTQ.toFixed(2)}</span>
+                      </div>
+                      <div className="p-0 overflow-y-auto max-h-[420px]">
+                        {filteredPayments.length === 0 ? (
+                          <div className="p-8 text-center text-gray-400 text-xs font-medium">No hay pagos registrados en este período.</div>
                         ) : (
                           <div className="divide-y divide-gray-100">
-                            {pendingInvoices.map(inv => {
-                              const parsed = parseInvoiceConcept(inv.concept);
-                              const curr = parsed?.currency || 'GTQ';
+                            {[...filteredPayments].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(pay => {
+                              const curr = getPaymentCurrency(pay);
                               const sym = curr === 'USD' ? '$' : 'Q';
+                              const clientUser = users.find(u => u.lockerId === pay.lockerId);
                               return (
-                                <div key={inv.id} className="p-4 flex items-center justify-between hover:bg-gray-50 transition">
+                                <div key={pay.id} className="p-3.5 flex items-center justify-between hover:bg-gray-50 transition">
                                   <div>
-                                    <div className="text-xs font-bold text-gray-800">{inv.id}</div>
-                                    <div className="text-2xs text-gray-500 mt-0.5 line-clamp-1">{parsed?.detail || inv.concept}</div>
-                                    <div className="text-3xs text-gray-400 mt-0.5">{new Date(inv.date).toLocaleDateString()}</div>
+                                    <div className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                                      <span>{pay.id}</span>
+                                      <span className="text-4xs px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-mono">{pay.lockerId}</span>
+                                    </div>
+                                    {clientUser && <div className="text-[10px] font-semibold text-gray-600">{clientUser.name}</div>}
+                                    <div className="text-3xs text-gray-500 mt-0.5">
+                                      {pay.method} • Factura: <strong className="text-brand-orange">{pay.invoiceId}</strong>
+                                    </div>
+                                    {pay.notes && <div className="text-4xs text-gray-400 italic mt-0.5">{pay.notes}</div>}
+                                    <div className="text-4xs text-gray-400 font-mono mt-0.5">{pay.date}</div>
                                   </div>
                                   <div className="text-right">
-                                    <div className="text-sm font-black text-gray-800">{sym}{parseFloat(inv.amount || '0').toFixed(2)}</div>
-                                    <span className="inline-block mt-1 px-1.5 py-0.5 bg-orange-50 text-orange-600 border border-orange-200 rounded text-[9px] font-bold uppercase">
-                                      Pendiente
-                                    </span>
+                                    <div className="text-sm font-black font-mono text-emerald-600">+{sym}{parseFloat(pay.amount || '0').toFixed(2)}</div>
+                                    <div className="text-[9px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded uppercase mt-1 font-bold inline-block">Cobrado</div>
                                   </div>
                                 </div>
                               );
@@ -9122,32 +9414,82 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                       </div>
                     </div>
 
-                    {/* List of Recent Payments */}
+                    {/* 2. Gastos Operativos del Mes */}
                     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
-                      <div className="p-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
-                        <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2">
-                          <CheckCircle2 className="h-4 w-4 text-green-500" />
-                          Últimos Ingresos ({filteredPayments.length})
+                      <div className="p-4 border-b border-gray-100 bg-red-50/50 flex items-center justify-between">
+                        <h3 className="text-xs font-black text-red-900 uppercase tracking-wider flex items-center gap-2">
+                          <TrendingUp className="h-4 w-4 text-red-600 rotate-180" />
+                          Gastos del Período ({filteredExpenses.length})
                         </h3>
+                        <span className="text-xs font-black font-mono text-red-600">-Q{totalExpensesGTQ.toFixed(2)}</span>
                       </div>
-                      <div className="p-0 overflow-y-auto max-h-[400px]">
-                        {filteredPayments.length === 0 ? (
-                          <div className="p-8 text-center text-gray-400 text-sm font-medium">No hay ingresos registrados.</div>
+                      <div className="p-0 overflow-y-auto max-h-[420px]">
+                        {filteredExpenses.length === 0 ? (
+                          <div className="p-8 text-center text-gray-400 text-xs font-medium">No hay gastos registrados en este período.</div>
                         ) : (
                           <div className="divide-y divide-gray-100">
-                            {[...filteredPayments].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(pay => {
-                              const curr = pay.currency || 'GTQ';
+                            {[...filteredExpenses].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(exp => (
+                              <div key={exp.id} className="p-3.5 flex items-center justify-between hover:bg-gray-50 transition">
+                                <div>
+                                  <div className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                                    <span>{exp.id}</span>
+                                    <span className="text-4xs px-1.5 py-0.5 rounded bg-red-50 text-red-700 border border-red-200 uppercase font-extrabold">{exp.category}</span>
+                                  </div>
+                                  <div className="text-2xs text-gray-600 font-medium mt-0.5">{exp.description}</div>
+                                  <div className="text-4xs text-gray-400 font-mono mt-0.5">{exp.date} • Por: {exp.cashier}</div>
+                                </div>
+                                <div className="text-right">
+                                  <div className="text-sm font-black font-mono text-red-600">-Q{parseFloat(exp.amount || '0').toFixed(2)}</div>
+                                  <div className="text-[9px] text-red-600 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded uppercase mt-1 font-bold inline-block">Egreso</div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 3. Facturas Pendientes del Período */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
+                      <div className="p-4 border-b border-gray-100 bg-orange-50/50 flex items-center justify-between">
+                        <h3 className="text-xs font-black text-orange-900 uppercase tracking-wider flex items-center gap-2">
+                          <ClipboardList className="h-4 w-4 text-orange-500" />
+                          Facturas Pendientes ({pendingInvoices.length})
+                        </h3>
+                        <span className="text-xs font-black font-mono text-orange-600">Q{pendingTotalGTQ.toFixed(2)}</span>
+                      </div>
+                      <div className="p-0 overflow-y-auto max-h-[420px]">
+                        {pendingInvoices.length === 0 ? (
+                          <div className="p-8 text-center text-gray-400 text-xs font-medium">No hay facturas pendientes en este período.</div>
+                        ) : (
+                          <div className="divide-y divide-gray-100">
+                            {pendingInvoices.map(inv => {
+                              const parsed = parseInvoiceConcept(inv.concept);
+                              const curr = parsed?.currency || 'GTQ';
                               const sym = curr === 'USD' ? '$' : 'Q';
+                              const clientUser = users.find(u => u.lockerId === inv.lockerId);
                               return (
-                                <div key={pay.id} className="p-4 flex items-center justify-between hover:bg-gray-50 transition">
+                                <div key={inv.id} className="p-3.5 flex items-center justify-between hover:bg-gray-50 transition">
                                   <div>
-                                    <div className="text-xs font-bold text-gray-800">{pay.id} - {pay.method}</div>
-                                    <div className="text-2xs text-gray-500 mt-0.5">Ref: {pay.reference || 'N/A'}</div>
-                                    <div className="text-3xs text-gray-400 mt-0.5">{new Date(pay.date).toLocaleString()}</div>
+                                    <div className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                                      <span>{inv.id}</span>
+                                      <span className="text-4xs px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-mono">{inv.lockerId}</span>
+                                    </div>
+                                    {(clientUser || inv.manualClientName) && (
+                                      <div className="text-[10px] font-semibold text-gray-600">{clientUser?.name || inv.manualClientName}</div>
+                                    )}
+                                    <div className="text-3xs text-gray-500 mt-0.5 line-clamp-1">{parsed?.detail || inv.concept}</div>
+                                    <div className="text-4xs text-gray-400 font-mono mt-0.5">{inv.date}</div>
                                   </div>
                                   <div className="text-right">
-                                    <div className="text-sm font-black text-green-600">+{sym}{parseFloat(pay.amount || '0').toFixed(2)}</div>
-                                    <div className="text-[9px] text-gray-400 uppercase mt-1 font-bold">Cobrado</div>
+                                    <div className="text-sm font-black font-mono text-gray-800">{sym}{parseFloat(inv.amount || '0').toFixed(2)}</div>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenPaymentModal(inv)}
+                                      className="mt-1 px-2 py-0.5 bg-brand-orange hover:bg-brand-orange-hover text-white rounded text-[9px] font-black uppercase cursor-pointer transition"
+                                    >
+                                      Cobrar
+                                    </button>
                                   </div>
                                 </div>
                               );
