@@ -787,8 +787,8 @@ El Equipo de ShipFast GT`;
       <div style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 20px; text-align: center; margin-top: 30px;">
         <strong style="color: #1e3a8a; font-size: 14px; display: block; margin-bottom: 10px;">💬 ¿Tienes alguna duda o necesitas asistencia?</strong>
         <p style="font-size: 13px; color: #4b5563; margin: 0 0 15px 0;">Nuestro equipo está disponible para apoyarte en cada paso de tus importaciones.</p>
-        <a href="https://wa.me/18028390011" target="_blank" style="background-color: #25d366; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 13px; display: inline-block; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-          🟢 Soporte WhatsApp: +1 (802) 839-0011
+        <a href="https://wa.me/50235992026" target="_blank" style="background-color: #25d366; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 13px; display: inline-block; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          🟢 Soporte WhatsApp: +502 3599-2026
         </a>
       </div>
 
@@ -1008,8 +1008,8 @@ Cargos de Flete y Tarifas Asignadas:
       <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 20px; text-align: center;">
         <strong style="color: #166534; font-size: 14px; display: block; margin-bottom: 8px;">💬 ¿Deseas coordinar tu entrega o entrega local en Guatemala?</strong>
         <p style="font-size: 13px; color: #4b5563; margin: 0 0 15px 0;">Contáctanos de inmediato para programar tu entrega a domicilio.</p>
-        <a href="https://wa.me/50237268751" target="_blank" style="background-color: #25d366; color: white; padding: 10px 24px; text-decoration: none; border-radius: 8px; font-weight: 900; font-size: 13px; display: inline-block; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.08); text-transform: uppercase;">
-          🟢 Coordinar por WhatsApp
+        <a href="https://wa.me/50235992026" target="_blank" style="background-color: #25d366; color: white; padding: 10px 24px; text-decoration: none; border-radius: 8px; font-weight: 900; font-size: 13px; display: inline-block; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.08); text-transform: uppercase;">
+          🟢 Coordinar por WhatsApp (+502 3599-2026)
         </a>
       </div>
 
@@ -4130,12 +4130,12 @@ Para proporcionarle información específica, puede solicitar:
                               Para obtener las direcciones de nuestras bodegas, por favor escribe a nuestro WhatsApp:
                             </p>
                             <a
-                              href="https://wa.me/18028390011"
+                              href="https://wa.me/50235992026"
                               target="_blank"
                               rel="noopener noreferrer"
                               className="inline-block text-xs font-black text-brand-orange underline hover:text-brand-orange-hover"
                             >
-                              +1(802)839-0011
+                              +502 3599-2026
                             </a>
                           </div>
 
@@ -11234,7 +11234,7 @@ CURP: GADB000327MCSBZLA7
 --------------------------------------------------
 Recuerda que estamos para apoyarte en cada paso de tus envíos. Si tienes alguna duda, puedes contactarnos directamente a nuestro WhatsApp oficial:
 
-💬 WhatsApp Soporte: +502 3726-8751
+💬 WhatsApp Soporte: +502 3599-2026
 
 ¡Gracias por confiar en ShipFast GT! Esperamos servirte muy pronto.
 
@@ -14375,11 +14375,11 @@ El Equipo de ShipFast GT`;
 
           {/* Floating WhatsApp Support Badge */}
           <a
-            href="https://wa.me/18028390011?text=Hola%20ShipFast%20GT!%20Necesito%20soporte%20con%20mis%20paquetes."
+            href="https://wa.me/50235992026?text=Hola%20ShipFast%20GT!%20Necesito%20soporte%20con%20mis%20paquetes."
             target="_blank"
             rel="noopener noreferrer"
             className="fixed bottom-6 right-6 z-[200] flex items-center gap-2.5 bg-[#25D366] hover:bg-[#20ba56] text-white font-extrabold text-3xs uppercase tracking-wider py-3 px-5 rounded-full shadow-2xl hover:shadow-[#25D366]/40 transition-all hover:scale-105 active:scale-95 duration-300 select-none group border-2 border-white/20"
-            title="Escríbenos por WhatsApp"
+            title="Escríbenos por WhatsApp (+502 3599-2026)"
           >
             <span className="relative flex h-2.5 w-2.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
