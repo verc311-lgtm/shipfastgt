@@ -605,16 +605,42 @@ export default function App() {
     }
   }, [currentUser]);
 
+  // Helper to normalize locker identifier (e.g. "SFG 25" or "SFG-25" -> "SFG25")
+  const normalizeLockerIdInput = (val: string) => {
+    return val.trim().toUpperCase().replace(/^(SFG|SFA)[\s-]+(\d+)$/, '$1$2');
+  };
+
   // Handle Login
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
 
-    const found = users.find(u => 
-      (u.lockerId.trim().toUpperCase() === loginIdentifier.trim().toUpperCase() || 
-       u.email.trim().toLowerCase() === loginIdentifier.trim().toLowerCase()) && 
-      u.password === loginPassword
-    );
+    const rawId = loginIdentifier.trim();
+    const normLocker = normalizeLockerIdInput(rawId);
+    const normEmail = rawId.toLowerCase();
+    const rawPass = loginPassword;
+    const trimmedPass = loginPassword.trim();
+
+    const matchUser = (list: UserProfile[]) =>
+      list.find(u => {
+        const uLocker = (u.lockerId || '').trim().toUpperCase();
+        const uEmail = (u.email || '').trim().toLowerCase();
+        const uPass = u.password || '';
+        const idMatches = uLocker === normLocker || uLocker === rawId.toUpperCase() || (uEmail !== '' && uEmail === normEmail);
+        const passMatches = uPass === rawPass || uPass.trim() === trimmedPass;
+        return idMatches && passMatches;
+      });
+
+    let found = matchUser(users);
+
+    // If not found in memory (e.g., page just loaded or new registration), fetch latest profiles from Supabase
+    if (!found) {
+      const freshProfiles = await db.getProfiles();
+      if (freshProfiles.length > 0) {
+        setUsers(freshProfiles);
+        found = matchUser(freshProfiles);
+      }
+    }
 
     if (found) {
       setCurrentUser(found);
@@ -639,11 +665,27 @@ export default function App() {
       return;
     }
 
-    // Find user by identifier
-    const foundUser = users.find(u =>
-      u.lockerId.trim().toUpperCase() === cpIdentifier.trim().toUpperCase() ||
-      u.email.trim().toLowerCase() === cpIdentifier.trim().toLowerCase()
+    const normLocker = normalizeLockerIdInput(cpIdentifier);
+    const normEmail = cpIdentifier.trim().toLowerCase();
+
+    // Find user by identifier (check memory, then fallback to fresh DB)
+    let currentList = users;
+    let foundUser = currentList.find(u =>
+      (u.lockerId || '').trim().toUpperCase() === normLocker ||
+      (u.email || '').trim().toLowerCase() === normEmail
     );
+
+    if (!foundUser) {
+      const fresh = await db.getProfiles();
+      if (fresh.length > 0) {
+        setUsers(fresh);
+        currentList = fresh;
+        foundUser = currentList.find(u =>
+          (u.lockerId || '').trim().toUpperCase() === normLocker ||
+          (u.email || '').trim().toLowerCase() === normEmail
+        );
+      }
+    }
 
     if (!foundUser) {
       setCpError('No se encontró un usuario con ese casillero o correo electrónico.');
@@ -652,28 +694,28 @@ export default function App() {
     }
 
     // Verify current password
-    if (foundUser.password !== cpCurrentPassword) {
+    if (foundUser.password !== cpCurrentPassword && (foundUser.password || '').trim() !== cpCurrentPassword.trim()) {
       setCpError('La contraseña actual es incorrecta.');
       setCpLoading(false);
       return;
     }
 
     // Validate new password length
-    if (cpNewPassword.length < 4) {
+    if (cpNewPassword.trim().length < 4) {
       setCpError('La nueva contraseña debe tener al menos 4 caracteres.');
       setCpLoading(false);
       return;
     }
 
     // Validate passwords match
-    if (cpNewPassword !== cpConfirmPassword) {
+    if (cpNewPassword.trim() !== cpConfirmPassword.trim()) {
       setCpError('Las contraseñas nuevas no coinciden.');
       setCpLoading(false);
       return;
     }
 
     // Check not same as current
-    if (cpNewPassword === cpCurrentPassword) {
+    if (cpNewPassword.trim() === (foundUser.password || '').trim()) {
       setCpError('La nueva contraseña debe ser diferente a la actual.');
       setCpLoading(false);
       return;
@@ -681,12 +723,12 @@ export default function App() {
 
     try {
       // Update in Supabase
-      const updatedUser = { ...foundUser, password: cpNewPassword };
+      const updatedUser = { ...foundUser, password: cpNewPassword.trim() };
       const success = await db.upsertProfile(updatedUser);
 
       if (success) {
         // Update local state
-        setUsers(users.map(u => u.lockerId === foundUser.lockerId ? updatedUser : u));
+        setUsers(currentList.map(u => u.lockerId === foundUser.lockerId ? updatedUser : u));
         setCpSuccess('¡Contraseña actualizada exitosamente! Ahora puede iniciar sesión con su nueva contraseña.');
         // Clear form fields after success
         setCpCurrentPassword('');
@@ -1095,10 +1137,20 @@ Cargos de Flete y Tarifas Asignadas:
       cleanPhone = '+502 ' + cleanPhone.replace('+502', '').trim();
     }
 
-    // Calculate sequential locker ID starting at SFG0, SFG1...
-    // Count existing client users to determine index (continuous global counter)
-    const clientCount = users.filter(u => u.role === 'client').length;
-    const generatedLockerId = `${signupAgency}${clientCount}`;
+    // Fetch latest profiles from Supabase to guarantee no locker ID collision or overwrite
+    const latestProfiles = await db.getProfiles();
+    const baseList = latestProfiles.length > 0 ? latestProfiles : users;
+
+    // Find highest numeric suffix among all SFG/SFA lockers
+    const maxLockerNum = baseList.reduce((max, u) => {
+      const m = (u.lockerId || '').trim().toUpperCase().match(/^(?:SFG|SFA)(\d+)$/);
+      if (m) {
+        const num = parseInt(m[1], 10);
+        if (!isNaN(num) && num > max) return num;
+      }
+      return max;
+    }, 0);
+    const generatedLockerId = `${signupAgency}${maxLockerNum + 1}`;
 
     const addressParts = [
       signupAddress.trim(),
@@ -1116,18 +1168,18 @@ Cargos de Flete y Tarifas Asignadas:
 
     const newProfile: UserProfile = {
       lockerId: generatedLockerId,
-      name: signupName,
+      name: signupName.trim(),
       email: signupEmail.trim(),
       phone: cleanPhone,
       address: finalAddress,
       role: 'client',
-      password: signupPassword
+      password: signupPassword.trim()
     };
 
     // Save to Supabase
     await db.upsertProfile(newProfile);
 
-    setUsers([...users, newProfile]);
+    setUsers([...baseList, newProfile]);
     setSignupSuccessLocker(generatedLockerId);
 
     // Reset fields
@@ -11449,10 +11501,19 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                           userPhone = '+502 ' + userPhone.replace('+502', '').trim();
                         }
 
+                        const maxLockerNum = users.reduce((max, u) => {
+                          const m = (u.lockerId || '').trim().toUpperCase().match(/^(?:SFG|SFA)(\d+)$/);
+                          if (m) {
+                            const num = parseInt(m[1], 10);
+                            if (!isNaN(num) && num > max) return num;
+                          }
+                          return max;
+                        }, 0);
+
                         const newStaff: UserProfile = {
-                          lockerId: `SFG${users.length}`,
-                          name: userName,
-                          email: userEmail,
+                          lockerId: `SFG${maxLockerNum + 1}`,
+                          name: userName.trim(),
+                          email: userEmail.trim(),
                           phone: userPhone,
                           address: 'Sucursal Central, Guatemala',
                           role: userRole,
@@ -11463,7 +11524,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                         db.upsertProfile(newStaff);
 
                         setUsers([...users, newStaff]);
-                        alert(`Operador/Repartidor ${userName} agregado exitosamente con el prefijo +502 en su teléfono.`);
+                        alert(`Operador/Repartidor ${userName} agregado exitosamente con el casillero ${newStaff.lockerId}.`);
                         
                         // Reset fields
                         (document.getElementById('opNameInput') as HTMLInputElement).value = '';
@@ -11483,6 +11544,9 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
 
                         const updatedUser = {
                           ...selectedUserForEdit,
+                          name: (selectedUserForEdit.name || '').trim(),
+                          email: (selectedUserForEdit.email || '').trim(),
+                          password: (selectedUserForEdit.password || '').trim(),
                           phone
                         };
 
