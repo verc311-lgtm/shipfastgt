@@ -159,15 +159,35 @@ function parseInvoiceConcept(conceptStr: string) {
 }
 
 export default function App() {
-  // Session Authentication state
+  // Session Authentication state (persisted in localStorage so page refresh keeps session open)
   const [users, setUsers] = useState<UserProfile[]>(DEFAULT_USERS);
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
+    try {
+      const saved = localStorage.getItem('shipfast_current_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
+    }
+  });
 
   // Active view router within profiles
   // If currentUser is null: landing/access page is shown.
   // If currentUser is client: activeTab controls: 'my-locker' | 'pickup-request' | 'quote' | 'ai-support'
   // If currentUser is admin: activeTab controls: 'admin-dashboard' | 'driver-terminal' | 'ai-chat'
-  const [activeTab, setActiveTab] = useState<string>('my-locker');
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    const savedTab = localStorage.getItem('shipfast_active_tab');
+    if (savedTab) return savedTab;
+    try {
+      const savedUser = localStorage.getItem('shipfast_current_user');
+      if (savedUser) {
+        const parsed = JSON.parse(savedUser);
+        return parsed?.role === 'admin' ? 'admin-dashboard' : 'my-locker';
+      }
+    } catch (e) {
+      // ignore
+    }
+    return 'my-locker';
+  });
 
   // Unified Access Landing Page States
   const [accessTab, setAccessTab] = useState<'login' | 'signup' | 'quote' | 'track'>('login');
@@ -254,7 +274,7 @@ export default function App() {
   const signatureCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // Admin View States
-  const [adminSubTab, setAdminSubTab] = useState<string>('portal');
+  const [adminSubTab, setAdminSubTab] = useState<string>(() => localStorage.getItem('shipfast_admin_subtab') || 'portal');
   const [preAlerts, setPreAlerts] = useState<PreAlert[]>(INITIAL_PRE_ALERTS);
 
   // Client Pre-Alert Modal States
@@ -530,13 +550,28 @@ export default function App() {
   const [aiInput, setAiInput] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
 
-  // Load data from Supabase on mount
-  useEffect(() => {
-    async function loadData() {
+  const [isRefreshingData, setIsRefreshingData] = useState(false);
+
+  // Load / refresh data from Supabase without logging out
+  const refreshSystemData = async () => {
+    setIsRefreshingData(true);
+    try {
       // 1. Load profiles
       const profilesList = await db.getProfiles();
       if (profilesList.length > 0) {
         setUsers(profilesList);
+        // Keep currentUser synced with fresh profile data from DB without resetting session
+        setCurrentUser(prev => {
+          if (!prev) return null;
+          const fresh = profilesList.find(
+            u => (u.lockerId || '').trim().toUpperCase() === (prev.lockerId || '').trim().toUpperCase()
+          );
+          if (fresh && JSON.stringify(fresh) !== JSON.stringify(prev)) {
+            localStorage.setItem('shipfast_current_user', JSON.stringify(fresh));
+            return fresh;
+          }
+          return prev;
+        });
       }
       
       // 2. Load shipments
@@ -580,18 +615,50 @@ export default function App() {
       if (dbBranches.length > 0) {
         setBranchesList(dbBranches);
       }
+    } finally {
+      setIsRefreshingData(false);
     }
-    
-    loadData();
+  };
+
+  // Load data from Supabase on mount
+  useEffect(() => {
+    refreshSystemData();
   }, []);
 
-  // Set initial default tab when user changes
+  // Persist session & active navigation tabs in localStorage so page refresh never logs out
   useEffect(() => {
     if (currentUser) {
+      localStorage.setItem('shipfast_current_user', JSON.stringify(currentUser));
+    } else {
+      localStorage.removeItem('shipfast_current_user');
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem('shipfast_active_tab', activeTab);
+    }
+  }, [activeTab, currentUser]);
+
+  useEffect(() => {
+    if (currentUser?.role === 'admin') {
+      localStorage.setItem('shipfast_admin_subtab', adminSubTab);
+    }
+  }, [adminSubTab, currentUser]);
+
+  // Ensure activeTab is valid for currentUser role and pre-select client tracking preview
+  useEffect(() => {
+    if (currentUser) {
+      const adminTabs = ['admin-dashboard', 'driver-terminal', 'ai-chat'];
+      const clientTabs = ['my-locker', 'pickup-request', 'quote', 'ai-support'];
       if (currentUser.role === 'admin') {
-        setActiveTab('admin-dashboard');
+        if (!adminTabs.includes(activeTab)) {
+          setActiveTab('admin-dashboard');
+        }
       } else {
-        setActiveTab('my-locker');
+        if (!clientTabs.includes(activeTab)) {
+          setActiveTab('my-locker');
+        }
         // Pre-select first package for the client tracking preview
         const clientPackages = shipments.filter(s => s.lockerId === currentUser.lockerId);
         if (clientPackages.length > 0) {
@@ -603,7 +670,7 @@ export default function App() {
         }
       }
     }
-  }, [currentUser]);
+  }, [currentUser?.lockerId, currentUser?.role, shipments.length]);
 
   // Helper to normalize locker identifier (e.g. "SFG 25" or "SFG-25" -> "SFG25")
   const normalizeLockerIdInput = (val: string) => {
@@ -643,6 +710,10 @@ export default function App() {
     }
 
     if (found) {
+      const defaultTab = found.role === 'admin' ? 'admin-dashboard' : 'my-locker';
+      localStorage.setItem('shipfast_current_user', JSON.stringify(found));
+      localStorage.setItem('shipfast_active_tab', defaultTab);
+      setActiveTab(defaultTab);
       setCurrentUser(found);
       setLoginIdentifier('');
       setLoginPassword('');
@@ -2508,6 +2579,9 @@ Cargos de Flete y Tarifas Asignadas:
 
   // Logout Handler
   const handleLogout = () => {
+    localStorage.removeItem('shipfast_current_user');
+    localStorage.removeItem('shipfast_active_tab');
+    localStorage.removeItem('shipfast_admin_subtab');
     setCurrentUser(null);
     setAccessTab('login');
     setSignupSuccessLocker(null);
@@ -4657,6 +4731,16 @@ Para proporcionarle información específica, puede solicitar:
                     {currentUser.role === 'client' && ` (CASILLERO: ${currentUser.lockerId})`}
                   </span>
                 </div>
+                <span className="text-gray-600">|</span>
+                <button
+                  onClick={refreshSystemData}
+                  disabled={isRefreshingData}
+                  title="Actualizar datos del sistema sin cerrar sesión"
+                  className="text-emerald-400 hover:text-emerald-300 uppercase font-bold tracking-wider cursor-pointer flex items-center gap-1 disabled:opacity-50"
+                >
+                  <RefreshCw className={`h-3 w-3 ${isRefreshingData ? 'animate-spin' : ''}`} />
+                  {isRefreshingData ? 'Actualizando...' : 'Actualizar'}
+                </button>
                 <span className="text-gray-600">|</span>
                 <button
                   onClick={handleLogout}
