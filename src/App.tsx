@@ -419,6 +419,8 @@ export default function App() {
   const [paymentDiscountValue, setPaymentDiscountValue] = useState<number>(0);
   const [paymentInsuranceExtra, setPaymentInsuranceExtra] = useState<number>(0);
   const [paymentLocalDeliveryExtra, setPaymentLocalDeliveryExtra] = useState<number>(0);
+  const [paymentQueueSearch, setPaymentQueueSearch] = useState('');
+  const [paymentQueueSort, setPaymentQueueSort] = useState<'recent' | 'amount_desc' | 'amount_asc' | 'locker'>('recent');
 
   const getNetPaymentAmount = () => {
     const selectedInvoice = invoices.find(i => i.id === paymentInvoice);
@@ -11108,18 +11110,47 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                       const pendingInvoices = invoices.filter(i => i.paymentStatus === 'Pendiente');
                       const totalPendingAmount = pendingInvoices.reduce((sum, i) => sum + i.amount, 0);
 
+                      const searchNorm = paymentQueueSearch.trim().toLowerCase();
+                      const filteredPending = pendingInvoices
+                        .filter(inv => {
+                          if (!searchNorm) return true;
+                          const parsed = parseInvoiceConcept(inv.concept);
+                          const clientUser = users.find(
+                            u => (u.lockerId || '').trim().toUpperCase() === (inv.lockerId || '').trim().toUpperCase()
+                          );
+                          const clientName = clientUser?.name || parsed.manualClientName || '';
+                          const clientPhone = clientUser?.phone || '';
+                          return (
+                            (inv.id || '').toLowerCase().includes(searchNorm) ||
+                            (inv.lockerId || '').toLowerCase().includes(searchNorm) ||
+                            clientName.toLowerCase().includes(searchNorm) ||
+                            clientPhone.toLowerCase().includes(searchNorm) ||
+                            (parsed.detail || '').toLowerCase().includes(searchNorm)
+                          );
+                        })
+                        .sort((a, b) => {
+                          if (paymentQueueSort === 'amount_desc') return b.amount - a.amount;
+                          if (paymentQueueSort === 'amount_asc') return a.amount - b.amount;
+                          if (paymentQueueSort === 'locker') {
+                            const numA = parseInt((a.lockerId || '').replace(/\D/g, ''), 10) || 999999;
+                            const numB = parseInt((b.lockerId || '').replace(/\D/g, ''), 10) || 999999;
+                            return numA - numB;
+                          }
+                          return (b.date || '').localeCompare(a.date || '');
+                        });
+
                       return (
                         <div className="bg-white p-6 rounded-3xl border border-gray-150 shadow-xs space-y-6">
                           {/* Title and top-right actions */}
                           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                             <div>
-                              <h3 className="text-xs font-black text-brand-gray-dark uppercase tracking-wider font-display mb-1 flex items-center gap-1.5">
-                                <span className="bg-orange-50 text-brand-orange p-1.5 rounded-lg border border-orange-100">
-                                  <Wallet className="h-4 w-4" />
+                              <h3 className="text-sm font-black text-brand-gray-dark uppercase tracking-wider font-display mb-1 flex items-center gap-2">
+                                <span className="bg-orange-50 text-brand-orange p-2 rounded-xl border border-orange-100">
+                                  <Wallet className="h-5 w-5" />
                                 </span>
-                                Caja Chica y Recibos de Pagos Recaudados
+                                Caja Chica y Cola de Cobros Pendientes
                               </h3>
-                              <p className="text-4xs text-gray-500">Módulo de control de caja. Registre el cobro de facturas y visualice el historial de caja chica en tiempo real.</p>
+                              <p className="text-3xs text-gray-500">Módulo rápido de cobro en ventanilla. Busque por casillero, cliente o factura y registre el pago con un clic.</p>
                             </div>
                             <button
                               type="button"
@@ -11133,145 +11164,235 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                 setPaymentLocalDeliveryExtra(0);
                                 setIsPaymentModalOpen(true);
                               }}
-                              className="bg-brand-orange hover:bg-brand-orange-hover text-white text-3xs font-extrabold py-2 px-4 rounded-xl uppercase tracking-wider transition shadow-sm shadow-orange-100 hover:shadow-orange-200 active:scale-95 flex items-center gap-1 cursor-pointer"
+                              className="bg-brand-orange hover:bg-brand-orange-hover text-white text-xs font-extrabold py-2.5 px-5 rounded-xl uppercase tracking-wider transition shadow-sm shadow-orange-100 hover:shadow-orange-200 active:scale-95 flex items-center gap-1.5 cursor-pointer"
                             >
-                              <Plus className="h-3.5 w-3.5" /> Registrar Cobro Manual
+                              <Plus className="h-4 w-4" /> Registrar Cobro Manual
                             </button>
                           </div>
 
                           {/* Quick Metrics Row */}
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div className="bg-gradient-to-br from-green-50/50 to-emerald-50/20 border border-green-150 p-4 rounded-2xl flex items-center gap-4 shadow-3xs">
-                              <span className="p-3 bg-green-100/60 rounded-xl text-green-700 border border-green-200">
-                                <DollarSign className="h-5 w-5" />
+                            <div className="bg-gradient-to-br from-green-50/70 to-emerald-50/30 border border-green-200 p-5 rounded-2xl flex items-center gap-4 shadow-3xs">
+                              <span className="p-3.5 bg-green-100/80 rounded-xl text-green-700 border border-green-200">
+                                <DollarSign className="h-6 w-6" />
                               </span>
                               <div>
-                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block leading-none mb-1">Total Recaudado (Caja)</span>
-                                <h4 className="text-sm font-black text-green-700 font-mono">Q {totalRecaudado.toFixed(2)}</h4>
-                                <span className="text-[8px] font-bold text-slate-500">Saldo líquido ingresado</span>
+                                <span className="text-4xs font-black text-slate-500 uppercase tracking-widest block leading-none mb-1">Total Recaudado (Caja)</span>
+                                <h4 className="text-lg font-black text-green-700 font-mono">Q {totalRecaudado.toFixed(2)}</h4>
+                                <span className="text-4xs font-bold text-slate-500">Saldo líquido ingresado</span>
                               </div>
                             </div>
 
-                            <div className="bg-gradient-to-br from-orange-50/30 to-amber-50/10 border border-orange-150 p-4 rounded-2xl flex items-center gap-4 shadow-3xs">
-                              <span className="p-3 bg-orange-100/60 rounded-xl text-brand-orange border border-orange-200">
-                                <FileText className="h-5 w-5" />
+                            <div className="bg-gradient-to-br from-orange-50/60 to-amber-50/20 border border-orange-200 p-5 rounded-2xl flex items-center gap-4 shadow-3xs">
+                              <span className="p-3.5 bg-orange-100/80 rounded-xl text-brand-orange border border-orange-200">
+                                <FileText className="h-6 w-6" />
                               </span>
                               <div>
-                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block leading-none mb-1">Facturas Pendientes</span>
-                                <h4 className="text-sm font-black text-brand-orange font-mono">{pendingInvoices.length}</h4>
-                                <span className="text-[8px] font-bold text-slate-500">Esperando cobro en ventanilla</span>
+                                <span className="text-4xs font-black text-slate-500 uppercase tracking-widest block leading-none mb-1">Facturas Pendientes</span>
+                                <h4 className="text-lg font-black text-brand-orange font-mono">{pendingInvoices.length}</h4>
+                                <span className="text-4xs font-bold text-slate-500">Esperando cobro en ventanilla</span>
                               </div>
                             </div>
 
-                            <div className="bg-gradient-to-br from-slate-50 to-gray-50/50 border border-slate-200 p-4 rounded-2xl flex items-center gap-4 shadow-3xs">
-                              <span className="p-3 bg-slate-100 rounded-xl text-slate-600 border border-slate-200">
-                                <TrendingUp className="h-5 w-5" />
+                            <div className="bg-gradient-to-br from-slate-50 to-gray-100/50 border border-slate-200 p-5 rounded-2xl flex items-center gap-4 shadow-3xs">
+                              <span className="p-3.5 bg-slate-200/70 rounded-xl text-slate-700 border border-slate-300">
+                                <TrendingUp className="h-6 w-6" />
                               </span>
                               <div>
-                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block leading-none mb-1">Importe en Cartera</span>
-                                <h4 className="text-sm font-black text-slate-700 font-mono">Q {totalPendingAmount.toFixed(2)}</h4>
-                                <span className="text-[8px] font-bold text-slate-500">Total por cobrar</span>
+                                <span className="text-4xs font-black text-slate-500 uppercase tracking-widest block leading-none mb-1">Importe en Cartera</span>
+                                <h4 className="text-lg font-black text-slate-800 font-mono">Q {totalPendingAmount.toFixed(2)}</h4>
+                                <span className="text-4xs font-bold text-slate-500">Total pendiente por cobrar</span>
                               </div>
                             </div>
                           </div>
 
-                          {/* Facturas Pendientes (Queue Board) */}
-                          <div className="space-y-3">
-                            <span className="text-4xs font-bold text-gray-400 uppercase tracking-widest block">Facturas Pendientes de Pago (Cola de Cobros)</span>
-                            {pendingInvoices.length > 0 ? (
-                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                {pendingInvoices.slice(0, 6).map(invoice => {
+                          {/* Search & Sort Toolbar for Pending Invoices */}
+                          <div className="bg-slate-50 border border-slate-200/90 p-4 rounded-2xl flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3">
+                            <div className="relative flex-1">
+                              <Search className="h-4 w-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                              <input
+                                type="text"
+                                value={paymentQueueSearch}
+                                onChange={e => setPaymentQueueSearch(e.target.value)}
+                                placeholder="Buscar por Casillero (ej: SFG119), Nombre del Cliente, No. de Factura (FAC-...) o Concepto..."
+                                className="w-full pl-10 pr-9 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:border-brand-orange focus:ring-2 focus:ring-brand-orange/15"
+                              />
+                              {paymentQueueSearch && (
+                                <button
+                                  type="button"
+                                  onClick={() => setPaymentQueueSearch('')}
+                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                                >
+                                  <X className="h-4 w-4" />
+                                </button>
+                              )}
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2 shrink-0">
+                              <span className="text-4xs font-black text-slate-500 uppercase tracking-wider">Ordenar por:</span>
+                              <select
+                                value={paymentQueueSort}
+                                onChange={e => setPaymentQueueSort(e.target.value as any)}
+                                className="bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:outline-none focus:border-brand-orange cursor-pointer"
+                              >
+                                <option value="recent">📅 Más Recientes Primero</option>
+                                <option value="amount_desc">💰 Mayor Monto a Cobrar</option>
+                                <option value="amount_asc">💵 Menor Monto a Cobrar</option>
+                                <option value="locker">🔢 Número de Casillero (SFG)</option>
+                              </select>
+                              <span className="bg-slate-200/80 text-slate-700 px-3 py-2 rounded-xl text-3xs font-black uppercase">
+                                Mostrando {filteredPending.length} de {pendingInvoices.length}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Enlarged Pending Invoices Cards (Cola de Cobros) */}
+                          <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                                📋 Facturas Pendientes de Pago (Cola de Cobros)
+                              </span>
+                            </div>
+
+                            {filteredPending.length > 0 ? (
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                                {filteredPending.map(invoice => {
                                   const parsed = parseInvoiceConcept(invoice.concept);
                                   const currencySymbol = parsed.currency === 'USD' ? '$' : 'Q';
+                                  const clientUser = users.find(
+                                    u => (u.lockerId || '').trim().toUpperCase() === (invoice.lockerId || '').trim().toUpperCase()
+                                  );
+                                  const clientName = clientUser
+                                    ? clientUser.name
+                                    : parsed.manualClientName || (invoice.lockerId ? `Cliente ${invoice.lockerId}` : 'Cliente Manual');
+                                  const clientPhone = clientUser?.phone || '';
+                                  const clientAddress = clientUser?.address || '';
+
+                                  const trackingsMatch = (parsed.detail || '').match(/\[Trackings:\s*([^\]]+)\]/i);
+                                  const cleanDetail = (parsed.detail || '').replace(/\[Trackings:\s*[^\]]+\]/gi, '').trim();
+                                  const trackingsList = trackingsMatch
+                                    ? trackingsMatch[1].split(',').map((t: string) => t.trim()).filter(Boolean)
+                                    : [];
+
                                   return (
-                                    <div key={invoice.id} className="bg-white border border-slate-200/80 p-4 rounded-2xl shadow-3xs flex flex-col justify-between space-y-3 hover:border-brand-orange/60 transition group hover:shadow-2xs">
-                                      <div className="space-y-1">
-                                        <div className="flex justify-between items-center">
-                                          <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-lg text-4xs font-black uppercase tracking-wider">{invoice.id}</span>
-                                          <span className="font-mono text-gray-400 text-4xs">Casillero: <strong className="text-slate-600">{invoice.lockerId || 'N/R'}</strong></span>
+                                    <div
+                                      key={invoice.id}
+                                      className="bg-white border-2 border-slate-200 hover:border-brand-orange rounded-2xl p-5 shadow-xs hover:shadow-md transition flex flex-col justify-between gap-4"
+                                    >
+                                      {/* Top Header: Invoice ID, Date, and Locker Badge */}
+                                      <div className="space-y-3">
+                                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                                          <div className="flex items-center gap-2.5">
+                                            <span className="bg-slate-900 text-white px-3 py-1.5 rounded-xl text-xs font-black uppercase tracking-wider font-mono">
+                                              {invoice.id}
+                                            </span>
+                                            <span className="bg-amber-50 text-amber-700 border border-amber-200 px-2.5 py-1 rounded-lg text-3xs font-black uppercase">
+                                              ⏳ Pendiente de Cobro
+                                            </span>
+                                          </div>
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-3xs font-bold text-slate-400">
+                                              📅 <span className="font-mono text-slate-600">{invoice.date}</span>
+                                            </span>
+                                            <span className="bg-orange-50 text-brand-orange border border-orange-200 px-3 py-1 rounded-xl text-xs font-black font-mono">
+                                              {invoice.lockerId || 'MANUAL'}
+                                            </span>
+                                          </div>
                                         </div>
-                                        <div className="text-4xs text-gray-500 font-bold truncate" title={parsed.detail}>
-                                          {parsed.detail}
+
+                                        {/* Client Information Box */}
+                                        <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3.5 space-y-1.5">
+                                          <div className="flex flex-wrap items-center justify-between gap-2">
+                                            <div className="flex items-center gap-2">
+                                              <User className="h-4 w-4 text-brand-orange shrink-0" />
+                                              <span className="text-sm font-black text-slate-800 uppercase">
+                                                {clientName}
+                                              </span>
+                                            </div>
+                                            {clientPhone && (
+                                              <span className="text-3xs font-bold font-mono text-slate-600 bg-white px-2.5 py-1 rounded-lg border border-slate-200">
+                                                📞 {clientPhone}
+                                              </span>
+                                            )}
+                                          </div>
+                                          {clientAddress && (
+                                            <div className="text-3xs text-slate-500 font-medium flex items-start gap-1.5">
+                                              <MapPin className="h-3.5 w-3.5 text-slate-400 shrink-0 mt-0.5" />
+                                              <span>{clientAddress}</span>
+                                            </div>
+                                          )}
                                         </div>
-                                        <div className="text-4xs text-gray-400 font-medium">
-                                          Fecha: <span className="font-mono">{invoice.date}</span>
+
+                                        {/* Full Concept & Trackings */}
+                                        <div className="space-y-1.5 px-1">
+                                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                                            Detalle del Cobro / Flete:
+                                          </span>
+                                          <p className="text-xs font-bold text-slate-700 leading-relaxed break-words">
+                                            {cleanDetail || parsed.detail}
+                                          </p>
+                                          {trackingsList.length > 0 && (
+                                            <div className="flex flex-wrap gap-1.5 pt-1">
+                                              {trackingsList.map((trk: string, idx: number) => (
+                                                <span
+                                                  key={idx}
+                                                  className="bg-slate-100 text-slate-700 border border-slate-200 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold"
+                                                >
+                                                  📦 {trk}
+                                                </span>
+                                              ))}
+                                            </div>
+                                          )}
                                         </div>
                                       </div>
-                                      
-                                      <div className="flex items-center justify-between border-t border-slate-100 pt-2.5">
-                                        <span className="font-mono font-black text-brand-orange text-xs">{currencySymbol} {invoice.amount.toFixed(2)}</span>
-                                        <button
-                                          type="button"
-                                          onClick={() => handleOpenPaymentModal(invoice)}
-                                          className="bg-green-600 hover:bg-green-700 text-white font-extrabold text-4xs px-3 py-1.5 rounded-xl transition uppercase tracking-wider flex items-center gap-1 cursor-pointer shadow-sm active:scale-95"
-                                        >
-                                          💵 Registrar Pago
-                                        </button>
+
+                                      {/* Bottom Action Bar: Big Amount + Print + Registrar Pago */}
+                                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t-2 border-slate-100 pt-4">
+                                        <div>
+                                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                                            Total a Cobrar
+                                          </span>
+                                          <span className="font-mono font-black text-brand-orange text-xl">
+                                            {currencySymbol} {invoice.amount.toFixed(2)}
+                                          </span>
+                                        </div>
+
+                                        <div className="flex items-center gap-2">
+                                          <button
+                                            type="button"
+                                            onClick={() => handlePrintInvoicePDF(invoice)}
+                                            title="Ver o Imprimir Factura"
+                                            className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-3xs px-3.5 py-2.5 rounded-xl transition uppercase tracking-wider flex items-center gap-1.5 cursor-pointer"
+                                          >
+                                            <Printer className="h-4 w-4" /> Factura
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleOpenPaymentModal(invoice)}
+                                            className="flex-1 sm:flex-initial bg-green-600 hover:bg-green-700 text-white font-black text-xs px-5 py-2.5 rounded-xl transition uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer shadow-sm hover:shadow active:scale-95"
+                                          >
+                                            💵 Registrar Pago
+                                          </button>
+                                        </div>
                                       </div>
                                     </div>
                                   );
                                 })}
-                                {pendingInvoices.length > 6 && (
-                                  <div className="bg-slate-50/50 border border-dashed border-slate-200 p-4 rounded-2xl flex flex-col justify-center items-center text-center text-4xs font-bold text-slate-500 space-y-2">
-                                    <span>Hay {pendingInvoices.length - 6} facturas más pendientes de cobro en cola.</span>
-                                    <button
-                                      type="button"
-                                      onClick={() => setAdminSubTab('facturacion')}
-                                      className="text-brand-orange hover:underline uppercase text-[9px] font-black"
-                                    >
-                                      Ver todas en Facturación &rarr;
-                                    </button>
-                                  </div>
-                                )}
                               </div>
                             ) : (
-                              <div className="bg-slate-50/50 border border-dashed border-slate-200 p-8 rounded-2xl text-center space-y-2">
-                                <div className="text-xs">🎉</div>
-                                <div className="text-4xs font-black text-slate-400 uppercase tracking-wider">¡Caja al día!</div>
-                                <p className="text-4xs text-slate-500">No hay facturas pendientes de cobro en este momento.</p>
+                              <div className="bg-slate-50/70 border-2 border-dashed border-slate-200 p-10 rounded-2xl text-center space-y-2">
+                                <div className="text-2xl">🎉</div>
+                                <div className="text-sm font-black text-slate-600 uppercase tracking-wider">
+                                  {paymentQueueSearch ? 'No se encontraron facturas con esa búsqueda' : '¡Caja al día!'}
+                                </div>
+                                <p className="text-xs text-slate-500">
+                                  {paymentQueueSearch
+                                    ? 'Intente buscar con otro número de casillero, nombre o factura.'
+                                    : 'No hay facturas pendientes de cobro en este momento.'}
+                                </p>
                               </div>
                             )}
                           </div>
-
-                          {/* Historical Payments Log Ledger Table (Full Width) */}
-                          <div className="space-y-3 pt-2">
-                            <span className="text-4xs font-bold text-gray-400 uppercase tracking-widest block">Historial Ledger de Transacciones de Caja</span>
-                            
-                            <div className="overflow-x-auto border border-gray-150 rounded-2xl">
-                              <table className="w-full text-left border-collapse">
-                                <thead>
-                                  <tr className="bg-gray-50 border-b border-gray-150 text-4xs font-extrabold text-gray-500 uppercase tracking-wider">
-                                    <th className="py-3 px-4">Recibo ID</th>
-                                    <th className="py-3 px-3">Casillero</th>
-                                    <th className="py-3 px-3">Factura Relac.</th>
-                                    <th className="py-3 px-3">Fecha Recibo</th>
-                                    <th className="py-3 px-3">Método Pago</th>
-                                    <th className="py-3 px-3 text-right">Monto Recaudado</th>
-                                    <th className="py-3 px-4">Notas / Auditoría</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-100 text-3xs font-semibold text-brand-gray-dark">
-                                  {paymentsLog.map(pay => {
-                                    const associatedInvoice = invoices.find(i => i.id === pay.invoiceId);
-                                    const parsed = associatedInvoice ? parseInvoiceConcept(associatedInvoice.concept) : null;
-                                    const currencySymbol = parsed?.currency === 'USD' ? '$' : 'Q';
-                                    return (
-                                      <tr key={pay.id} className="hover:bg-gray-50/50">
-                                        <td className="py-3.5 px-4 font-bold text-brand-gray-dark uppercase">{pay.id}</td>
-                                        <td className="py-3.5 px-3 font-mono text-gray-500">{pay.lockerId}</td>
-                                        <td className="py-3.5 px-3 font-bold text-brand-orange uppercase">{pay.invoiceId}</td>
-                                        <td className="py-3.5 px-3 font-mono">{pay.date}</td>
-                                        <td className="py-3.5 px-3 font-bold">{pay.method}</td>
-                                        <td className="py-3.5 px-3 text-right font-mono text-green-700 font-black">{currencySymbol} {pay.amount.toFixed(2)}</td>
-                                        <td className="py-3.5 px-4 text-gray-400 italic">{pay.notes}</td>
-                                      </tr>
-                                    );
-                                  })}
-                                </tbody>
-                              </table>
-                            </div>
-                          </div>
-
                         </div>
                       );
                     })()}
