@@ -7456,6 +7456,66 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                     {adminSubTab === 'consolidado' && (() => {
 
 
+                      const handleBulkGenerateInvoices = async (guideIds: string[]) => {
+                        const newInvoicesCreated: any[] = [];
+                        let alreadyInvoicedCount = 0;
+                        const currentDate = new Date().toISOString().split('T')[0];
+
+                        guideIds.forEach(id => {
+                          const guide = consolidatedGuides.find(g => g.id === id);
+                          if (!guide) return;
+
+                          let inv = invoices.find(i => i.concept.includes(id));
+                          if (!inv) {
+                            inv = invoices.find(i => i.lockerId === guide.lockerId && i.date === guide.date && i.concept.includes('Flete Consolidado'));
+                          }
+
+                          if (inv) {
+                            alreadyInvoicedCount++;
+                          } else {
+                            const parts = guide.id.split('-');
+                            const lockerId = guide.lockerId || parts[2] || 'N/A';
+                            const invoiceId = `FAC-${Math.floor(1000 + Math.random() * 9000)}`;
+                            const rate = guide.origin === 'Mexico' ? ratesSettings.mexicoRate : ratesSettings.laredoRate;
+                            const amount = guide.totalWeight * rate;
+
+                            // Find packages for this guide to include trackings
+                            const guideShipments = shipments.filter(s => s.history && s.history.some(h => h.details && h.details.includes(guide.id)));
+                            const trackingList = guideShipments.map(s => s.id).join(', ');
+                            const trackingSuffix = trackingList ? ` [Trackings: ${trackingList}]` : '';
+
+                            inv = {
+                              id: invoiceId,
+                              lockerId: lockerId,
+                              date: currentDate,
+                              concept: `Flete Consolidado - ${guide.itemsCount} Paquetes desde Bodega ${guide.origin} [Guía: ${guide.id}]${trackingSuffix}`,
+                              amount: amount,
+                              paymentStatus: 'Pendiente'
+                            };
+
+                            newInvoicesCreated.push(inv);
+                          }
+                        });
+
+                        if (newInvoicesCreated.length === 0) {
+                          if (alreadyInvoicedCount > 0) {
+                            alert(`Las ${alreadyInvoicedCount} guías de este contenedor/selección ya tienen su factura generada y registrada en el sistema (en Facturación / Fletes).`);
+                          } else {
+                            alert('No se encontraron guías válidas para generar facturas.');
+                          }
+                          return;
+                        }
+
+                        try {
+                          await Promise.all(newInvoicesCreated.map(inv => db.upsertInvoice(inv)));
+                          setInvoices(prev => [...newInvoicesCreated, ...prev]);
+                          alert(`✅ ¡Facturas generadas y registradas en el sistema con éxito!\n\n• Nuevas facturas creadas: ${newInvoicesCreated.length}${alreadyInvoicedCount > 0 ? `\n• Ya registradas anteriormente: ${alreadyInvoicedCount}` : ''}\n\nYa puedes verlas y cobrarlas en Finanzas -> Facturación / Fletes.`);
+                        } catch (err) {
+                          console.error("Error saving generated invoices:", err);
+                          alert("Ocurrió un error al guardar las facturas en la base de datos.");
+                        }
+                      };
+
                       const handleBulkPrintInvoices = async (guideIds: string[]) => {
                         const newInvoicesCreated: any[] = [];
                         const invoicesToPrint: any[] = [];
@@ -8400,11 +8460,19 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                   </button>
                                   <button
                                     type="button"
+                                    onClick={() => handleBulkGenerateInvoices(selectedConsolidados)}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-extrabold px-3 py-1.5 rounded uppercase tracking-wider cursor-pointer transition shadow-3xs flex items-center gap-1.5 active:scale-98"
+                                  >
+                                    <FileText className="h-3.5 w-3.5" />
+                                    <span>Generar Facturas ({selectedConsolidados.length})</span>
+                                  </button>
+                                  <button
+                                    type="button"
                                     onClick={() => handleBulkPrintInvoices(selectedConsolidados)}
                                     className="bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-extrabold px-3 py-1.5 rounded uppercase tracking-wider cursor-pointer transition shadow-3xs flex items-center gap-1.5 active:scale-98"
                                   >
                                     <Printer className="h-3.5 w-3.5" />
-                                    <span>Facturar en Masa ({selectedConsolidados.length})</span>
+                                    <span>Imprimir Facturas ({selectedConsolidados.length})</span>
                                   </button>
                                 </>
                               )}
@@ -8566,19 +8634,29 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                       </div>
 
                                       {/* Card footer actions */}
-                                      <div className="bg-slate-50 px-4 py-3 border-t border-slate-100 flex justify-between items-center gap-2">
-                                        <button
-                                          type="button"
-                                          onClick={() => handleBulkNotifyConsolidados(guidesInContainer.map(g => g.id))}
-                                          className="flex-1 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-[8px] font-extrabold py-1.5 px-2 rounded-lg uppercase tracking-wider cursor-pointer transition active:scale-97 flex items-center justify-center gap-1 shadow-3xs"
-                                        >
-                                          <Bell className="h-3 w-3 text-brand-orange" />
-                                          Notificar Clientes
-                                        </button>
+                                      <div className="bg-slate-50 px-4 py-3 border-t border-slate-100 flex flex-col gap-2">
+                                        <div className="flex justify-between items-center gap-2">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleBulkNotifyConsolidados(guidesInContainer.map(g => g.id))}
+                                            className="flex-1 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 text-[8px] font-extrabold py-1.5 px-2 rounded-lg uppercase tracking-wider cursor-pointer transition active:scale-97 flex items-center justify-center gap-1 shadow-3xs"
+                                          >
+                                            <Bell className="h-3 w-3 text-brand-orange" />
+                                            Notificar Clientes
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleBulkGenerateInvoices(guidesInContainer.map(g => g.id))}
+                                            className="flex-1 bg-emerald-600 hover:bg-emerald-700 border border-emerald-700 text-white text-[8px] font-extrabold py-1.5 px-2 rounded-lg uppercase tracking-wider cursor-pointer transition active:scale-97 flex items-center justify-center gap-1 shadow-3xs"
+                                          >
+                                            <FileText className="h-3 w-3" />
+                                            Generar Facturas
+                                          </button>
+                                        </div>
                                         <button
                                           type="button"
                                           onClick={() => handleBulkPrintInvoices(guidesInContainer.map(g => g.id))}
-                                          className="flex-1 bg-indigo-50 hover:bg-indigo-100 border border-indigo-150 text-indigo-700 text-[8px] font-extrabold py-1.5 px-2 rounded-lg uppercase tracking-wider cursor-pointer transition active:scale-97 flex items-center justify-center gap-1 shadow-3xs"
+                                          className="w-full bg-indigo-50 hover:bg-indigo-100 border border-indigo-150 text-indigo-700 text-[8px] font-extrabold py-1.5 px-2 rounded-lg uppercase tracking-wider cursor-pointer transition active:scale-97 flex items-center justify-center gap-1 shadow-3xs"
                                         >
                                           <Printer className="h-3 w-3" />
                                           Imprimir Facturas
@@ -8818,6 +8896,13 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                                 className="text-brand-orange hover:text-brand-orange-hover text-4xs font-black uppercase tracking-wider underline cursor-pointer"
                                               >
                                                 {isExpanded ? 'Ocultar' : 'Ver Detalle'}
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => handleBulkGenerateInvoices(item.guides.map((g: any) => g.id))}
+                                                className="text-emerald-600 hover:text-emerald-800 text-4xs font-black uppercase tracking-wider underline cursor-pointer flex items-center gap-0.5"
+                                              >
+                                                <FileText className="h-3 w-3 inline" /> Generar Factura
                                               </button>
                                               <button
                                                 type="button"
