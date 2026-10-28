@@ -287,7 +287,34 @@ export default function App() {
   const [clientPreAlertWeight, setClientPreAlertWeight] = useState('1.0');
   const [clientPreAlertInsurance, setClientPreAlertInsurance] = useState('Sin seguro');
   const [clientPreAlertFileName, setClientPreAlertFileName] = useState('');
+  const [clientPreAlertFileData, setClientPreAlertFileData] = useState('');
   const [activeWarehouseModal, setActiveWarehouseModal] = useState<'USA' | 'MEX' | null>(null);
+
+  const parsePreAlertAttachment = (pa: any): { fileName: string; fileDataUrl: string } => {
+    const raw = pa?.invoiceFileName || '';
+    let descFallback = '';
+    if (pa?.description && pa.description.includes('Factura:')) {
+      const matchParts = pa.description.split('Factura:');
+      if (matchParts.length > 1) descFallback = matchParts[1].trim().split(':::')[0];
+    }
+    if (raw.includes(':::')) {
+      const idx = raw.indexOf(':::');
+      return {
+        fileName: raw.slice(0, idx) || descFallback || 'Documento_Adjunto',
+        fileDataUrl: raw.slice(idx + 3)
+      };
+    }
+    if (raw.startsWith('data:') || raw.startsWith('http')) {
+      return {
+        fileName: descFallback || 'Documento_Adjunto',
+        fileDataUrl: raw
+      };
+    }
+    return {
+      fileName: raw || descFallback || '',
+      fileDataUrl: ''
+    };
+  };
 
   const getOriginalTrackingHelper = (ship: Shipment): string => {
     if (ship.notes) {
@@ -371,6 +398,40 @@ export default function App() {
   const [invoiceStripeLink, setInvoiceStripeLink] = useState('');
   const [invoiceCurrency, setInvoiceCurrency] = useState<'GTQ' | 'USD'>('GTQ');
   const [activePreAlertInvoice, setActivePreAlertInvoice] = useState<PreAlert | null>(null);
+  const [activePreAlertBlobUrl, setActivePreAlertBlobUrl] = useState<string>('');
+
+  useEffect(() => {
+    if (!activePreAlertInvoice) {
+      setActivePreAlertBlobUrl('');
+      return;
+    }
+    const { fileDataUrl } = parsePreAlertAttachment(activePreAlertInvoice);
+    if (!fileDataUrl) {
+      setActivePreAlertBlobUrl('');
+      return;
+    }
+    if (fileDataUrl.startsWith('data:')) {
+      try {
+        const parts = fileDataUrl.split(',');
+        const mimeMatch = parts[0].match(/:(.*?);/);
+        const mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+        const byteStr = atob(parts[1]);
+        const ab = new ArrayBuffer(byteStr.length);
+        const ia = new Uint8Array(ab);
+        for (let i = 0; i < byteStr.length; i++) {
+          ia[i] = byteStr.charCodeAt(i);
+        }
+        const blob = new Blob([ab], { type: mime });
+        const url = URL.createObjectURL(blob);
+        setActivePreAlertBlobUrl(url);
+        return () => URL.revokeObjectURL(url);
+      } catch (e) {
+        setActivePreAlertBlobUrl(fileDataUrl);
+      }
+    } else {
+      setActivePreAlertBlobUrl(fileDataUrl);
+    }
+  }, [activePreAlertInvoice]);
   
   // Invoice Filter & Search States
   const [invoiceSearchQuery, setInvoiceSearchQuery] = useState('');
@@ -2699,7 +2760,8 @@ Cargos de Flete y Tarifas Asignadas:
     const weightVal = parseFloat(editPreAlertWeight) || 1.0;
 
     // Preserve the original invoice name if present
-    const cleanInvoicePart = editingPreAlert.invoiceFileName ? ` | Factura: ${editingPreAlert.invoiceFileName}` : '';
+    const parsedAttachment = parsePreAlertAttachment(editingPreAlert);
+    const cleanInvoicePart = parsedAttachment.fileName ? ` | Factura: ${parsedAttachment.fileName}` : '';
 
     const updatedPreAlert: PreAlert = {
       ...editingPreAlert,
@@ -2768,6 +2830,9 @@ Cargos de Flete y Tarifas Asignadas:
     }
 
     const weightVal = parseFloat(clientPreAlertWeight) || 1.0;
+    const serializedAttachment = clientPreAlertFileName
+      ? (clientPreAlertFileData ? `${clientPreAlertFileName}:::${clientPreAlertFileData}` : clientPreAlertFileName)
+      : '';
 
     const newPreAlert: PreAlert & { declaredValue?: number; insurance?: string; invoiceFileName?: string } = {
       id: clientPreAlertTracking.trim().toUpperCase(),
@@ -2779,7 +2844,7 @@ Cargos de Flete y Tarifas Asignadas:
       dateCreated: new Date().toISOString().split('T')[0],
       declaredValue: declaredVal,
       insurance: clientPreAlertInsurance,
-      invoiceFileName: clientPreAlertFileName
+      invoiceFileName: serializedAttachment
     };
 
     // Save to Supabase
@@ -2794,6 +2859,7 @@ Cargos de Flete y Tarifas Asignadas:
     setClientPreAlertWeight('1.0');
     setClientPreAlertInsurance('Sin seguro');
     setClientPreAlertFileName('');
+    setClientPreAlertFileData('');
     setIsClientPreAlertModalOpen(false);
 
     alert(`¡Pre-Alerta registrada con éxito!\nEl paquete con tracking "${newPreAlert.id}" ha sido documentado. El equipo de ShipFast en ${clientPreAlertBodega === 'USA' ? 'USA' : 'México'} estará pendiente de su arribo.`);
@@ -2825,6 +2891,9 @@ Cargos de Flete y Tarifas Asignadas:
 
     const targetUser = users.find(u => u.lockerId === adminPreAlertLockerId.toUpperCase());
     const clientName = targetUser ? targetUser.name : 'Cliente';
+    const serializedAttachment = clientPreAlertFileName
+      ? (clientPreAlertFileData ? `${clientPreAlertFileName}:::${clientPreAlertFileData}` : clientPreAlertFileName)
+      : '';
 
     const newPreAlert: PreAlert & { declaredValue?: number; insurance?: string; invoiceFileName?: string } = {
       id: clientPreAlertTracking.trim().toUpperCase(),
@@ -2836,7 +2905,7 @@ Cargos de Flete y Tarifas Asignadas:
       dateCreated: new Date().toISOString().split('T')[0],
       declaredValue: declaredVal,
       insurance: clientPreAlertInsurance,
-      invoiceFileName: clientPreAlertFileName
+      invoiceFileName: serializedAttachment
     };
 
     // Save to Supabase
@@ -2851,6 +2920,7 @@ Cargos de Flete y Tarifas Asignadas:
     setClientPreAlertWeight('1.0');
     setClientPreAlertInsurance('Sin seguro');
     setClientPreAlertFileName('');
+    setClientPreAlertFileData('');
     setAdminPreAlertLockerId('');
     setIsAdminPreAlertModalOpen(false);
 
@@ -4776,6 +4846,7 @@ Para proporcionarle información específica, puede solicitar:
                         setClientPreAlertWeight('1.0');
                         setClientPreAlertInsurance('Sin seguro');
                         setClientPreAlertFileName('');
+                        setClientPreAlertFileData('');
                         setIsClientPreAlertModalOpen(true);
                       }}
                       className="px-4 py-1.5 text-3xs font-bold rounded uppercase tracking-wider transition flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs cursor-pointer active:scale-98 whitespace-nowrap"
@@ -5057,6 +5128,7 @@ Para proporcionarle información específica, puede solicitar:
                           setClientPreAlertWeight('1.0');
                           setClientPreAlertInsurance('Sin seguro');
                           setClientPreAlertFileName('');
+                          setClientPreAlertFileData('');
                           setIsClientPreAlertModalOpen(true);
                         }}
                         className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-5xs font-black px-2 py-1 rounded uppercase tracking-wider transition cursor-pointer active:scale-95"
@@ -5066,26 +5138,38 @@ Para proporcionarle información específica, puede solicitar:
                     </div>
                     
                     <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
-                      {[...preAlerts].filter(pa => pa.lockerId === currentUser.lockerId).reverse().map(pa => (
-                        <div key={pa.id} className="p-2.5 bg-gray-50/80 border border-gray-100 rounded text-4xs space-y-1 relative overflow-hidden font-mono">
-                          <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500"></div>
-                          <div className="flex justify-between items-center font-bold">
-                            <span className="text-indigo-600 select-all font-black">{pa.id}</span>
-                            <span className={`px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase tracking-wide ${
-                              pa.status === 'Recibido' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
-                            }`}>
-                              {pa.status}
-                            </span>
+                      {[...preAlerts].filter(pa => pa.lockerId === currentUser.lockerId).reverse().map(pa => {
+                        const { fileName: attachedFile } = parsePreAlertAttachment(pa);
+                        return (
+                          <div key={pa.id} className="p-2.5 bg-gray-50/80 border border-gray-100 rounded text-4xs space-y-1 relative overflow-hidden font-mono">
+                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500"></div>
+                            <div className="flex justify-between items-center font-bold">
+                              <span className="text-indigo-600 select-all font-black">{pa.id}</span>
+                              <span className={`px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase tracking-wide ${
+                                pa.status === 'Recibido' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
+                              }`}>
+                                {pa.status}
+                              </span>
+                            </div>
+                            <div className="text-gray-500 font-sans leading-tight">
+                              {pa.description}
+                            </div>
+                            {attachedFile && (
+                              <button
+                                type="button"
+                                onClick={() => setActivePreAlertInvoice(pa)}
+                                className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 text-[9px] font-bold font-sans cursor-pointer"
+                              >
+                                📄 Ver Archivo ({attachedFile})
+                              </button>
+                            )}
+                            <div className="text-[8px] text-gray-400 font-semibold uppercase flex justify-between pt-0.5 border-t border-gray-100/50 mt-1 font-sans">
+                              <span>Creación: {pa.dateCreated}</span>
+                              <span>Est: {pa.weightEst} Lbs</span>
+                            </div>
                           </div>
-                          <div className="text-gray-500 font-sans leading-tight">
-                            {pa.description}
-                          </div>
-                          <div className="text-[8px] text-gray-400 font-semibold uppercase flex justify-between pt-0.5 border-t border-gray-100/50 mt-1 font-sans">
-                            <span>Creación: {pa.dateCreated}</span>
-                            <span>Est: {pa.weightEst} Lbs</span>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                       {preAlerts.filter(pa => pa.lockerId === currentUser.lockerId).length === 0 && (
                         <p className="text-4xs text-gray-400 italic text-center py-4">No tienes pre-alertas creadas en este momento.</p>
                       )}
@@ -6499,6 +6583,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                 setClientPreAlertValue('');
                                 setClientPreAlertInsurance('Sin seguro');
                                 setClientPreAlertFileName('');
+                                setClientPreAlertFileData('');
                                 setIsAdminPreAlertModalOpen(true);
                               }}
                               className="bg-brand-orange hover:bg-brand-orange-hover text-white text-3xs font-extrabold px-4 py-2 rounded uppercase tracking-wider cursor-pointer transition shadow-3xs flex items-center gap-1 active:scale-98"
@@ -6637,13 +6722,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                               }).reverse().map(pa => {
                                 const parts = pa.description ? pa.description.split(' | ') : [];
                                 const cleanDescription = parts.filter(p => !p.startsWith('Factura:')).join(' | ');
-                                const invoiceFile = pa.invoiceFileName || (() => {
-                                  if (pa.description && pa.description.includes('Factura:')) {
-                                    const matchParts = pa.description.split('Factura:');
-                                    if (matchParts.length > 1) return matchParts[1].trim();
-                                  }
-                                  return null;
-                                })();
+                                const { fileName: invoiceFile } = parsePreAlertAttachment(pa);
 
                                 return (
                                   <tr key={pa.id} className="hover:bg-gray-50/50">
@@ -6672,7 +6751,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                           <button
                                             type="button"
                                             onClick={() => {
-                                              setActivePreAlertInvoice({ ...pa, invoiceFileName: invoiceFile });
+                                              setActivePreAlertInvoice(pa);
                                             }}
                                             className="mt-1 self-start inline-flex items-center gap-1 px-2.5 py-0.5 rounded bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 hover:text-blue-800 text-[10px] font-black tracking-wider transition-all duration-150 cursor-pointer shadow-3xs"
                                             title={`Ver archivo: ${invoiceFile}`}
@@ -13978,15 +14057,22 @@ El Equipo de ShipFast GT`;
 
                   {/* FACTURA (IMAGEN O PDF) */}
                   <div>
-                    <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">FACTURA (IMAGEN O PDF)</label>
+                    <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">FACTURA DEL PRODUCTO (IMAGEN O PDF)</label>
                     <input
                       type="file"
                       id="clientPreAlertFile"
-                      accept="image/*,.pdf"
+                      accept="image/*,.pdf,application/pdf"
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (file) {
                           setClientPreAlertFileName(file.name);
+                          const reader = new FileReader();
+                          reader.onload = () => {
+                            if (typeof reader.result === 'string') {
+                              setClientPreAlertFileData(reader.result);
+                            }
+                          };
+                          reader.readAsDataURL(file);
                         }
                       }}
                       className="hidden"
@@ -14002,7 +14088,7 @@ El Equipo de ShipFast GT`;
                             ✓ {clientPreAlertFileName}
                           </span>
                         ) : (
-                          'Click para subir factura'
+                          'Click para subir PDF o imagen de factura del producto'
                         )}
                       </span>
                     </label>
@@ -14014,6 +14100,7 @@ El Equipo de ShipFast GT`;
                       type="button"
                       onClick={() => {
                         setClientPreAlertFileName('');
+                        setClientPreAlertFileData('');
                         setIsClientPreAlertModalOpen(false);
                       }}
                       className="px-5 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition active:scale-95 cursor-pointer"
@@ -14165,15 +14252,22 @@ El Equipo de ShipFast GT`;
 
                   {/* FACTURA (IMAGEN O PDF) */}
                   <div>
-                    <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">FACTURA (IMAGEN O PDF)</label>
+                    <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">FACTURA DEL PRODUCTO (IMAGEN O PDF)</label>
                     <input
                       type="file"
                       id="adminPreAlertFile"
-                      accept="image/*,.pdf"
+                      accept="image/*,.pdf,application/pdf"
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (file) {
                           setClientPreAlertFileName(file.name);
+                          const reader = new FileReader();
+                          reader.onload = () => {
+                            if (typeof reader.result === 'string') {
+                              setClientPreAlertFileData(reader.result);
+                            }
+                          };
+                          reader.readAsDataURL(file);
                         }
                       }}
                       className="hidden"
@@ -14189,7 +14283,7 @@ El Equipo de ShipFast GT`;
                             ✓ {clientPreAlertFileName}
                           </span>
                         ) : (
-                          'Click para subir factura'
+                          'Click para subir PDF o imagen de factura del producto'
                         )}
                       </span>
                     </label>
@@ -14201,6 +14295,7 @@ El Equipo de ShipFast GT`;
                       type="button"
                       onClick={() => {
                         setClientPreAlertFileName('');
+                        setClientPreAlertFileData('');
                         setAdminPreAlertLockerId('');
                         setIsAdminPreAlertModalOpen(false);
                       }}
@@ -14225,25 +14320,29 @@ El Equipo de ShipFast GT`;
 
           {/* ==================== PREVIEW ATTACHED PRE-ALERT INVOICE MODAL ==================== */}
           {activePreAlertInvoice && (() => {
-            const fileName = activePreAlertInvoice.invoiceFileName || '';
-            const isPdf = fileName.toLowerCase().endsWith('.pdf');
-            const amount = activePreAlertInvoice.declaredValue || 25.94;
+            const { fileName, fileDataUrl } = parsePreAlertAttachment(activePreAlertInvoice);
+            const isPdf = fileName.toLowerCase().endsWith('.pdf') || fileDataUrl.startsWith('data:application/pdf');
             const tracking = activePreAlertInvoice.id;
             const clientLocker = activePreAlertInvoice.lockerId;
+            const displayUrl = activePreAlertBlobUrl || fileDataUrl;
 
             return (
-              <div className="fixed inset-0 bg-brand-gray-dark/70 backdrop-blur-xs flex justify-center items-center z-[200] p-4 animate-fade-in">
-                <div className="bg-white w-full max-w-2xl rounded-2xl border border-gray-100 shadow-2xl overflow-hidden animate-zoom-in transition-all duration-300 font-sans">
+              <div className="fixed inset-0 bg-brand-gray-dark/75 backdrop-blur-xs flex justify-center items-center z-[200] p-4 animate-fade-in">
+                <div className="bg-white w-full max-w-4xl rounded-2xl border border-gray-100 shadow-2xl overflow-hidden animate-zoom-in transition-all duration-300 font-sans flex flex-col max-h-[92vh]">
                   
                   {/* Modal Header */}
-                  <div className="bg-brand-gray-dark text-white px-6 py-4 flex justify-between items-center border-b border-gray-800">
-                    <div className="flex items-center gap-2">
-                      <span className="p-1.5 rounded-lg bg-gray-800 text-brand-orange border border-gray-700">
+                  <div className="bg-brand-gray-dark text-white px-6 py-4 flex justify-between items-center border-b border-gray-800 shrink-0">
+                    <div className="flex items-center gap-3">
+                      <span className="p-2 rounded-lg bg-gray-800 text-brand-orange border border-gray-700">
                         <FileText className="h-5 w-5" />
                       </span>
                       <div>
-                        <h3 className="text-2xs font-extrabold uppercase tracking-wider text-gray-100">Vista Previa de Documento</h3>
-                        <p className="text-[10px] text-gray-400 font-mono font-medium">{fileName}</p>
+                        <h3 className="text-xs font-extrabold uppercase tracking-wider text-gray-100">
+                          Archivo Subido por el Cliente (Pre-Alerta {tracking})
+                        </h3>
+                        <p className="text-[11px] text-gray-400 font-mono font-medium">
+                          {fileName || 'Documento adjunto'} • Casillero: <strong className="text-brand-orange">{clientLocker}</strong>
+                        </p>
                       </div>
                     </div>
                     <button
@@ -14256,103 +14355,149 @@ El Equipo de ShipFast GT`;
                     </button>
                   </div>
 
-                  {/* Modal Body / Document Renderer */}
-                  <div className="p-6 bg-gray-50 flex flex-col items-center justify-center min-h-[420px] max-h-[550px] overflow-y-auto">
-                    
-                    {/* Realistic PDF / Image File Viewer Panel */}
-                    <div className="w-full bg-slate-900 border border-slate-800 rounded-xl shadow-inner p-6 flex flex-col items-center justify-center text-center max-w-lg relative min-h-[360px] text-white">
-                      
-                      <div className="mb-4 p-4 rounded-full bg-slate-800 border border-slate-700">
-                        {isPdf ? (
-                          <FileText className="h-16 w-16 text-red-500 animate-pulse" />
-                        ) : (
-                          <FileText className="h-16 w-16 text-blue-400 animate-pulse" />
-                        )}
+                  {/* Modal Body / Actual PDF or Image Viewer */}
+                  <div className="p-4 sm:p-6 bg-slate-100 flex-1 overflow-y-auto flex flex-col items-center justify-center min-h-[450px]">
+                    {displayUrl ? (
+                      isPdf ? (
+                        <iframe
+                          src={displayUrl}
+                          title={fileName}
+                          className="w-full h-[68vh] rounded-xl border border-slate-300 bg-white shadow-sm"
+                        />
+                      ) : (
+                        <div className="w-full flex flex-col items-center justify-center">
+                          <img
+                            src={displayUrl}
+                            alt={fileName}
+                            className="max-w-full max-h-[68vh] object-contain rounded-xl shadow-md border border-slate-200 bg-white"
+                          />
+                        </div>
+                      )
+                    ) : (
+                      <div className="w-full bg-slate-900 border border-slate-800 rounded-2xl shadow-inner p-8 flex flex-col items-center justify-center text-center max-w-lg text-white space-y-4">
+                        <div className="p-4 rounded-full bg-slate-800 border border-slate-700">
+                          <FileText className="h-14 w-14 text-amber-400" />
+                        </div>
+                        <div className="space-y-2">
+                          <h4 className="text-sm font-extrabold uppercase tracking-wider text-slate-100">
+                            Archivo Anterior (Solo Nombre Guardado)
+                          </h4>
+                          <p className="text-xs text-amber-300 font-mono break-all font-bold bg-slate-950 px-3 py-2 rounded-lg border border-slate-800">
+                            {fileName}
+                          </p>
+                          <p className="text-xs text-slate-300 leading-relaxed">
+                            Esta pre-alerta fue creada antes de activar el guardado completo de PDFs/imágenes (solo se había registrado el nombre del archivo).
+                          </p>
+                          <p className="text-[11px] text-slate-400">
+                            Puedes subir o vincular el PDF o imagen real aquí mismo para que quede guardado y visible permanentemente:
+                          </p>
+                        </div>
+
+                        <div className="pt-2">
+                          <input
+                            type="file"
+                            id="replacePreAlertAttachmentInput"
+                            accept="image/*,.pdf,application/pdf"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              const reader = new FileReader();
+                              reader.onload = async () => {
+                                if (typeof reader.result === 'string') {
+                                  const newSerialized = `${file.name}:::${reader.result}`;
+                                  const cleanParts = (activePreAlertInvoice.description || '')
+                                    .split(' | ')
+                                    .filter(p => !p.startsWith('Factura:'));
+                                  const updatedPa: PreAlert = {
+                                    ...activePreAlertInvoice,
+                                    description: `${cleanParts.join(' | ')} | Factura: ${file.name}`,
+                                    invoiceFileName: newSerialized
+                                  };
+                                  await db.upsertPreAlert(updatedPa);
+                                  setPreAlerts(prev => prev.map(item => item.id === updatedPa.id ? updatedPa : item));
+                                  setActivePreAlertInvoice(updatedPa);
+                                }
+                              };
+                              reader.readAsDataURL(file);
+                            }}
+                            className="hidden"
+                          />
+                          <label
+                            htmlFor="replacePreAlertAttachmentInput"
+                            className="inline-flex items-center gap-2 bg-brand-orange hover:bg-brand-orange-hover text-white font-black text-xs px-5 py-2.5 rounded-xl uppercase tracking-wider cursor-pointer shadow-md transition"
+                          >
+                            <UploadCloud className="h-4 w-4" />
+                            Subir PDF o Imagen del Producto
+                          </label>
+                        </div>
                       </div>
-
-                      <div className="space-y-2 max-w-xs">
-                        <h4 className="text-sm font-extrabold uppercase tracking-wider text-slate-100">
-                          {isPdf ? 'Documento PDF Cargado' : 'Imagen Adjunta Guardada'}
-                        </h4>
-                        <p className="text-3xs text-slate-400 font-mono break-all font-bold select-all bg-slate-950 p-2 rounded border border-slate-800">
-                          {fileName}
-                        </p>
-                        <p className="text-[10px] text-slate-400 font-sans leading-normal">
-                          El archivo original ha sido cargado con éxito en los servidores de ShipFast y está disponible para la verificación física del personal en aduanas.
-                        </p>
-                      </div>
-
-                      <div className="mt-8 pt-4 border-t border-slate-800/80 w-full flex flex-col items-center justify-center gap-1">
-                        <span className="text-[9px] text-green-400 uppercase tracking-widest font-black flex items-center gap-1">
-                          ✓ Estado: Archivo Vinculado al Tracking
-                        </span>
-                        <span className="text-[8px] text-slate-500 font-mono">
-                          ID Paquete: {tracking} | Casillero: {clientLocker}
-                        </span>
-                      </div>
-
-                    </div>
-
+                    )}
                   </div>
 
                   {/* Modal Footer */}
-                  <div className="bg-gray-100 px-6 py-4 flex justify-between items-center border-t border-gray-200">
-                    <span className="text-4xs text-gray-500 font-extrabold uppercase tracking-widest flex items-center gap-1.5">
-                      <span className="h-2 w-2 bg-green-500 rounded-full animate-ping"></span>
-                      Documento Verificado por Antivirus ShipFast
-                    </span>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const printInvoiceWindow = window.open('', '_blank');
-                          if (printInvoiceWindow) {
-                            printInvoiceWindow.document.write(`
-                              <html>
-                                <head>
-                                  <title>Factura Adjunta ${tracking}</title>
-                                  <style>
-                                    body { font-family: sans-serif; padding: 40px; color: #1e293b; background: #f8fafc; }
-                                    .invoice { max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; padding: 30px; background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
-                                    .header { border-bottom: 2px solid #3b82f6; padding-bottom: 15px; margin-bottom: 20px; }
-                                    .header h2 { margin: 0; color: #1e3a8a; }
-                                    .details { margin-bottom: 20px; font-size: 14px; line-height: 1.6; }
-                                    .footer { font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0; padding-top: 15px; margin-top: 25px; text-align: center; }
-                                  </style>
-                                </head>
-                                <body>
-                                  <div class="invoice">
-                                    <div class="header">
-                                      <h2>DOCUMENTO DE FACTURA ADJUNTA</h2>
-                                      <p style="margin: 5px 0 0 0; color: #64748b; font-size: 13px;">ShipFast Logistics - Registro de Pre-Alerta</p>
-                                    </div>
-                                    <div class="details">
-                                      <p><strong>Tracking ID / Código de Envío:</strong> ${tracking}</p>
-                                      <p><strong>Casillero Asociado (Locker):</strong> ${clientLocker}</p>
-                                      <p><strong>Nombre del Archivo Cargado:</strong> ${fileName}</p>
-                                      <p><strong>Tipo de Archivo:</strong> ${isPdf ? 'Documento Portable (PDF)' : 'Imagen Digital / Captura'}</p>
-                                      <p><strong>Fecha de Transmisión:</strong> ${activePreAlertInvoice.dateCreated}</p>
-                                      <p><strong>Valor Declarado:</strong> USD ${amount.toFixed(2)}</p>
-                                    </div>
-                                    <div class="footer">
-                                      <p>Verificado digitalmente por ShipFast Logistics. Este documento acredita la pre-alerta y carga de factura del paquete.</p>
-                                    </div>
-                                  </div>
-                                  <script>window.onload = function() { window.print(); }</script>
-                                </body>
-                              </html>
-                            `);
-                            printInvoiceWindow.document.close();
-                          }
+                  <div className="bg-white px-6 py-4 flex flex-wrap justify-between items-center gap-3 border-t border-gray-200 shrink-0">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="file"
+                        id="updateExistingPreAlertFile"
+                        accept="image/*,.pdf,application/pdf"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onload = async () => {
+                            if (typeof reader.result === 'string') {
+                              const newSerialized = `${file.name}:::${reader.result}`;
+                              const cleanParts = (activePreAlertInvoice.description || '')
+                                .split(' | ')
+                                .filter(p => !p.startsWith('Factura:'));
+                              const updatedPa: PreAlert = {
+                                ...activePreAlertInvoice,
+                                description: `${cleanParts.join(' | ')} | Factura: ${file.name}`,
+                                invoiceFileName: newSerialized
+                              };
+                              await db.upsertPreAlert(updatedPa);
+                              setPreAlerts(prev => prev.map(item => item.id === updatedPa.id ? updatedPa : item));
+                              setActivePreAlertInvoice(updatedPa);
+                            }
+                          };
+                          reader.readAsDataURL(file);
                         }}
-                        className="px-4 py-1.5 bg-brand-gray-dark hover:bg-brand-gray-dark/80 text-white font-extrabold text-3xs rounded uppercase tracking-wider transition cursor-pointer"
+                        className="hidden"
+                      />
+                      <label
+                        htmlFor="updateExistingPreAlertFile"
+                        className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-3xs rounded-xl uppercase tracking-wider transition cursor-pointer flex items-center gap-1.5"
                       >
-                        🖨️ Imprimir
-                      </button>
+                        <UploadCloud className="h-3.5 w-3.5" /> Cambiar Archivo
+                      </label>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      {displayUrl && (
+                        <>
+                          <a
+                            href={displayUrl}
+                            download={fileName || `prealerta-${tracking}`}
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-3xs rounded-xl uppercase tracking-wider transition cursor-pointer flex items-center gap-1.5"
+                          >
+                            <FileDown className="h-3.5 w-3.5" /> Descargar
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              window.open(displayUrl, '_blank');
+                            }}
+                            className="px-4 py-2 bg-brand-gray-dark hover:bg-brand-gray-dark/90 text-white font-extrabold text-3xs rounded-xl uppercase tracking-wider transition cursor-pointer flex items-center gap-1.5"
+                          >
+                            🔍 Abrir / Imprimir Original
+                          </button>
+                        </>
+                      )}
                       <button
                         type="button"
                         onClick={() => setActivePreAlertInvoice(null)}
-                        className="px-4 py-1.5 bg-gray-200 hover:bg-gray-300 text-brand-gray-dark font-extrabold text-3xs rounded uppercase tracking-wider transition cursor-pointer"
+                        className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-brand-gray-dark font-extrabold text-3xs rounded-xl uppercase tracking-wider transition cursor-pointer"
                       >
                         Cerrar
                       </button>
