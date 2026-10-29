@@ -118,7 +118,22 @@ export const db = {
     try {
       const { data, error } = await supabase.from('pre_alerts').select('*');
       if (error) throw error;
-      return toCamel(data) || [];
+      const camelList = toCamel(data) || [];
+      return camelList.map((pa: any) => {
+        if (typeof pa.insurance === 'string' && pa.insurance.includes(':::WAIVER:::')) {
+          const [cleanIns, rest] = pa.insurance.split(':::WAIVER:::');
+          const sepIdx = rest.indexOf(':::');
+          const waiverDate = sepIdx !== -1 ? rest.slice(0, sepIdx) : '';
+          const waiverSignature = sepIdx !== -1 ? rest.slice(sepIdx + 3) : rest;
+          return {
+            ...pa,
+            insurance: cleanIns || 'Sin seguro',
+            waiverDate,
+            waiverSignature
+          };
+        }
+        return pa;
+      });
     } catch (err) {
       console.error("Supabase: getPreAlerts error, using fallback", err);
       return [];
@@ -126,7 +141,16 @@ export const db = {
   },
   async upsertPreAlert(preAlert: any): Promise<boolean> {
     try {
-      const dbObj = toSnake(preAlert);
+      const copy = { ...preAlert };
+      const waiverSig = copy.waiverSignature;
+      const waiverDt = copy.waiverDate || new Date().toISOString();
+      delete copy.waiverSignature;
+      delete copy.waiverDate;
+      if (waiverSig) {
+        const cleanIns = (copy.insurance || 'Sin seguro').split(':::WAIVER:::')[0];
+        copy.insurance = `${cleanIns}:::WAIVER:::${waiverDt}:::${waiverSig}`;
+      }
+      const dbObj = toSnake(copy);
       const { error } = await supabase.from('pre_alerts').upsert(dbObj);
       if (error) throw error;
       return true;
