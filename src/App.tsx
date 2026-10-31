@@ -301,6 +301,56 @@ export default function App() {
   const inlineWaiverCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isDrawingSignature, setIsDrawingSignature] = useState(false);
   const [hasDrawnWaiverSignature, setHasDrawnWaiverSignature] = useState(false);
+  const [preAlertSignatureName, setPreAlertSignatureName] = useState('');
+
+  const buildPreAlertSignatureImage = (
+    canvas: HTMLCanvasElement | null,
+    hasDrawn: boolean,
+    typedName: string
+  ): string => {
+    const cleanName = typedName.trim();
+    if (!hasDrawn && !cleanName) return '';
+
+    const outCanvas = document.createElement('canvas');
+    outCanvas.width = 500;
+    outCanvas.height = 140;
+    const ctx = outCanvas.getContext('2d');
+    if (!ctx) {
+      return hasDrawn && canvas ? canvas.toDataURL('image/png') : '';
+    }
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, outCanvas.width, outCanvas.height);
+
+    if (hasDrawn && canvas) {
+      ctx.drawImage(canvas, 0, 0, 500, 108);
+    } else if (cleanName) {
+      ctx.save();
+      ctx.font = 'italic bold 28px Georgia, "Times New Roman", serif';
+      ctx.fillStyle = '#0f172a';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(cleanName, 250, 56, 460);
+      ctx.restore();
+    }
+
+    if (cleanName) {
+      ctx.save();
+      ctx.strokeStyle = '#cbd5e1';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(40, 112);
+      ctx.lineTo(460, 112);
+      ctx.stroke();
+      ctx.font = 'bold 11px "Segoe UI", Arial, sans-serif';
+      ctx.fillStyle = '#334155';
+      ctx.textAlign = 'center';
+      ctx.fillText(`FIRMADO POR: ${cleanName.toUpperCase()}`, 250, 128, 460);
+      ctx.restore();
+    }
+
+    return outCanvas.toDataURL('image/png');
+  };
 
   const parsePreAlertAttachment = (pa: any): { fileName: string; fileDataUrl: string } => {
     const raw = pa?.invoiceFileName || '';
@@ -334,6 +384,7 @@ export default function App() {
     let origin = 'USA';
     let declaredValue = typeof pa.declaredValue === 'number' ? pa.declaredValue : 0;
     let insurance = (pa.insurance || 'Sin seguro').split(':::WAIVER:::')[0];
+    let signedBy = '';
     const customParts: string[] = [];
 
     for (const part of parts) {
@@ -351,6 +402,9 @@ export default function App() {
       } else if (lower.startsWith('seguro:')) {
         const val = part.slice(7).trim().split(':::WAIVER:::')[0];
         if (val && !pa.insurance) insurance = val;
+      } else if (lower.startsWith('firmado:') || lower.startsWith('firma:')) {
+        const idx = part.indexOf(':');
+        if (idx !== -1) signedBy = part.slice(idx + 1).trim();
       } else if (lower.startsWith('factura:')) {
         // Handled by parsePreAlertAttachment
       } else if (lower.startsWith('contenido:') || lower.startsWith('descripción:') || lower.startsWith('descripcion:')) {
@@ -368,6 +422,7 @@ export default function App() {
       declaredValue,
       insurance,
       hasInsurance: insurance.toLowerCase().includes('con seguro'),
+      signedBy,
       customNote: customParts.join(' • ')
     };
   };
@@ -2840,8 +2895,10 @@ Cargos de Flete y Tarifas Asignadas:
     const declaredVal = parseFloat(editPreAlertValue) || 0;
     const weightVal = parseFloat(editPreAlertWeight) || 1.0;
 
-    // Preserve the original invoice name if present
+    // Preserve the original invoice name and signer if present
     const parsedAttachment = parsePreAlertAttachment(editingPreAlert);
+    const parsedOld = parsePreAlertDetails(editingPreAlert);
+    const cleanSignedPart = parsedOld.signedBy ? ` | Firmado: ${parsedOld.signedBy}` : '';
     const cleanNotePart = editPreAlertCustomNote.trim() ? ` | Contenido: ${editPreAlertCustomNote.trim()}` : '';
     const cleanInvoicePart = parsedAttachment.fileName ? ` | Factura: ${parsedAttachment.fileName}` : '';
 
@@ -2850,7 +2907,7 @@ Cargos de Flete y Tarifas Asignadas:
       id: newTrackingId,
       lockerId: (editPreAlertLockerId.trim() || editingPreAlert.lockerId).toUpperCase(),
       sender: editPreAlertSender.trim() || editingPreAlert.sender || 'Compra Online',
-      description: `Origen: ${editPreAlertBodega} | Valor: $${declaredVal.toFixed(2)} | Seguro: ${editPreAlertInsurance}${cleanNotePart}${cleanInvoicePart}`,
+      description: `Origen: ${editPreAlertBodega} | Valor: $${declaredVal.toFixed(2)} | Seguro: ${editPreAlertInsurance}${cleanSignedPart}${cleanNotePart}${cleanInvoicePart}`,
       weightEst: weightVal,
       declaredValue: declaredVal,
       insurance: editPreAlertInsurance
@@ -2896,33 +2953,48 @@ Cargos de Flete y Tarifas Asignadas:
   };
 
   const handleSaveSignature = () => {
-    if (waiverCanvasRef.current && pendingPreAlertData) {
-      const signatureDataUrl = waiverCanvasRef.current.toDataURL('image/png');
-      const finalPreAlert: PreAlert = {
-        ...pendingPreAlertData,
-        waiverSignature: signatureDataUrl,
-        waiverDate: new Date().toISOString()
-      };
-
-      setPreAlerts(prev => [finalPreAlert, ...prev]);
-      db.upsertPreAlert(finalPreAlert);
-
-      setPendingPreAlertData(null);
-      setIsSignatureModalOpen(false);
-      setHasDrawnWaiverSignature(false);
-
-      setAdminPreAlertLockerId('');
-      setClientPreAlertTracking('');
-      setClientPreAlertBodega('');
-      setClientPreAlertValue('');
-      setClientPreAlertWeight('1.0');
-      setClientPreAlertInsurance('Sin seguro');
-      setClientPreAlertCustomNote('');
-      setClientPreAlertFileName('');
-      setClientPreAlertFileData('');
-
-      alert('¡Pre-alerta registrada exitosamente con la firma de exención de responsabilidad guardada en el sistema!');
+    if (!pendingPreAlertData) return;
+    if (!hasDrawnWaiverSignature && preAlertSignatureName.trim().length < 2) {
+      alert('⚠️ Firma Obligatoria: Por favor dibuje su firma en el recuadro o escriba su nombre completo para poder registrar la pre-alerta.');
+      return;
     }
+
+    const signatureDataUrl = buildPreAlertSignatureImage(
+      waiverCanvasRef.current,
+      hasDrawnWaiverSignature,
+      preAlertSignatureName
+    );
+    const signerLabel = preAlertSignatureName.trim();
+    const updatedDesc = signerLabel && !pendingPreAlertData.description.includes('Firmado:')
+      ? `${pendingPreAlertData.description} | Firmado: ${signerLabel}`
+      : pendingPreAlertData.description;
+
+    const finalPreAlert: PreAlert = {
+      ...pendingPreAlertData,
+      description: updatedDesc,
+      waiverSignature: signatureDataUrl,
+      waiverDate: new Date().toISOString()
+    };
+
+    setPreAlerts(prev => [finalPreAlert, ...prev]);
+    db.upsertPreAlert(finalPreAlert);
+
+    setPendingPreAlertData(null);
+    setIsSignatureModalOpen(false);
+    setHasDrawnWaiverSignature(false);
+    setPreAlertSignatureName('');
+
+    setAdminPreAlertLockerId('');
+    setClientPreAlertTracking('');
+    setClientPreAlertBodega('');
+    setClientPreAlertValue('');
+    setClientPreAlertWeight('1.0');
+    setClientPreAlertInsurance('Sin seguro');
+    setClientPreAlertCustomNote('');
+    setClientPreAlertFileName('');
+    setClientPreAlertFileData('');
+
+    alert('¡Pre-alerta registrada exitosamente con la firma guardada en el sistema!');
   };
 
   const handlePrintWaiverPDF = (pa: PreAlert) => {
@@ -2932,7 +3004,9 @@ Cargos de Flete y Tarifas Asignadas:
       return;
     }
 
+    const parsed = parsePreAlertDetails(pa);
     const clientName = users.find((u: any) => u.lockerId === pa.lockerId)?.name || `Cliente (${pa.lockerId})`;
+    const signerDisplay = parsed.signedBy || clientName;
     const formattedDate = pa.waiverDate ? new Date(pa.waiverDate).toLocaleString('es-GT') : pa.dateCreated;
 
     const htmlContent = `
@@ -2940,7 +3014,7 @@ Cargos de Flete y Tarifas Asignadas:
       <html lang="es">
       <head>
         <meta charset="UTF-8" />
-        <title>Exención de Responsabilidad Firmada - ${pa.id}</title>
+        <title>Constancia Firmada de Pre-Alerta - ${pa.id}</title>
         <style>
           body { font-family: 'Segoe UI', Arial, sans-serif; padding: 40px; color: #111827; line-height: 1.6; max-width: 800px; margin: 0 auto; }
           .header { text-align: center; border-bottom: 3px solid #ea580c; padding-bottom: 18px; margin-bottom: 25px; }
@@ -2951,56 +3025,58 @@ Cargos de Flete y Tarifas Asignadas:
           .clause h3 { font-size: 13px; margin: 0 0 4px 0; color: #1f2937; text-transform: uppercase; }
           .clause p { margin: 0; color: #374151; }
           .signature-box { margin-top: 40px; text-align: center; width: 340px; margin-left: auto; margin-right: auto; }
-          .signature-img { max-width: 100%; max-height: 110px; border-bottom: 2px solid #111827; padding-bottom: 6px; margin-bottom: 8px; display: block; margin-left: auto; margin-right: auto; }
+          .signature-img { max-width: 100%; max-height: 120px; border-bottom: 2px solid #111827; padding-bottom: 6px; margin-bottom: 8px; display: block; margin-left: auto; margin-right: auto; }
           @media print { .no-print { display: none !important; } body { padding: 15px; } }
         </style>
       </head>
       <body>
         <div class="header">
           <h1 class="title">SHIPFAST LOGISTICS GUATEMALA</h1>
-          <div class="subtitle">CARTA DE EXENCIÓN DE RESPONSABILIDAD Y RENUNCIA DE SEGURO</div>
+          <div class="subtitle">CONSTANCIA DE PRE-ALERTA, ACEPTACIÓN DE TÉRMINOS Y PÓLIZA DE SEGURO</div>
         </div>
 
         <div class="info-grid">
           <div><strong>Fecha de Firma:</strong> ${formattedDate}</div>
-          <div><strong>Cliente:</strong> ${clientName}</div>
+          <div><strong>Cliente Titular:</strong> ${clientName}</div>
           <div><strong>Casillero (Locker):</strong> ${pa.lockerId}</div>
           <div><strong>Tracking / Guía:</strong> ${pa.id}</div>
+          <div><strong>Modalidad de Seguro:</strong> ${parsed.insurance}</div>
+          <div><strong>Firmado por:</strong> ${signerDisplay}</div>
         </div>
 
         <p style="font-size: 13px;">Por medio del presente documento, el cliente declara y acepta expresamente lo siguiente respecto al servicio de transporte, importación y manejo de paquetería provisto por <strong>ShipFast Logistics Guatemala</strong>:</p>
 
         <div class="clause">
-          <h3>1. RECHAZO VOLUNTARIO DE COBERTURA DE SEGURO</h3>
-          <p>Confirmo que he sido informado sobre la opción de proteger mi mercancía mediante la contratación del seguro (5% sobre valor declarado), y declaro que he decidido libre y voluntariamente <strong>NO CONTRATAR SEGURO</strong> para el paquete identificado con el tracking <strong>#${pa.id}</strong>.</p>
+          <h3>1. DECLARACIÓN DE PRE-ALERTA Y COBERTURA DE SEGURO</h3>
+          <p>Confirmo que los datos declarados para el paquete con tracking <strong>#${pa.id}</strong> (Valor declarado: <strong>$${parsed.declaredValue.toFixed(2)} USD</strong>, Modalidad: <strong>${parsed.insurance}</strong>) son verídicos y han sido registrados bajo mi autorización.</p>
         </div>
 
         <div class="clause">
-          <h3>2. EXENCIÓN POR PÉRDIDA, RETENCIÓN DE ADUANA O CUALQUIER SUCESO / SINIESTRO</h3>
-          <p>Soy plenamente consciente y acepto que el transporte internacional y nacional conlleva riesgos inherentes. Al no contratar seguro, <strong>acepto y firmo que NO PUEDO RECLAMAR NADA en caso de pérdida, extravío, robo, retención o decomiso de aduana, o cualquier otro suceso o siniestro</strong> que ocurra durante el traslado, almacenaje o trámite aduanero.</p>
+          <h3>2. EXENCIÓN POR PÉRDIDA, RETENCIÓN DE ADUANA O CUALQUIER SUCESO / SINIESTRO (PAQUETES SIN SEGURO)</h3>
+          <p>Soy plenamente consciente y acepto que el transporte internacional y nacional conlleva riesgos inherentes. En caso de no contratar seguro (5%), <strong>acepto y firmo que NO PUEDO RECLAMAR NADA en caso de pérdida, extravío, robo, retención o decomiso de aduana, o cualquier otro suceso o siniestro</strong> que ocurra durante el traslado, almacenaje o trámite aduanero.</p>
         </div>
 
         <div class="clause">
           <h3>3. LÍMITE Y CONDICIONES DE RESPONSABILIDAD SIN SEGURO</h3>
-          <p>Entiendo y acepto incondicionalmente que, al haber declinado la póliza de seguro, renuncio a cualquier reclamo por el valor comercial o declarado de la mercadería ante pérdida, retención de aduana o siniestro (quedando sujeto únicamente a las políticas internas de exención de ShipFast Logistics Guatemala, con tope máximo de hasta $50.00 USD cuando aplique según términos de servicio).</p>
+          <p>Entiendo y acepto incondicionalmente que, si declino la póliza de seguro, renuncio a cualquier reclamo por el valor comercial o declarado de la mercadería ante pérdida, retención de aduana o siniestro (quedando sujeto únicamente a las políticas internas de exención de ShipFast Logistics Guatemala, con tope máximo de hasta $50.00 USD cuando aplique según términos de servicio).</p>
         </div>
 
         <div class="clause">
           <h3>4. EXENCIÓN TOTAL POR DAÑOS O AVERÍAS</h3>
-          <p>Reconozco y acepto que al no contar con seguro, <strong>la empresa no se hará responsable en lo absoluto por daños, golpes, roturas, rayones, mermas, desperfectos ni retenciones aduanales</strong> que pueda presentar o sufrir la mercancía.</p>
+          <p>Reconozco y acepto que en envíos sin seguro, <strong>la empresa no se hará responsable en lo absoluto por daños, golpes, roturas, rayones, mermas, desperfectos ni retenciones aduanales</strong> que pueda presentar o sufrir la mercancía.</p>
         </div>
 
         <div class="clause">
           <h3>5. LIBERACIÓN LEGAL IRREVOCABLE</h3>
-          <p>Mediante mi firma estampada a continuación, libero total y definitivamente a ShipFast Logistics Guatemala, sus representantes, operadores y agentes de cualquier reclamo, queja o exigencia de indemnización derivada de paquetes enviados sin seguro.</p>
+          <p>Mediante mi firma o nombre registrado a continuación, confirmo mi aceptación total de las condiciones operativas de ShipFast Logistics Guatemala.</p>
         </div>
 
         <p style="font-size: 13px; font-weight: bold; margin-top: 20px;">He leído, comprendido y aceptado todas las condiciones detalladas en este documento, firmando en señal de conformidad:</p>
 
         <div class="signature-box">
-          ${pa.waiverSignature ? `<img src="${pa.waiverSignature}" class="signature-img" alt="Firma del Cliente" />` : '<div style="height: 70px; border-bottom: 2px solid #111827; margin-bottom: 8px;"></div>'}
-          <div style="font-size: 13px; font-weight: 900;">FIRMA DE ACEPTACIÓN DEL CLIENTE</div>
-          <div style="font-size: 12px; color: #4b5563;">${clientName} (${pa.lockerId})</div>
+          ${pa.waiverSignature ? `<img src="${pa.waiverSignature}" class="signature-img" alt="Firma del Cliente" />` : `<div style="height: 60px; display: flex; align-items: center; justify-content: center; font-family: Georgia, serif; font-size: 22px; font-style: italic; font-weight: bold; border-bottom: 2px solid #111827; margin-bottom: 8px;">${signerDisplay}</div>`}
+          <div style="font-size: 13px; font-weight: 900;">FIRMA / NOMBRE DE ACEPTACIÓN DEL CLIENTE</div>
+          <div style="font-size: 12px; color: #4b5563;">${signerDisplay} • Casillero: ${pa.lockerId}</div>
         </div>
         
         <div class="no-print" style="margin-top: 35px; text-align: center;">
@@ -3033,24 +3109,31 @@ Cargos de Flete y Tarifas Asignadas:
       return;
     }
 
+    // MANDATORY SIGNATURE OR TYPED NAME CHECK
+    if (!hasDrawnWaiverSignature && preAlertSignatureName.trim().length < 2) {
+      alert('⚠️ Firma Obligatoria: Para pre-alertar debes dibujar tu firma en el recuadro o escribir tu nombre completo de aceptación.');
+      return;
+    }
+
     const weightVal = parseFloat(clientPreAlertWeight) || 1.0;
     const serializedAttachment = clientPreAlertFileName
       ? (clientPreAlertFileData ? `${clientPreAlertFileName}:::${clientPreAlertFileData}` : clientPreAlertFileName)
       : '';
 
-    let inlineSignatureData = '';
-    if (clientPreAlertInsurance === 'Sin seguro') {
-      if (hasDrawnWaiverSignature && inlineWaiverCanvasRef.current) {
-        inlineSignatureData = inlineWaiverCanvasRef.current.toDataURL('image/png');
-      }
-    }
+    const signerNameFinal = preAlertSignatureName.trim() || currentUser.name;
+    const inlineSignatureData = buildPreAlertSignatureImage(
+      inlineWaiverCanvasRef.current,
+      hasDrawnWaiverSignature,
+      signerNameFinal
+    );
 
     const notePart = clientPreAlertCustomNote.trim() ? ` | Contenido: ${clientPreAlertCustomNote.trim()}` : '';
+    const signedPart = ` | Firmado: ${signerNameFinal}`;
     const newPreAlert: PreAlert = {
       id: clientPreAlertTracking.trim().toUpperCase(),
       lockerId: currentUser.lockerId,
       sender: 'Compra Online',
-      description: `Origen: ${clientPreAlertBodega} | Valor: $${declaredVal.toFixed(2)} | Seguro: ${clientPreAlertInsurance}${notePart}${clientPreAlertFileName ? ` | Factura: ${clientPreAlertFileName}` : ''}`,
+      description: `Origen: ${clientPreAlertBodega} | Valor: $${declaredVal.toFixed(2)} | Seguro: ${clientPreAlertInsurance}${signedPart}${notePart}${clientPreAlertFileName ? ` | Factura: ${clientPreAlertFileName}` : ''}`,
       weightEst: weightVal,
       status: 'Pendiente',
       dateCreated: new Date().toISOString().split('T')[0],
@@ -3059,13 +3142,6 @@ Cargos de Flete y Tarifas Asignadas:
       invoiceFileName: serializedAttachment,
       ...(inlineSignatureData ? { waiverSignature: inlineSignatureData, waiverDate: new Date().toISOString() } : {})
     };
-
-    if (clientPreAlertInsurance === 'Sin seguro' && !inlineSignatureData) {
-      setPendingPreAlertData(newPreAlert);
-      setIsSignatureModalOpen(true);
-      setIsClientPreAlertModalOpen(false);
-      return;
-    }
 
     // Save to Supabase
     db.upsertPreAlert(newPreAlert);
@@ -3082,9 +3158,10 @@ Cargos de Flete y Tarifas Asignadas:
     setClientPreAlertFileName('');
     setClientPreAlertFileData('');
     setHasDrawnWaiverSignature(false);
+    setPreAlertSignatureName('');
     setIsClientPreAlertModalOpen(false);
 
-    alert(`¡Pre-Alerta registrada con éxito!\nEl paquete con tracking "${newPreAlert.id}" ha sido documentado. El equipo de ShipFast en ${clientPreAlertBodega === 'USA' ? 'USA' : 'México'} estará pendiente de su arribo.`);
+    alert(`¡Pre-Alerta registrada con éxito!\nEl paquete con tracking "${newPreAlert.id}" ha sido documentado y firmado por "${signerNameFinal}". El equipo de ShipFast en ${clientPreAlertBodega === 'USA' ? 'USA' : 'México'} estará pendiente de su arribo.`);
   };
 
   // Admin Pre-Alert Submission Handler
@@ -3109,6 +3186,12 @@ Cargos de Flete y Tarifas Asignadas:
       return;
     }
 
+    // MANDATORY SIGNATURE OR TYPED NAME CHECK
+    if (!hasDrawnWaiverSignature && preAlertSignatureName.trim().length < 2) {
+      alert('⚠️ Firma Obligatoria: Para registrar la pre-alerta debes dibujar la firma en el recuadro o colocar el nombre completo.');
+      return;
+    }
+
     const weightVal = parseFloat(clientPreAlertWeight) || 1.0;
 
     const targetUser = users.find(u => u.lockerId === adminPreAlertLockerId.toUpperCase());
@@ -3117,19 +3200,20 @@ Cargos de Flete y Tarifas Asignadas:
       ? (clientPreAlertFileData ? `${clientPreAlertFileName}:::${clientPreAlertFileData}` : clientPreAlertFileName)
       : '';
 
-    let inlineSignatureData = '';
-    if (clientPreAlertInsurance === 'Sin seguro') {
-      if (hasDrawnWaiverSignature && inlineWaiverCanvasRef.current) {
-        inlineSignatureData = inlineWaiverCanvasRef.current.toDataURL('image/png');
-      }
-    }
+    const signerNameFinal = preAlertSignatureName.trim() || clientName;
+    const inlineSignatureData = buildPreAlertSignatureImage(
+      inlineWaiverCanvasRef.current,
+      hasDrawnWaiverSignature,
+      signerNameFinal
+    );
 
     const notePart = clientPreAlertCustomNote.trim() ? ` | Contenido: ${clientPreAlertCustomNote.trim()}` : '';
+    const signedPart = ` | Firmado: ${signerNameFinal}`;
     const newPreAlert: PreAlert = {
       id: clientPreAlertTracking.trim().toUpperCase(),
       lockerId: adminPreAlertLockerId.toUpperCase(),
       sender: 'Compra Online (Pre-alertado por Admin)',
-      description: `Origen: ${clientPreAlertBodega} | Valor: $${declaredVal.toFixed(2)} | Seguro: ${clientPreAlertInsurance}${notePart}${clientPreAlertFileName ? ` | Factura: ${clientPreAlertFileName}` : ''}`,
+      description: `Origen: ${clientPreAlertBodega} | Valor: $${declaredVal.toFixed(2)} | Seguro: ${clientPreAlertInsurance}${signedPart}${notePart}${clientPreAlertFileName ? ` | Factura: ${clientPreAlertFileName}` : ''}`,
       weightEst: weightVal,
       status: 'Pendiente',
       dateCreated: new Date().toISOString().split('T')[0],
@@ -3138,13 +3222,6 @@ Cargos de Flete y Tarifas Asignadas:
       invoiceFileName: serializedAttachment,
       ...(inlineSignatureData ? { waiverSignature: inlineSignatureData, waiverDate: new Date().toISOString() } : {})
     };
-
-    if (clientPreAlertInsurance === 'Sin seguro' && !inlineSignatureData) {
-      setPendingPreAlertData(newPreAlert);
-      setIsSignatureModalOpen(true);
-      setIsAdminPreAlertModalOpen(false);
-      return;
-    }
 
     // Save to Supabase
     db.upsertPreAlert(newPreAlert);
@@ -3161,10 +3238,11 @@ Cargos de Flete y Tarifas Asignadas:
     setClientPreAlertFileName('');
     setClientPreAlertFileData('');
     setHasDrawnWaiverSignature(false);
+    setPreAlertSignatureName('');
     setAdminPreAlertLockerId('');
     setIsAdminPreAlertModalOpen(false);
 
-    alert(`¡Pre-Alerta registrada por Administrador con éxito!\nEl paquete con tracking "${newPreAlert.id}" asignado a "${clientName} (${newPreAlert.lockerId})" ha sido documentado en el sistema.`);
+    alert(`¡Pre-Alerta registrada por Administrador con éxito!\nEl paquete con tracking "${newPreAlert.id}" asignado a "${clientName} (${newPreAlert.lockerId})" y firmado por "${signerNameFinal}" ha sido documentado en el sistema.`);
   };
 
   // Driver Digital Signature Canvas
@@ -7240,6 +7318,11 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                               🏪 {pa.sender}
                                             </span>
                                           )}
+                                          {parsed.signedBy && (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-extrabold">
+                                              ✍️ Firmado: {parsed.signedBy}
+                                            </span>
+                                          )}
                                         </div>
 
                                         {parsed.customNote && (
@@ -7249,7 +7332,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                           </div>
                                         )}
 
-                                        {(invoiceFile || pa.waiverSignature) && (
+                                        {(invoiceFile || pa.waiverSignature || parsed.signedBy) && (
                                           <div className="flex flex-wrap gap-1.5 pt-1 border-t border-slate-200/60">
                                             {invoiceFile && (
                                               <button
@@ -7263,14 +7346,14 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                                 📄 Ver Factura ({invoiceFile})
                                               </button>
                                             )}
-                                            {pa.waiverSignature && (
+                                            {(pa.waiverSignature || parsed.signedBy) && (
                                               <button
                                                 type="button"
                                                 onClick={() => handlePrintWaiverPDF(pa)}
                                                 className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded bg-orange-50 border border-orange-200 text-brand-orange hover:bg-orange-100 hover:text-orange-700 text-[10px] font-black tracking-wider transition-all duration-150 cursor-pointer shadow-3xs"
-                                                title="Imprimir Exención de Responsabilidad Firmada"
+                                                title="Imprimir Constancia y Firma de Pre-Alerta"
                                               >
-                                                🖨️ Ver Renuncia de Seguro
+                                                🖨️ Ver Firma / Constancia
                                               </button>
                                             )}
                                           </div>
@@ -14578,7 +14661,7 @@ El Equipo de ShipFast GT`;
                     />
                   </div>
 
-                  {/* Insurance/Liability Warning Disclaimer + Signature Pad */}
+                  {/* Insurance/Liability Warning Disclaimer + Mandatory Signature / Name Pad */}
                   <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl text-amber-900 text-[10px] leading-relaxed space-y-3">
                     <div className="flex items-start gap-2">
                       <span className="text-sm shrink-0">⚠️</span>
@@ -14587,11 +14670,54 @@ El Equipo de ShipFast GT`;
                       </div>
                     </div>
 
-                    {clientPreAlertInsurance === 'Sin seguro' && (
-                      <div className="bg-white border border-amber-300 rounded-xl p-3 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <label className="text-[9px] font-black text-amber-900 uppercase tracking-wider block">
-                            ✍️ Firma de Aceptación del Cliente (Exención por no contratar seguro) *
+                    <div className="bg-white border border-amber-300 rounded-xl p-3.5 space-y-3">
+                      <div className="flex items-center justify-between border-b border-amber-100 pb-2">
+                        <label className="text-[9px] font-black text-amber-900 uppercase tracking-wider block">
+                          ✍️ Firma o Nombre de Aceptación del Cliente (OBLIGATORIO) *
+                        </label>
+                        <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${
+                          hasDrawnWaiverSignature || preAlertSignatureName.trim().length >= 2
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                            : 'bg-red-100 text-red-700 border border-red-300 animate-pulse'
+                        }`}>
+                          {hasDrawnWaiverSignature || preAlertSignatureName.trim().length >= 2
+                            ? '✓ Firma Completada'
+                            : 'Obligatorio *'}
+                        </span>
+                      </div>
+
+                      <p className="text-[9px] text-slate-600 leading-snug">
+                        Para registrar tu pre-alerta es <strong>obligatorio firmar en el recuadro o colocar tu nombre completo</strong> aceptando las condiciones de envío{clientPreAlertInsurance === 'Sin seguro' ? ' y la exención de responsabilidad por no contratar seguro' : ''}.
+                      </p>
+
+                      {/* Opción 1: Colocar Nombre Completo */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[9px] font-black text-slate-700 uppercase tracking-wider">
+                            1. Escribe tu Nombre Completo (Firma Digital) *
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setPreAlertSignatureName(currentUser.name)}
+                            className="text-[9px] font-extrabold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer"
+                          >
+                            Usar mi nombre ({currentUser.name})
+                          </button>
+                        </div>
+                        <input
+                          type="text"
+                          placeholder="Escribe tu nombre y apellido aquí para firmar..."
+                          value={preAlertSignatureName}
+                          onChange={(e) => setPreAlertSignatureName(e.target.value)}
+                          className="w-full px-3 py-2 text-xs border border-amber-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none font-bold text-slate-900 bg-amber-50/20 placeholder-slate-400"
+                        />
+                      </div>
+
+                      {/* Opción 2: O Dibujar Firma en Pantalla */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[9px] font-black text-slate-700 uppercase tracking-wider">
+                            2. O Dibuja tu Firma en el Recuadro
                           </label>
                           <button
                             type="button"
@@ -14604,12 +14730,9 @@ El Equipo de ShipFast GT`;
                             }}
                             className="text-[9px] font-black text-red-600 hover:underline uppercase cursor-pointer"
                           >
-                            Limpiar Firma
+                            Limpiar Firma Dibujada
                           </button>
                         </div>
-                        <p className="text-[9px] text-slate-600 leading-snug">
-                          Firmo de conformidad aceptando que al declarar este paquete <strong>Sin seguro</strong>, no podré realizar ningún reclamo en caso de pérdida, retención de aduana o cualquier suceso o siniestro.
-                        </p>
                         <div className="border-2 border-dashed border-amber-300 rounded-xl bg-slate-50 cursor-crosshair overflow-hidden">
                           <canvas
                             ref={inlineWaiverCanvasRef}
@@ -14681,7 +14804,7 @@ El Equipo de ShipFast GT`;
                           />
                         </div>
                       </div>
-                    )}
+                    </div>
                   </div>
 
                   {/* FACTURA (IMAGEN O PDF) */}
@@ -14732,6 +14855,7 @@ El Equipo de ShipFast GT`;
                         setClientPreAlertFileName('');
                         setClientPreAlertFileData('');
                         setHasDrawnWaiverSignature(false);
+                        setPreAlertSignatureName('');
                         setIsClientPreAlertModalOpen(false);
                       }}
                       className="px-5 py-2 text-xs font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition active:scale-95 cursor-pointer"
@@ -14743,7 +14867,7 @@ El Equipo de ShipFast GT`;
                       className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-extrabold text-xs py-2.5 px-6 rounded-xl flex items-center justify-center gap-2 shadow-md shadow-indigo-100 hover:shadow-indigo-200 active:scale-98 transition cursor-pointer"
                     >
                       <Plus className="h-4 w-4" />
-                      Crear Pre-Alerta
+                      Firmar y Crear Pre-Alerta
                     </button>
                   </div>
 
@@ -14888,7 +15012,7 @@ El Equipo de ShipFast GT`;
                     />
                   </div>
 
-                  {/* Insurance/Liability Warning Disclaimer + Signature Pad */}
+                  {/* Insurance/Liability Warning Disclaimer + Mandatory Signature / Name Pad */}
                   <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl text-amber-900 text-[10px] leading-relaxed space-y-3">
                     <div className="flex items-start gap-2">
                       <span className="text-sm shrink-0">⚠️</span>
@@ -14897,11 +15021,59 @@ El Equipo de ShipFast GT`;
                       </div>
                     </div>
 
-                    {clientPreAlertInsurance === 'Sin seguro' && (
-                      <div className="bg-white border border-amber-300 rounded-xl p-3 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <label className="text-[9px] font-black text-amber-900 uppercase tracking-wider block">
-                            ✍️ Firma de Aceptación del Cliente (Exención por no contratar seguro) *
+                    <div className="bg-white border border-amber-300 rounded-xl p-3.5 space-y-3">
+                      <div className="flex items-center justify-between border-b border-amber-100 pb-2">
+                        <label className="text-[9px] font-black text-amber-900 uppercase tracking-wider block">
+                          ✍️ Firma o Nombre de Aceptación (OBLIGATORIO) *
+                        </label>
+                        <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase ${
+                          hasDrawnWaiverSignature || preAlertSignatureName.trim().length >= 2
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                            : 'bg-red-100 text-red-700 border border-red-300 animate-pulse'
+                        }`}>
+                          {hasDrawnWaiverSignature || preAlertSignatureName.trim().length >= 2
+                            ? '✓ Firma Completada'
+                            : 'Obligatorio *'}
+                        </span>
+                      </div>
+
+                      <p className="text-[9px] text-slate-600 leading-snug">
+                        Es <strong>obligatorio firmar en el recuadro o colocar el nombre completo</strong> de quien autoriza la pre-alerta{clientPreAlertInsurance === 'Sin seguro' ? ' y la exención por no contratar seguro' : ''}.
+                      </p>
+
+                      {/* Opción 1: Colocar Nombre Completo */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[9px] font-black text-slate-700 uppercase tracking-wider">
+                            1. Nombre Completo de Quien Firma / Autoriza *
+                          </label>
+                          {adminPreAlertLockerId && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const selectedUser = users.find(u => u.lockerId === adminPreAlertLockerId);
+                                if (selectedUser) setPreAlertSignatureName(selectedUser.name);
+                              }}
+                              className="text-[9px] font-extrabold text-brand-orange hover:underline cursor-pointer"
+                            >
+                              Usar nombre del cliente
+                            </button>
+                          )}
+                        </div>
+                        <input
+                          type="text"
+                          placeholder="Escribe el nombre completo aquí para firmar..."
+                          value={preAlertSignatureName}
+                          onChange={(e) => setPreAlertSignatureName(e.target.value)}
+                          className="w-full px-3 py-2 text-xs border border-amber-300 rounded-lg focus:ring-2 focus:ring-brand-orange focus:border-brand-orange focus:outline-none font-bold text-slate-900 bg-amber-50/20 placeholder-slate-400"
+                        />
+                      </div>
+
+                      {/* Opción 2: O Dibujar Firma en Pantalla */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[9px] font-black text-slate-700 uppercase tracking-wider">
+                            2. O Dibujar Firma en el Recuadro
                           </label>
                           <button
                             type="button"
@@ -14914,12 +15086,9 @@ El Equipo de ShipFast GT`;
                             }}
                             className="text-[9px] font-black text-red-600 hover:underline uppercase cursor-pointer"
                           >
-                            Limpiar Firma
+                            Limpiar Firma Dibujada
                           </button>
                         </div>
-                        <p className="text-[9px] text-slate-600 leading-snug">
-                          El cliente firma de conformidad aceptando que al declarar este paquete <strong>Sin seguro</strong>, no podrá realizar ningún reclamo en caso de pérdida, retención de aduana o cualquier suceso o siniestro.
-                        </p>
                         <div className="border-2 border-dashed border-amber-300 rounded-xl bg-slate-50 cursor-crosshair overflow-hidden">
                           <canvas
                             ref={inlineWaiverCanvasRef}
@@ -14991,7 +15160,7 @@ El Equipo de ShipFast GT`;
                           />
                         </div>
                       </div>
-                    )}
+                    </div>
                   </div>
 
                   {/* FACTURA (IMAGEN O PDF) */}
@@ -15042,6 +15211,7 @@ El Equipo de ShipFast GT`;
                         setClientPreAlertFileName('');
                         setClientPreAlertFileData('');
                         setHasDrawnWaiverSignature(false);
+                        setPreAlertSignatureName('');
                         setAdminPreAlertLockerId('');
                         setIsAdminPreAlertModalOpen(false);
                       }}
@@ -15054,7 +15224,7 @@ El Equipo de ShipFast GT`;
                       className="bg-brand-orange hover:bg-brand-orange-hover text-white font-extrabold text-xs py-2.5 px-6 rounded-xl flex items-center justify-center gap-2 shadow-md shadow-orange-100 hover:shadow-orange-200 active:scale-98 transition cursor-pointer"
                     >
                       <Plus className="h-4 w-4" />
-                      Registrar Pre-Alerta
+                      Firmar y Registrar Pre-Alerta
                     </button>
                   </div>
 
@@ -15069,8 +15239,8 @@ El Equipo de ShipFast GT`;
             <div className="fixed inset-0 bg-brand-gray-dark/70 backdrop-blur-xs flex justify-center items-start z-[210] p-4 pt-8 md:pt-12 overflow-y-auto animate-fade-in font-sans">
               <div className="bg-white w-full max-w-2xl rounded-2xl border border-slate-100 shadow-2xl overflow-hidden relative animate-zoom-in flex flex-col">
                 <div className="bg-brand-orange p-5 text-white shrink-0">
-                  <h3 className="text-lg font-black uppercase tracking-tight">Acuerdo de Exención de Responsabilidad (Sin Seguro)</h3>
-                  <p className="text-xs text-white/90 mt-0.5">Firma obligatoria por no contratar seguro (5%) en caso de pérdida, retención de aduana o siniestro.</p>
+                  <h3 className="text-lg font-black uppercase tracking-tight">Firma Obligatoria de Pre-Alerta</h3>
+                  <p className="text-xs text-white/90 mt-0.5">Debes dibujar tu firma o colocar tu nombre completo para registrar la pre-alerta.</p>
                 </div>
 
                 <div className="p-6 overflow-y-auto max-h-[55vh] text-xs text-gray-700 space-y-3">
@@ -15087,77 +15257,94 @@ El Equipo de ShipFast GT`;
                     <li><strong>LIBERACIÓN LEGAL:</strong> Libero total y definitivamente a ShipFast Logistics Guatemala de cualquier reclamo o demanda por envíos sin seguro.</li>
                   </ol>
 
-                  <div className="mt-4 pt-3 border-t border-slate-200">
-                    <label className="text-[10px] font-black text-gray-600 uppercase tracking-wider block mb-2">
-                      ✍️ DIBUJE SU FIRMA AQUÍ PARA ACEPTAR Y GUARDAR LA PRE-ALERTA:
-                    </label>
-                    <div className="border-2 border-dashed border-amber-400 rounded-xl bg-amber-50/30 cursor-crosshair overflow-hidden">
-                      <canvas
-                        ref={waiverCanvasRef}
-                        width={600}
-                        height={150}
-                        className="w-full h-[150px] touch-none"
-                        onMouseDown={(e) => {
-                          setIsDrawingSignature(true);
-                          const canvas = waiverCanvasRef.current;
-                          if (!canvas) return;
-                          const ctx = canvas.getContext('2d');
-                          if (!ctx) return;
-                          const rect = canvas.getBoundingClientRect();
-                          const scaleX = canvas.width / rect.width;
-                          const scaleY = canvas.height / rect.height;
-                          ctx.beginPath();
-                          ctx.moveTo((e.clientX - rect.left) * scaleX, (e.clientY - rect.top) * scaleY);
-                        }}
-                        onMouseMove={(e) => {
-                          if (!isDrawingSignature) return;
-                          const canvas = waiverCanvasRef.current;
-                          if (!canvas) return;
-                          const ctx = canvas.getContext('2d');
-                          if (!ctx) return;
-                          const rect = canvas.getBoundingClientRect();
-                          const scaleX = canvas.width / rect.width;
-                          const scaleY = canvas.height / rect.height;
-                          ctx.lineTo((e.clientX - rect.left) * scaleX, (e.clientY - rect.top) * scaleY);
-                          ctx.strokeStyle = '#111827';
-                          ctx.lineWidth = 2.2;
-                          ctx.lineCap = 'round';
-                          ctx.stroke();
-                        }}
-                        onMouseUp={() => setIsDrawingSignature(false)}
-                        onMouseLeave={() => setIsDrawingSignature(false)}
-                        onTouchStart={(e) => {
-                          setIsDrawingSignature(true);
-                          const canvas = waiverCanvasRef.current;
-                          if (!canvas) return;
-                          const ctx = canvas.getContext('2d');
-                          if (!ctx) return;
-                          const rect = canvas.getBoundingClientRect();
-                          const scaleX = canvas.width / rect.width;
-                          const scaleY = canvas.height / rect.height;
-                          const touch = e.touches[0];
-                          ctx.beginPath();
-                          ctx.moveTo((touch.clientX - rect.left) * scaleX, (touch.clientY - rect.top) * scaleY);
-                        }}
-                        onTouchMove={(e) => {
-                          if (!isDrawingSignature) return;
-                          const canvas = waiverCanvasRef.current;
-                          if (!canvas) return;
-                          const ctx = canvas.getContext('2d');
-                          if (!ctx) return;
-                          const rect = canvas.getBoundingClientRect();
-                          const scaleX = canvas.width / rect.width;
-                          const scaleY = canvas.height / rect.height;
-                          const touch = e.touches[0];
-                          ctx.lineTo((touch.clientX - rect.left) * scaleX, (touch.clientY - rect.top) * scaleY);
-                          ctx.strokeStyle = '#111827';
-                          ctx.lineWidth = 2.2;
-                          ctx.lineCap = 'round';
-                          ctx.stroke();
-                          e.preventDefault();
-                        }}
-                        onTouchEnd={() => setIsDrawingSignature(false)}
+                  <div className="mt-4 pt-3 border-t border-slate-200 space-y-3">
+                    <div>
+                      <label className="text-[10px] font-black text-gray-700 uppercase tracking-wider block mb-1">
+                        ✍️ 1. ESCRIBA SU NOMBRE COMPLETO (FIRMA DIGITAL):
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Escribe tu nombre y apellido completo aquí..."
+                        value={preAlertSignatureName}
+                        onChange={(e) => setPreAlertSignatureName(e.target.value)}
+                        className="w-full px-3.5 py-2 text-xs border border-amber-300 rounded-xl focus:ring-2 focus:ring-brand-orange focus:outline-none font-bold text-slate-900 bg-amber-50/20"
                       />
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] font-black text-gray-600 uppercase tracking-wider block mb-2">
+                        ✍️ 2. O DIBUJE SU FIRMA AQUÍ PARA ACEPTAR Y GUARDAR LA PRE-ALERTA:
+                      </label>
+                      <div className="border-2 border-dashed border-amber-400 rounded-xl bg-amber-50/30 cursor-crosshair overflow-hidden">
+                        <canvas
+                          ref={waiverCanvasRef}
+                          width={600}
+                          height={150}
+                          className="w-full h-[150px] touch-none"
+                          onMouseDown={(e) => {
+                            setIsDrawingSignature(true);
+                            setHasDrawnWaiverSignature(true);
+                            const canvas = waiverCanvasRef.current;
+                            if (!canvas) return;
+                            const ctx = canvas.getContext('2d');
+                            if (!ctx) return;
+                            const rect = canvas.getBoundingClientRect();
+                            const scaleX = canvas.width / rect.width;
+                            const scaleY = canvas.height / rect.height;
+                            ctx.beginPath();
+                            ctx.moveTo((e.clientX - rect.left) * scaleX, (e.clientY - rect.top) * scaleY);
+                          }}
+                          onMouseMove={(e) => {
+                            if (!isDrawingSignature) return;
+                            const canvas = waiverCanvasRef.current;
+                            if (!canvas) return;
+                            const ctx = canvas.getContext('2d');
+                            if (!ctx) return;
+                            const rect = canvas.getBoundingClientRect();
+                            const scaleX = canvas.width / rect.width;
+                            const scaleY = canvas.height / rect.height;
+                            ctx.lineTo((e.clientX - rect.left) * scaleX, (e.clientY - rect.top) * scaleY);
+                            ctx.strokeStyle = '#111827';
+                            ctx.lineWidth = 2.2;
+                            ctx.lineCap = 'round';
+                            ctx.stroke();
+                          }}
+                          onMouseUp={() => setIsDrawingSignature(false)}
+                          onMouseLeave={() => setIsDrawingSignature(false)}
+                          onTouchStart={(e) => {
+                            setIsDrawingSignature(true);
+                            setHasDrawnWaiverSignature(true);
+                            const canvas = waiverCanvasRef.current;
+                            if (!canvas) return;
+                            const ctx = canvas.getContext('2d');
+                            if (!ctx) return;
+                            const rect = canvas.getBoundingClientRect();
+                            const scaleX = canvas.width / rect.width;
+                            const scaleY = canvas.height / rect.height;
+                            const touch = e.touches[0];
+                            ctx.beginPath();
+                            ctx.moveTo((touch.clientX - rect.left) * scaleX, (touch.clientY - rect.top) * scaleY);
+                          }}
+                          onTouchMove={(e) => {
+                            if (!isDrawingSignature) return;
+                            const canvas = waiverCanvasRef.current;
+                            if (!canvas) return;
+                            const ctx = canvas.getContext('2d');
+                            if (!ctx) return;
+                            const rect = canvas.getBoundingClientRect();
+                            const scaleX = canvas.width / rect.width;
+                            const scaleY = canvas.height / rect.height;
+                            const touch = e.touches[0];
+                            ctx.lineTo((touch.clientX - rect.left) * scaleX, (touch.clientY - rect.top) * scaleY);
+                            ctx.strokeStyle = '#111827';
+                            ctx.lineWidth = 2.2;
+                            ctx.lineCap = 'round';
+                            ctx.stroke();
+                            e.preventDefault();
+                          }}
+                          onTouchEnd={() => setIsDrawingSignature(false)}
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -15170,6 +15357,7 @@ El Equipo de ShipFast GT`;
                       if (!canvas) return;
                       const ctx = canvas.getContext('2d');
                       ctx?.clearRect(0, 0, canvas.width, canvas.height);
+                      setHasDrawnWaiverSignature(false);
                     }}
                     className="text-slate-600 font-bold text-xs px-4 py-2 hover:bg-slate-200 rounded-lg transition cursor-pointer"
                   >
