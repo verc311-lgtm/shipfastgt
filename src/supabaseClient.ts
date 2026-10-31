@@ -112,6 +112,18 @@ export const db = {
       return false;
     }
   },
+  async replaceShipment(oldTrackingId: string, shipment: any): Promise<boolean> {
+    try {
+      const ok = await this.upsertShipment(shipment);
+      if (ok && oldTrackingId && oldTrackingId !== shipment.id) {
+        await supabase.from('shipments').delete().eq('id', oldTrackingId);
+      }
+      return ok;
+    } catch (err) {
+      console.error("Supabase: replaceShipment error", err);
+      return false;
+    }
+  },
 
   // Pre-Alerts
   async getPreAlerts(): Promise<any[]> {
@@ -156,6 +168,18 @@ export const db = {
       return true;
     } catch (err) {
       console.error("Supabase: upsertPreAlert error", err);
+      return false;
+    }
+  },
+  async replacePreAlert(oldId: string, preAlert: any): Promise<boolean> {
+    try {
+      const ok = await this.upsertPreAlert(preAlert);
+      if (ok && oldId && oldId !== preAlert.id) {
+        await supabase.from('pre_alerts').delete().eq('id', oldId);
+      }
+      return ok;
+    } catch (err) {
+      console.error("Supabase: replacePreAlert error", err);
       return false;
     }
   },

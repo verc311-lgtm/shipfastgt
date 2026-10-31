@@ -277,7 +277,10 @@ export default function App() {
 
   // Admin View States
   const [adminSubTab, setAdminSubTab] = useState<string>(() => localStorage.getItem('shipfast_admin_subtab') || 'portal');
+  const [sidebarPosition, setSidebarPosition] = useState<'left' | 'right'>(() => (localStorage.getItem('shipfast_sidebar_pos') as 'left' | 'right') || 'left');
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [preAlerts, setPreAlerts] = useState<PreAlert[]>(INITIAL_PRE_ALERTS);
+  const [editShipmentGuideId, setEditShipmentGuideId] = useState('');
 
   // Client Pre-Alert Modal States
   const [isClientPreAlertModalOpen, setIsClientPreAlertModalOpen] = useState(false);
@@ -288,6 +291,7 @@ export default function App() {
   const [clientPreAlertValue, setClientPreAlertValue] = useState('');
   const [clientPreAlertWeight, setClientPreAlertWeight] = useState('1.0');
   const [clientPreAlertInsurance, setClientPreAlertInsurance] = useState('Sin seguro');
+  const [clientPreAlertCustomNote, setClientPreAlertCustomNote] = useState('');
   const [clientPreAlertFileName, setClientPreAlertFileName] = useState('');
   const [clientPreAlertFileData, setClientPreAlertFileData] = useState('');
   const [activeWarehouseModal, setActiveWarehouseModal] = useState<'USA' | 'MEX' | null>(null);
@@ -321,6 +325,50 @@ export default function App() {
     return {
       fileName: raw || descFallback || '',
       fileDataUrl: ''
+    };
+  };
+
+  const parsePreAlertDetails = (pa: PreAlert) => {
+    const rawDesc = pa.description || '';
+    const parts = rawDesc.split(' | ').map(p => p.trim()).filter(Boolean);
+    let origin = 'USA';
+    let declaredValue = typeof pa.declaredValue === 'number' ? pa.declaredValue : 0;
+    let insurance = (pa.insurance || 'Sin seguro').split(':::WAIVER:::')[0];
+    const customParts: string[] = [];
+
+    for (const part of parts) {
+      const lower = part.toLowerCase();
+      if (lower.startsWith('origen:')) {
+        const val = part.slice(7).trim();
+        if (val.toLowerCase().includes('mex') || val.toLowerCase().includes('tapachula')) origin = 'Mexico';
+        else if (val) origin = val;
+      } else if (lower.startsWith('valor:')) {
+        const numStr = part.replace(/[^0-9.]/g, '');
+        const parsedVal = parseFloat(numStr);
+        if (!isNaN(parsedVal) && !pa.declaredValue) {
+          declaredValue = parsedVal;
+        }
+      } else if (lower.startsWith('seguro:')) {
+        const val = part.slice(7).trim().split(':::WAIVER:::')[0];
+        if (val && !pa.insurance) insurance = val;
+      } else if (lower.startsWith('factura:')) {
+        // Handled by parsePreAlertAttachment
+      } else if (lower.startsWith('contenido:') || lower.startsWith('descripción:') || lower.startsWith('descripcion:')) {
+        const idx = part.indexOf(':');
+        const cleanNote = idx !== -1 ? part.slice(idx + 1).trim() : part;
+        if (cleanNote) customParts.push(cleanNote);
+      } else {
+        customParts.push(part);
+      }
+    }
+
+    return {
+      origin,
+      isMexico: origin.toLowerCase().includes('mex'),
+      declaredValue,
+      insurance,
+      hasInsurance: insurance.toLowerCase().includes('con seguro'),
+      customNote: customParts.join(' • ')
     };
   };
 
@@ -1881,6 +1929,17 @@ Cargos de Flete y Tarifas Asignadas:
       if (adminPreAlertStatusFilter !== 'todos' && pa.status !== adminPreAlertStatusFilter) return false;
       if (adminPreAlertStartDate && pa.dateCreated < adminPreAlertStartDate) return false;
       if (adminPreAlertEndDate && pa.dateCreated > adminPreAlertEndDate) return false;
+      if (adminPreAlertSearchText.trim() !== '') {
+        const searchQ = adminPreAlertSearchText.toLowerCase().trim();
+        const userObj = users.find(u => u.lockerId === pa.lockerId);
+        const clientName = (userObj?.name || '').toLowerCase();
+        const matchesId = (pa.id || '').toLowerCase().includes(searchQ);
+        const matchesLocker = (pa.lockerId || '').toLowerCase().includes(searchQ);
+        const matchesClient = clientName.includes(searchQ);
+        const matchesSender = (pa.sender || '').toLowerCase().includes(searchQ);
+        const matchesDesc = desc.includes(searchQ);
+        if (!matchesId && !matchesLocker && !matchesClient && !matchesSender && !matchesDesc) return false;
+      }
       return true;
     });
 
@@ -1906,16 +1965,22 @@ Cargos de Flete y Tarifas Asignadas:
     const totalWeight = filteredPreAlerts.reduce((acc, curr) => acc + (curr.weightEst || 0), 0);
 
     const rowsHtml = filteredPreAlerts.map(pa => {
-      const parts = pa.description ? pa.description.split(' | ') : [];
-      const cleanDescription = parts.filter(p => !p.startsWith('Factura:')).join(' | ');
+      const clientUser = users.find(u => u.lockerId === pa.lockerId);
+      const clientName = clientUser ? clientUser.name : 'Cliente Registrado';
+      const parsed = parsePreAlertDetails(pa);
       return `
         <tr>
-          <td><strong>${pa.id}</strong></td>
-          <td>${pa.lockerId}</td>
-          <td>${pa.sender}</td>
-          <td>${cleanDescription}</td>
+          <td><strong>${pa.dateCreated || 'N/A'}</strong></td>
+          <td>
+            <div style="font-weight: 800; color: #111827;">${clientName}</div>
+            <div style="font-size: 9px; font-weight: 700; color: #EA580C;">Casillero: ${pa.lockerId}</div>
+          </td>
+          <td style="font-family: monospace; font-weight: 800; color: #EA580C;">${pa.id}</td>
+          <td>
+            <div><strong>Origen:</strong> ${parsed.isMexico ? 'México' : 'USA'} &bull; <strong>Valor:</strong> $${parsed.declaredValue.toFixed(2)} &bull; <strong>Seguro:</strong> ${parsed.insurance}</div>
+            <div style="font-size: 10px; color: #4B5563;"><strong>Remitente:</strong> ${pa.sender || 'N/A'}${parsed.customNote ? ` &bull; <strong>Detalle:</strong> ${parsed.customNote}` : ''}</div>
+          </td>
           <td>${pa.weightEst} Lbs</td>
-          <td>${pa.dateCreated || 'N/A'}</td>
           <td>
             <span class="status-badge ${pa.status === 'Recibido' ? 'status-recibido' : 'status-pendiente'}">
               ${pa.status}
@@ -2095,13 +2160,12 @@ Cargos de Flete y Tarifas Asignadas:
         <table>
           <thead>
             <tr>
-              <th style="width: 15%">Tracking ID</th>
-              <th style="width: 12%">Casillero</th>
-              <th style="width: 15%">Tienda / Remitente</th>
-              <th style="width: 33%">Descripción Contenido</th>
+              <th style="width: 11%">Fecha Decl.</th>
+              <th style="width: 18%">Cliente y Casillero</th>
+              <th style="width: 16%">Número de Guía</th>
+              <th style="width: 37%">Descripción Organizada</th>
               <th style="width: 10%">Peso Est.</th>
-              <th style="width: 10%">Fecha Decl.</th>
-              <th style="width: 5%">Estado</th>
+              <th style="width: 8%">Estado</th>
             </tr>
           </thead>
           <tbody>
@@ -2738,6 +2802,10 @@ Cargos de Flete y Tarifas Asignadas:
   // Pre-Alert Editing States
   const [isEditPreAlertModalOpen, setIsEditPreAlertModalOpen] = useState(false);
   const [editingPreAlert, setEditingPreAlert] = useState<PreAlert | null>(null);
+  const [editPreAlertTracking, setEditPreAlertTracking] = useState('');
+  const [editPreAlertLockerId, setEditPreAlertLockerId] = useState('');
+  const [editPreAlertSender, setEditPreAlertSender] = useState('');
+  const [editPreAlertCustomNote, setEditPreAlertCustomNote] = useState('');
   const [editPreAlertWeight, setEditPreAlertWeight] = useState('');
   const [editPreAlertValue, setEditPreAlertValue] = useState('');
   const [editPreAlertInsurance, setEditPreAlertInsurance] = useState('Sin seguro');
@@ -2745,49 +2813,58 @@ Cargos de Flete y Tarifas Asignadas:
 
   // Edit Pre-Alert Handler
   const handleEditPreAlert = (pa: PreAlert) => {
+    const parsed = parsePreAlertDetails(pa);
     setEditingPreAlert(pa);
+    setEditPreAlertTracking(pa.id);
+    setEditPreAlertLockerId(pa.lockerId || '');
+    setEditPreAlertSender(pa.sender || 'Compra Online');
+    setEditPreAlertCustomNote(parsed.customNote || '');
     setEditPreAlertWeight(String(pa.weightEst));
-    setEditPreAlertValue(String(pa.declaredValue || 0));
-    setEditPreAlertInsurance(pa.insurance || 'Sin seguro');
-    
-    // Parse bodega from description if possible
-    let currentBodega = 'USA';
-    if (pa.description) {
-      if (pa.description.toLowerCase().includes('origen: mexico')) currentBodega = 'Mexico';
-    }
-    setEditPreAlertBodega(currentBodega);
+    setEditPreAlertValue(String(parsed.declaredValue || 0));
+    setEditPreAlertInsurance(parsed.insurance || 'Sin seguro');
+    setEditPreAlertBodega(parsed.isMexico ? 'Mexico' : 'USA');
     setIsEditPreAlertModalOpen(true);
   };
 
   // Save Edited Pre-Alert Handler
-  const handleSaveEditedPreAlert = (e: React.FormEvent) => {
+  const handleSaveEditedPreAlert = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingPreAlert) return;
+
+    const newTrackingId = editPreAlertTracking.trim().toUpperCase();
+    if (!newTrackingId) {
+      alert('Por favor ingresa un número de guía / tracking válido.');
+      return;
+    }
 
     const declaredVal = parseFloat(editPreAlertValue) || 0;
     const weightVal = parseFloat(editPreAlertWeight) || 1.0;
 
     // Preserve the original invoice name if present
     const parsedAttachment = parsePreAlertAttachment(editingPreAlert);
+    const cleanNotePart = editPreAlertCustomNote.trim() ? ` | Contenido: ${editPreAlertCustomNote.trim()}` : '';
     const cleanInvoicePart = parsedAttachment.fileName ? ` | Factura: ${parsedAttachment.fileName}` : '';
 
     const updatedPreAlert: PreAlert = {
       ...editingPreAlert,
-      description: `Origen: ${editPreAlertBodega} | Valor: $${declaredVal.toFixed(2)} | Seguro: ${editPreAlertInsurance}${cleanInvoicePart}`,
+      id: newTrackingId,
+      lockerId: (editPreAlertLockerId.trim() || editingPreAlert.lockerId).toUpperCase(),
+      sender: editPreAlertSender.trim() || editingPreAlert.sender || 'Compra Online',
+      description: `Origen: ${editPreAlertBodega} | Valor: $${declaredVal.toFixed(2)} | Seguro: ${editPreAlertInsurance}${cleanNotePart}${cleanInvoicePart}`,
       weightEst: weightVal,
       declaredValue: declaredVal,
       insurance: editPreAlertInsurance
     };
 
-    // Update in Supabase via helper db
-    db.upsertPreAlert(updatedPreAlert);
+    // Update in Supabase via helper db (replaces primary key if guide number changed)
+    await db.replacePreAlert(editingPreAlert.id, updatedPreAlert);
 
     // Update in Local state
     setPreAlerts(prev => prev.map(item => item.id === editingPreAlert.id ? updatedPreAlert : item));
 
     setIsEditPreAlertModalOpen(false);
     setEditingPreAlert(null);
-    alert('Pre-alerta actualizada con éxito.');
+    alert(`¡Pre-alerta actualizada con éxito! Guía actual: ${updatedPreAlert.id}`);
   };
 
   // Delete Pre-Alert Handler
@@ -2840,6 +2917,7 @@ Cargos de Flete y Tarifas Asignadas:
       setClientPreAlertValue('');
       setClientPreAlertWeight('1.0');
       setClientPreAlertInsurance('Sin seguro');
+      setClientPreAlertCustomNote('');
       setClientPreAlertFileName('');
       setClientPreAlertFileData('');
 
@@ -2967,11 +3045,12 @@ Cargos de Flete y Tarifas Asignadas:
       }
     }
 
+    const notePart = clientPreAlertCustomNote.trim() ? ` | Contenido: ${clientPreAlertCustomNote.trim()}` : '';
     const newPreAlert: PreAlert = {
       id: clientPreAlertTracking.trim().toUpperCase(),
       lockerId: currentUser.lockerId,
       sender: 'Compra Online',
-      description: `Origen: ${clientPreAlertBodega} | Valor: $${declaredVal.toFixed(2)} | Seguro: ${clientPreAlertInsurance}${clientPreAlertFileName ? ` | Factura: ${clientPreAlertFileName}` : ''}`,
+      description: `Origen: ${clientPreAlertBodega} | Valor: $${declaredVal.toFixed(2)} | Seguro: ${clientPreAlertInsurance}${notePart}${clientPreAlertFileName ? ` | Factura: ${clientPreAlertFileName}` : ''}`,
       weightEst: weightVal,
       status: 'Pendiente',
       dateCreated: new Date().toISOString().split('T')[0],
@@ -2999,6 +3078,7 @@ Cargos de Flete y Tarifas Asignadas:
     setClientPreAlertValue('');
     setClientPreAlertWeight('1.0');
     setClientPreAlertInsurance('Sin seguro');
+    setClientPreAlertCustomNote('');
     setClientPreAlertFileName('');
     setClientPreAlertFileData('');
     setHasDrawnWaiverSignature(false);
@@ -3044,11 +3124,12 @@ Cargos de Flete y Tarifas Asignadas:
       }
     }
 
+    const notePart = clientPreAlertCustomNote.trim() ? ` | Contenido: ${clientPreAlertCustomNote.trim()}` : '';
     const newPreAlert: PreAlert = {
       id: clientPreAlertTracking.trim().toUpperCase(),
       lockerId: adminPreAlertLockerId.toUpperCase(),
       sender: 'Compra Online (Pre-alertado por Admin)',
-      description: `Origen: ${clientPreAlertBodega} | Valor: $${declaredVal.toFixed(2)} | Seguro: ${clientPreAlertInsurance}${clientPreAlertFileName ? ` | Factura: ${clientPreAlertFileName}` : ''}`,
+      description: `Origen: ${clientPreAlertBodega} | Valor: $${declaredVal.toFixed(2)} | Seguro: ${clientPreAlertInsurance}${notePart}${clientPreAlertFileName ? ` | Factura: ${clientPreAlertFileName}` : ''}`,
       weightEst: weightVal,
       status: 'Pendiente',
       dateCreated: new Date().toISOString().split('T')[0],
@@ -3076,6 +3157,7 @@ Cargos de Flete y Tarifas Asignadas:
     setClientPreAlertValue('');
     setClientPreAlertWeight('1.0');
     setClientPreAlertInsurance('Sin seguro');
+    setClientPreAlertCustomNote('');
     setClientPreAlertFileName('');
     setClientPreAlertFileData('');
     setHasDrawnWaiverSignature(false);
@@ -3584,6 +3666,27 @@ Cargos de Flete y Tarifas Asignadas:
     setUpdateLocationVal('');
     setUpdateDetailsVal('');
     alert('Bitácora, estado y peso de envío actualizados en tiempo real.');
+  };
+
+  const handleSaveEditedShipmentGuideId = async () => {
+    if (!selectedAdminShipment) return;
+    const newId = editShipmentGuideId.trim().toUpperCase();
+    if (!newId) {
+      alert('Por favor ingresa un número de guía válido.');
+      return;
+    }
+    if (newId === selectedAdminShipment.id) {
+      return;
+    }
+    const oldId = selectedAdminShipment.id;
+    const updatedShip: Shipment = {
+      ...selectedAdminShipment,
+      id: newId
+    };
+    await db.replaceShipment(oldId, updatedShip);
+    setShipments(prev => prev.map(s => s.id === oldId ? updatedShip : s));
+    setSelectedAdminShipment(updatedShip);
+    alert(`¡Número de guía actualizado de "${oldId}" a "${newId}"!`);
   };
 
   // AI Assistant Chat Handler
@@ -4939,7 +5042,7 @@ Para proporcionarle información específica, puede solicitar:
           
           {/* Authenticated Dashboard Header */}
           <header className="bg-brand-gray-dark text-white shadow-md border-b-2 border-brand-orange shrink-0">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-3 flex flex-wrap justify-between items-center gap-3">
               
               {/* Logo block */}
               <div className="flex items-center space-x-3">
@@ -4953,7 +5056,7 @@ Para proporcionarle información específica, puede solicitar:
               </div>
 
               {/* Center User Session info & Logout */}
-              <div className="bg-gray-800 px-4 py-1.5 rounded-lg border border-gray-700 text-3xs font-semibold flex items-center gap-3">
+              <div className="bg-gray-800 px-4 py-1.5 rounded-lg border border-gray-700 text-3xs font-semibold flex flex-wrap items-center gap-3">
                 <div className="flex items-center gap-1.5">
                   <User className="h-3.5 w-3.5 text-brand-orange" />
                   <span className="text-gray-300">
@@ -4980,117 +5083,253 @@ Para proporcionarle información específica, puede solicitar:
                 </button>
               </div>
 
-              {/* Navigation Tabs - Role Based */}
-              <nav className="flex overflow-x-auto no-scrollbar space-x-1 bg-gray-800 p-1 rounded-lg border border-gray-700 max-w-full shrink-0">
+              {/* Quick Header Actions & Mobile Menu Toggle */}
+              <div className="flex items-center gap-2">
                 {currentUser.role === 'client' ? (
-                  <>
-                    <button
-                      onClick={() => setActiveTab('my-locker')}
-                      className={`px-4 py-1.5 text-3xs font-bold rounded uppercase tracking-wider transition flex items-center gap-1.5 whitespace-nowrap ${
-                        activeTab === 'my-locker' 
-                          ? 'bg-brand-orange text-white' 
-                          : 'text-gray-300 hover:text-white hover:bg-gray-700'
-                      }`}
-                    >
-                      <Package className="h-3.5 w-3.5" />
-                      Mis Envíos
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setClientPreAlertTracking('');
-                        setClientPreAlertBodega('');
-                        setClientPreAlertValue('');
-                        setClientPreAlertWeight('1.0');
-                        setClientPreAlertInsurance('Sin seguro');
-                        setClientPreAlertFileName('');
-                        setClientPreAlertFileData('');
-                        setIsClientPreAlertModalOpen(true);
-                      }}
-                      className="px-4 py-1.5 text-3xs font-bold rounded uppercase tracking-wider transition flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs cursor-pointer active:scale-98 whitespace-nowrap"
-                    >
-                      <PlusCircle className="h-3.5 w-3.5 animate-pulse" />
-                      Pre-Alertar 🚀
-                    </button>
-                    <button
-                      onClick={() => setActiveTab('pickup-request')}
-                      className={`px-4 py-1.5 text-3xs font-bold rounded uppercase tracking-wider transition flex items-center gap-1.5 whitespace-nowrap ${
-                        activeTab === 'pickup-request' 
-                          ? 'bg-brand-orange text-white' 
-                          : 'text-gray-300 hover:text-white hover:bg-gray-700'
-                      }`}
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      Pedir Recogida
-                    </button>
-                    <button
-                      onClick={() => setActiveTab('quote')}
-                      className={`px-4 py-1.5 text-3xs font-bold rounded uppercase tracking-wider transition flex items-center gap-1.5 whitespace-nowrap ${
-                        activeTab === 'quote' 
-                          ? 'bg-brand-orange text-white' 
-                          : 'text-gray-300 hover:text-white hover:bg-gray-700'
-                      }`}
-                    >
-                      <SlidersHorizontal className="h-3.5 w-3.5" />
-                      Cotizar Flete
-                    </button>
-                    <button
-                      onClick={() => setActiveTab('ai-support')}
-                      className={`px-4 py-1.5 text-3xs font-bold rounded uppercase tracking-wider transition flex items-center gap-1.5 whitespace-nowrap ${
-                        activeTab === 'ai-support' 
-                          ? 'bg-brand-orange text-white' 
-                          : 'text-gray-300 hover:text-white hover:bg-gray-700'
-                      }`}
-                    >
-                      <Sparkles className="h-3.5 w-3.5" />
-                      Soporte IA
-                    </button>
-                  </>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setClientPreAlertTracking('');
+                      setClientPreAlertBodega('');
+                      setClientPreAlertValue('');
+                      setClientPreAlertWeight('1.0');
+                      setClientPreAlertInsurance('Sin seguro');
+                      setClientPreAlertCustomNote('');
+                      setClientPreAlertFileName('');
+                      setClientPreAlertFileData('');
+                      setIsClientPreAlertModalOpen(true);
+                    }}
+                    className="px-4 py-1.5 text-3xs font-extrabold rounded-lg uppercase tracking-wider transition flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm cursor-pointer active:scale-98 whitespace-nowrap"
+                  >
+                    <PlusCircle className="h-3.5 w-3.5 animate-pulse" />
+                    Pre-Alertar 🚀
+                  </button>
                 ) : (
-                  <>
-                    <button
-                      onClick={() => setActiveTab('admin-dashboard')}
-                      className={`px-4 py-1.5 text-3xs font-bold rounded uppercase tracking-wider transition flex items-center gap-1.5 whitespace-nowrap ${
-                        activeTab === 'admin-dashboard' 
-                          ? 'bg-brand-orange text-white' 
-                          : 'text-gray-300 hover:text-white hover:bg-gray-700'
-                      }`}
-                    >
-                      <TrendingUp className="h-3.5 w-3.5" />
-                      Operaciones
-                    </button>
-                    <button
-                      onClick={() => setActiveTab('driver-terminal')}
-                      className={`px-4 py-1.5 text-3xs font-bold rounded uppercase tracking-wider transition flex items-center gap-1.5 whitespace-nowrap ${
-                        activeTab === 'driver-terminal' 
-                          ? 'bg-brand-orange text-white' 
-                          : 'text-gray-300 hover:text-white hover:bg-gray-700'
-                      }`}
-                    >
-                      <ClipboardList className="h-3.5 w-3.5" />
-                      Repartidores
-                    </button>
-
-                    <button
-                      onClick={() => setActiveTab('ai-chat')}
-                      className={`px-4 py-1.5 text-3xs font-bold rounded uppercase tracking-wider transition flex items-center gap-1.5 whitespace-nowrap ${
-                        activeTab === 'ai-chat' 
-                          ? 'bg-brand-orange text-white' 
-                          : 'text-gray-300 hover:text-white hover:bg-gray-700'
-                      }`}
-                    >
-                      <Sparkles className="h-3.5 w-3.5" />
-                      Asistente IA
-                    </button>
-                  </>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGlobalSearchQuery('');
+                      setIsGlobalSearchOpen(true);
+                    }}
+                    className="bg-gray-800 hover:bg-gray-700 text-white text-3xs font-extrabold px-3.5 py-1.5 rounded-lg uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 border border-gray-700"
+                  >
+                    <Search className="h-3.5 w-3.5 text-brand-orange" />
+                    <span>Buscador Rápido</span>
+                  </button>
                 )}
-              </nav>
+
+                <button
+                  type="button"
+                  onClick={() => setIsMobileSidebarOpen(prev => !prev)}
+                  className="lg:hidden bg-brand-orange text-white px-3 py-1.5 rounded-lg text-3xs font-extrabold uppercase tracking-wider cursor-pointer flex items-center gap-1"
+                >
+                  <Layers className="h-3.5 w-3.5" />
+                  <span>{isMobileSidebarOpen ? 'Ocultar Menú' : 'Menú Opciones'}</span>
+                </button>
+              </div>
 
             </div>
           </header>
 
-          {/* Authenticated Body Area */}
-          <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col min-h-0">
+          {/* Authenticated Body Area with Left/Right Sidebar Navigation */}
+          <main className={`flex-1 max-w-[1600px] w-full mx-auto p-3 sm:p-5 lg:p-6 flex flex-col ${sidebarPosition === 'right' ? 'lg:flex-row-reverse' : 'lg:flex-row'} gap-5 min-h-0`}>
+            
+            {/* ==================== VERTICAL SIDEBAR MENU (LEFT OR RIGHT) ==================== */}
+            <aside className={`w-full lg:w-64 xl:w-72 shrink-0 ${isMobileSidebarOpen ? 'block' : 'hidden lg:block'}`}>
+              <div className="bg-brand-gray-dark text-white rounded-2xl border border-gray-800 shadow-lg overflow-hidden sticky top-4 flex flex-col max-h-[calc(100vh-2rem)]">
+                
+                {/* Sidebar Header & Position Switcher */}
+                <div className="px-4 py-3 bg-gray-900/90 border-b border-gray-800 flex items-center justify-between gap-2 shrink-0">
+                  <div className="flex items-center gap-2">
+                    <Layers className="h-4 w-4 text-brand-orange shrink-0" />
+                    <span className="text-[10px] font-black uppercase tracking-widest text-white">
+                      Opciones de Plataforma
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextPos = sidebarPosition === 'left' ? 'right' : 'left';
+                      setSidebarPosition(nextPos);
+                      localStorage.setItem('shipfast_sidebar_pos', nextPos);
+                    }}
+                    title="Cambiar listado de opciones a lado izquierdo o derecho"
+                    className="text-[9px] font-extrabold uppercase px-2 py-1 rounded bg-gray-800 hover:bg-brand-orange text-gray-300 hover:text-white border border-gray-700 transition cursor-pointer whitespace-nowrap"
+                  >
+                    {sidebarPosition === 'left' ? 'Pasar a Derecha ➡' : '⬅ Pasar a Izquierda'}
+                  </button>
+                </div>
+
+                {/* Sidebar Scrollable List */}
+                <div className="p-3 space-y-4 overflow-y-auto flex-1">
+                  {currentUser.role === 'client' ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setClientPreAlertTracking('');
+                          setClientPreAlertBodega('');
+                          setClientPreAlertValue('');
+                          setClientPreAlertWeight('1.0');
+                          setClientPreAlertInsurance('Sin seguro');
+                          setClientPreAlertCustomNote('');
+                          setClientPreAlertFileName('');
+                          setClientPreAlertFileData('');
+                          setIsClientPreAlertModalOpen(true);
+                          setIsMobileSidebarOpen(false);
+                        }}
+                        className="w-full py-2.5 px-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-md transition cursor-pointer"
+                      >
+                        <PlusCircle className="h-4 w-4 animate-pulse" />
+                        <span>Nueva Pre-Alerta 🚀</span>
+                      </button>
+
+                      <div className="space-y-1">
+                        <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest px-2 block mb-1.5">
+                          📦 Menú de Cliente
+                        </span>
+                        {[
+                          { id: 'my-locker', label: 'Mis Envíos y Casillero', icon: Package, badge: shipments.filter(s => s.lockerId === currentUser.lockerId).length },
+                          { id: 'pickup-request', label: 'Pedir Recogida Local', icon: Plus },
+                          { id: 'quote', label: 'Cotizar Flete', icon: SlidersHorizontal },
+                          { id: 'ai-support', label: 'Soporte Inteligente IA', icon: Sparkles },
+                        ].map(item => {
+                          const IconComp = item.icon;
+                          const isActive = activeTab === item.id;
+                          return (
+                            <button
+                              key={item.id}
+                              type="button"
+                              onClick={() => {
+                                setActiveTab(item.id as any);
+                                setIsMobileSidebarOpen(false);
+                              }}
+                              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer text-left ${
+                                isActive
+                                  ? 'bg-brand-orange text-white shadow-sm font-black border-l-4 border-white'
+                                  : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                              }`}
+                            >
+                              <span className="flex items-center gap-2.5 truncate">
+                                <IconComp className="h-4 w-4 shrink-0" />
+                                <span className="truncate">{item.label}</span>
+                              </span>
+                              {typeof item.badge === 'number' && item.badge > 0 && (
+                                <span className={`px-2 py-0.5 text-[10px] font-black rounded-full ${isActive ? 'bg-white text-brand-orange' : 'bg-gray-800 text-gray-300'}`}>
+                                  {item.badge}
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {/* Admin Sidebar Sections - All options clearly listed */}
+                      {[
+                        {
+                          groupTitle: '📊 RESUMEN GENERAL',
+                          items: [
+                            { tab: 'admin-dashboard', subTab: 'portal', label: 'Dashboard Portal', icon: Database }
+                          ]
+                        },
+                        {
+                          groupTitle: '📦 LOGÍSTICA Y PRE-ALERTAS',
+                          items: [
+                            { tab: 'admin-dashboard', subTab: 'pre-alertas', label: 'Pre-Alertas Clientes', icon: Clock, badge: preAlerts.filter(p => p.status === 'Pendiente').length, badgeColor: 'bg-amber-500 text-white' },
+                            { tab: 'admin-dashboard', subTab: 'registro-paquetes', label: 'Registro de Paquetes', icon: FileText, badge: shipments.length },
+                            { tab: 'admin-dashboard', subTab: 'cliente-mayor', label: 'Registro Cliente Mayor', icon: Users }
+                          ]
+                        },
+                        {
+                          groupTitle: '🏢 ALMACÉN Y BODEGAS',
+                          items: [
+                            { tab: 'admin-dashboard', subTab: 'warehouse', label: 'Control de Warehouse', icon: Package },
+                            { tab: 'admin-dashboard', subTab: 'consolidado', label: 'Historial de Consolidados', icon: Layers }
+                          ]
+                        },
+                        {
+                          groupTitle: '💰 FINANZAS Y COBROS',
+                          items: [
+                            { tab: 'admin-dashboard', subTab: 'pagos', label: 'Registro de Pagos (Caja)', icon: Wallet, badge: invoices.filter(i => i.paymentStatus === 'Pendiente').length, badgeColor: 'bg-red-500 text-white' },
+                            { tab: 'admin-dashboard', subTab: 'facturacion', label: 'Facturación / Fletes', icon: FileSpreadsheet },
+                            { tab: 'admin-dashboard', subTab: 'cotizaciones', label: 'Generar Cotización', icon: ClipboardList },
+                            { tab: 'admin-dashboard', subTab: 'gastos', label: 'Registro de Gastos', icon: TrendingUp },
+                            { tab: 'admin-dashboard', subTab: 'reportes-financieros', label: 'Reportes Financieros', icon: DollarSign }
+                          ]
+                        },
+                        {
+                          groupTitle: '⚙️ SISTEMA Y AJUSTES',
+                          items: [
+                            { tab: 'admin-dashboard', subTab: 'usuarios', label: 'Usuarios y Casilleros', icon: Users },
+                            { tab: 'admin-dashboard', subTab: 'sucursales', label: 'Sedes y Sucursales', icon: Building },
+                            { tab: 'admin-dashboard', subTab: 'tarifas', label: 'Configuración Tarifaria', icon: SlidersHorizontal },
+                            { tab: 'admin-dashboard', subTab: 'reportes', label: 'Reportes de Sistema', icon: TrendingUp },
+                            { tab: 'admin-dashboard', subTab: 'ajustes', label: 'Ajustes de Sistema', icon: Settings }
+                          ]
+                        },
+                        {
+                          groupTitle: '🚚 TERMINALES Y SOPORTE',
+                          items: [
+                            { tab: 'driver-terminal', subTab: '', label: 'Terminal Repartidores', icon: Truck },
+                            { tab: 'ai-chat', subTab: '', label: 'Asistente IA', icon: Sparkles }
+                          ]
+                        }
+                      ].map((section, sIdx) => (
+                        <div key={sIdx} className="space-y-1">
+                          <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest px-2.5 block mb-1">
+                            {section.groupTitle}
+                          </span>
+                          {section.items.map(item => {
+                            const IconComp = item.icon;
+                            const isActive = item.tab === 'admin-dashboard'
+                              ? (activeTab === 'admin-dashboard' && adminSubTab === item.subTab)
+                              : (activeTab === item.tab);
+                            return (
+                              <button
+                                key={item.label}
+                                type="button"
+                                onClick={() => {
+                                  setActiveTab(item.tab as any);
+                                  if (item.subTab) {
+                                    setAdminSubTab(item.subTab);
+                                  }
+                                  setIsMobileSidebarOpen(false);
+                                }}
+                                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer text-left ${
+                                  isActive
+                                    ? 'bg-brand-orange text-white shadow-sm font-black border-l-4 border-white'
+                                    : 'text-gray-300 hover:bg-gray-800/90 hover:text-white'
+                                }`}
+                              >
+                                <span className="flex items-center gap-2.5 truncate">
+                                  <IconComp className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-white' : 'text-brand-orange'}`} />
+                                  <span className="truncate">{item.label}</span>
+                                </span>
+                                {typeof item.badge === 'number' && item.badge > 0 && (
+                                  <span className={`px-1.5 py-0.5 text-[9px] font-black rounded-full shrink-0 ${
+                                    isActive
+                                      ? 'bg-white text-brand-orange'
+                                      : (item.badgeColor || 'bg-gray-800 text-gray-300')
+                                  }`}>
+                                    {item.badge}
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </div>
+
+              </div>
+            </aside>
+
+            {/* ==================== MAIN CONTENT AREA ==================== */}
+            <div className="flex-1 min-w-0 flex flex-col min-h-0">
             
             {/* ==================== CLIENT: MY LOCKER TAB ==================== */}
             {currentUser.role === 'client' && activeTab === 'my-locker' && (
@@ -5285,6 +5524,7 @@ Para proporcionarle información específica, puede solicitar:
                           setClientPreAlertValue('');
                           setClientPreAlertWeight('1.0');
                           setClientPreAlertInsurance('Sin seguro');
+                          setClientPreAlertCustomNote('');
                           setClientPreAlertFileName('');
                           setClientPreAlertFileData('');
                           setIsClientPreAlertModalOpen(true);
@@ -5295,24 +5535,68 @@ Para proporcionarle información específica, puede solicitar:
                       </button>
                     </div>
                     
-                    <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+                    <div className="space-y-2.5 max-h-[280px] overflow-y-auto pr-1">
                       {[...preAlerts].filter(pa => pa.lockerId === currentUser.lockerId).reverse().map(pa => {
                         const { fileName: attachedFile } = parsePreAlertAttachment(pa);
+                        const parsed = parsePreAlertDetails(pa);
                         return (
-                          <div key={pa.id} className="p-2.5 bg-gray-50/80 border border-gray-100 rounded text-4xs space-y-1 relative overflow-hidden font-mono">
+                          <div key={pa.id} className="p-3 bg-gray-50/90 border border-gray-200 rounded-lg text-4xs space-y-2 relative overflow-hidden">
                             <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500"></div>
-                            <div className="flex justify-between items-center font-bold">
-                              <span className="text-indigo-600 select-all font-black">{pa.id}</span>
+                            {/* 1. Fecha primero + Estado */}
+                            <div className="flex justify-between items-center border-b border-gray-200/70 pb-1">
+                              <span className="text-[9px] font-black text-gray-600 font-mono">
+                                📅 {pa.dateCreated}
+                              </span>
                               <span className={`px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase tracking-wide ${
                                 pa.status === 'Recibido' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
                               }`}>
                                 {pa.status}
                               </span>
                             </div>
-                            <div className="text-gray-500 font-sans leading-tight">
-                              {pa.description}
+                            {/* 2. Nombre y Casillero */}
+                            <div className="flex items-center justify-between gap-1 text-[10px]">
+                              <span className="font-extrabold text-brand-gray-dark truncate">{currentUser.name}</span>
+                              <span className="bg-orange-50 text-brand-orange border border-orange-200 px-1.5 py-0.5 rounded font-mono font-black text-[9px] shrink-0">
+                                {pa.lockerId}
+                              </span>
                             </div>
-                            <div className="flex flex-wrap gap-1.5 mt-1">
+                            {/* 3. Guía + Editar */}
+                            <div className="flex items-center justify-between bg-white px-2 py-1 rounded border border-gray-200">
+                              <span className="text-indigo-700 select-all font-black font-mono text-[10px]">
+                                Guía: {pa.id}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleEditPreAlert(pa)}
+                                className="text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 cursor-pointer"
+                                title="Editar número de guía o datos"
+                              >
+                                ✏️ Editar Guía
+                              </button>
+                            </div>
+                            {/* 4. Descripción organizada */}
+                            <div className="flex flex-wrap gap-1 pt-0.5">
+                              <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200 text-[8px] font-bold">
+                                {parsed.isMexico ? '🇲🇽 México' : '🇺🇸 USA'}
+                              </span>
+                              <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 text-[8px] font-bold">
+                                💵 ${parsed.declaredValue.toFixed(2)}
+                              </span>
+                              <span className={`px-1.5 py-0.5 rounded border text-[8px] font-bold ${
+                                parsed.hasInsurance ? 'bg-green-50 text-green-700 border-green-200' : 'bg-amber-50 text-amber-700 border-amber-200'
+                              }`}>
+                                {parsed.hasInsurance ? '🛡️ Con seguro' : '⚠️ Sin seguro'}
+                              </span>
+                              <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 text-[8px] font-bold">
+                                ⚖️ {pa.weightEst} Lbs
+                              </span>
+                            </div>
+                            {parsed.customNote && (
+                              <div className="text-[9px] text-gray-600 bg-white px-2 py-1 rounded border border-gray-100 italic">
+                                {parsed.customNote}
+                              </div>
+                            )}
+                            <div className="flex flex-wrap gap-1.5 pt-0.5">
                               {attachedFile && (
                                 <button
                                   type="button"
@@ -5332,10 +5616,6 @@ Para proporcionarle información específica, puede solicitar:
                                   🖨️ Ver Renuncia Firmada
                                 </button>
                               )}
-                            </div>
-                            <div className="text-[8px] text-gray-400 font-semibold uppercase flex justify-between pt-0.5 border-t border-gray-100/50 mt-1 font-sans">
-                              <span>Creación: {pa.dateCreated}</span>
-                              <span>Est: {pa.weightEst} Lbs</span>
                             </div>
                           </div>
                         );
@@ -6208,12 +6488,17 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                       <span>✅ Sin alertas activas. Operaciones en condición normal.</span>
                                     </div>
                                   )}
-                                  {pendingPreAlerts.slice(0, 3).map(pa => (
-                                    <div key={pa.id} className="p-2 bg-orange-50 border border-brand-orange/20 rounded flex items-center space-x-2 text-4xs text-brand-orange font-bold">
-                                      <AlertTriangle className="h-3.5 w-3.5 text-brand-orange shrink-0 animate-pulse" />
-                                      <span>Pre-alerta sin ingresar: [{pa.lockerId}] {pa.description} ({pa.weightEst} Lbs) – Remitente: {pa.sender}</span>
-                                    </div>
-                                  ))}
+                                  {pendingPreAlerts.slice(0, 3).map(pa => {
+                                    const paUser = users.find(u => u.lockerId === pa.lockerId);
+                                    const paClientName = paUser ? paUser.name : 'Cliente';
+                                    const parsed = parsePreAlertDetails(pa);
+                                    return (
+                                      <div key={pa.id} className="p-2 bg-orange-50 border border-brand-orange/20 rounded flex items-center space-x-2 text-4xs text-brand-orange font-bold">
+                                        <AlertTriangle className="h-3.5 w-3.5 text-brand-orange shrink-0 animate-pulse" />
+                                        <span>[{pa.dateCreated}] {paClientName} ({pa.lockerId}) — Guía: {pa.id} — {parsed.origin} | ${parsed.declaredValue.toFixed(2)} | {parsed.insurance} ({pa.weightEst} Lbs)</span>
+                                      </div>
+                                    );
+                                  })}
                                   {delayedShipments.slice(0, 3).map(s => (
                                     <div key={s.id} className="p-2 bg-red-50 border border-red-200 rounded flex items-center space-x-2 text-4xs text-red-800 font-bold">
                                       <AlertTriangle className="h-3.5 w-3.5 text-red-600 shrink-0" />
@@ -6362,6 +6647,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                         <button
                                           onClick={() => {
                                             setSelectedAdminShipment(s);
+                                            setEditShipmentGuideId(s.id);
                                             setUpdateStatusVal(s.status);
                                             setUpdateWeightVal(s.weight);
                                           }}
@@ -6392,17 +6678,42 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                           {selectedAdminShipment ? (
                             <div className="bg-white rounded-lg border border-gray-200 shadow-xs overflow-hidden">
                               
-                              <div className="bg-brand-gray-dark text-white p-4 border-b border-gray-800 flex justify-between items-center">
-                                <div>
-                                  <span className="text-4xs font-bold text-gray-400 uppercase block">ADMINISTRACIÓN DE GUÍA</span>
-                                  <h4 className="text-xs font-bold tracking-wider font-display text-white uppercase">{selectedAdminShipment.id}</h4>
+                              <div className="bg-brand-gray-dark text-white p-4 border-b border-gray-800 space-y-2.5">
+                                <div className="flex justify-between items-center">
+                                  <div>
+                                    <span className="text-4xs font-bold text-gray-400 uppercase block">ADMINISTRACIÓN DE GUÍA</span>
+                                    <h4 className="text-xs font-bold tracking-wider font-display text-white uppercase">{selectedAdminShipment.id}</h4>
+                                  </div>
+                                  <button 
+                                    onClick={() => setSelectedAdminShipment(null)}
+                                    className="text-gray-400 hover:text-white text-3xs uppercase font-extrabold cursor-pointer"
+                                  >
+                                    Cerrar
+                                  </button>
                                 </div>
-                                <button 
-                                  onClick={() => setSelectedAdminShipment(null)}
-                                  className="text-gray-400 hover:text-white text-3xs uppercase font-extrabold cursor-pointer"
-                                >
-                                  Cerrar
-                                </button>
+
+                                {/* Editable Guide ID bar */}
+                                <div className="pt-2 border-t border-gray-800">
+                                  <label className="text-[9px] font-black text-amber-400 uppercase tracking-wider block mb-1">
+                                    ✏️ Editar Número de Guía / Tracking
+                                  </label>
+                                  <div className="flex gap-1.5">
+                                    <input
+                                      type="text"
+                                      value={editShipmentGuideId}
+                                      onChange={(e) => setEditShipmentGuideId(e.target.value)}
+                                      placeholder="Nuevo número de guía..."
+                                      className="flex-1 px-2.5 py-1 text-3xs font-mono font-bold uppercase bg-gray-800 border border-gray-700 rounded text-white focus:outline-none focus:border-brand-orange"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={handleSaveEditedShipmentGuideId}
+                                      className="bg-brand-orange hover:bg-brand-orange-hover text-white px-2.5 py-1 rounded text-4xs font-extrabold uppercase tracking-wider transition cursor-pointer shrink-0"
+                                    >
+                                      Guardar Guía
+                                    </button>
+                                  </div>
+                                </div>
                               </div>
 
                               <div className="p-4 bg-gray-50 border-b border-gray-100 text-3xs space-y-1 shrink-0">
@@ -6673,7 +6984,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                           <div>
                             <h3 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display mb-1">🕒 Pre-alertas Declaradas por Clientes</h3>
-                            <p className="text-4xs text-gray-500">Buzón de recepción internacional. Cuando el cliente compra en tiendas online, declara su paquete antes de que llegue a nuestras bodegas en USA o México.</p>
+                            <p className="text-4xs text-gray-500">Buzón de recepción internacional organizado por Fecha, Nombre y Casillero, Número de Guía (editable) y Descripción detallada.</p>
                           </div>
                           <div className="flex gap-2.5 flex-wrap">
                             <button
@@ -6701,30 +7012,36 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                     
                                     if (adminPreAlertSearchText.trim() !== '') {
                                       const searchQ = adminPreAlertSearchText.toLowerCase().trim();
+                                      const user = users.find(u => u.lockerId === pa.lockerId);
+                                      const clientName = user ? user.name.toLowerCase() : '';
                                       const matchesId = (pa.id || '').toLowerCase().includes(searchQ);
                                       const matchesLocker = (pa.lockerId || '').toLowerCase().includes(searchQ);
                                       const matchesSender = (pa.sender || '').toLowerCase().includes(searchQ);
+                                      const matchesClient = clientName.includes(searchQ);
                                       const matchesDesc = desc.includes(searchQ);
-                                      if (!matchesId && !matchesLocker && !matchesSender && !matchesDesc) return false;
+                                      if (!matchesId && !matchesLocker && !matchesSender && !matchesClient && !matchesDesc) return false;
                                     }
                                     return true;
                                   });
 
                                   const rows: string[][] = [];
-                                  rows.push(['ID', 'Locker', 'Cliente', 'Descripción', 'Peso Est. (Lbs)', 'Valor Decl. ($)', 'Estado', 'Fecha']);
+                                  rows.push(['Fecha', 'Nombre Cliente', 'Casillero', 'Número de Guía', 'Origen', 'Valor Decl. ($)', 'Seguro', 'Remitente / Detalle', 'Peso Est. (Lbs)', 'Estado']);
                                   
                                   filtered.forEach(pa => {
                                     const user = users.find(u => u.lockerId === pa.lockerId);
-                                    const clientName = user ? user.name : 'Desconocido';
+                                    const clientName = user ? user.name : 'Cliente No Identificado';
+                                    const parsed = parsePreAlertDetails(pa);
                                     rows.push([
-                                      '="' + (pa.id || '') + '"', 
-                                      pa.lockerId || '', 
-                                      clientName || '', 
-                                      pa.description || '', 
-                                      String(pa.weightEst || 0), 
-                                      String(pa.declaredValue || 0), 
-                                      pa.status || '', 
-                                      pa.dateCreated || ''
+                                      pa.dateCreated || '',
+                                      clientName,
+                                      pa.lockerId || '',
+                                      '="' + (pa.id || '') + '"',
+                                      parsed.origin,
+                                      parsed.declaredValue.toFixed(2),
+                                      parsed.insurance,
+                                      `${pa.sender || 'Compra Online'}${parsed.customNote ? ' - ' + parsed.customNote : ''}`,
+                                      String(pa.weightEst || 0),
+                                      pa.status || ''
                                     ]);
                                   });
                                 
@@ -6752,6 +7069,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                 setClientPreAlertBodega('');
                                 setClientPreAlertValue('');
                                 setClientPreAlertInsurance('Sin seguro');
+                                setClientPreAlertCustomNote('');
                                 setClientPreAlertFileName('');
                                 setClientPreAlertFileData('');
                                 setIsAdminPreAlertModalOpen(true);
@@ -6810,14 +7128,14 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                             />
                           </div>
                           <div>
-                            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1">Buscar Tracking / Cliente</span>
+                            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1">Buscar Guía / Nombre / Casillero</span>
                             <div className="relative">
                               <input
                                 type="text"
                                 value={adminPreAlertSearchText}
                                 onChange={(e) => setAdminPreAlertSearchText(e.target.value)}
-                                placeholder="Buscar..."
-                                className="px-2.5 py-1 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark bg-white focus:ring-1 focus:ring-brand-orange focus:outline-none w-44 pr-6"
+                                placeholder="Nombre, casillero o guía..."
+                                className="px-2.5 py-1 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark bg-white focus:ring-1 focus:ring-brand-orange focus:outline-none w-48 pr-6"
                               />
                               {adminPreAlertSearchText && (
                                 <button
@@ -6844,11 +7162,14 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                 if (adminPreAlertEndDate && pa.dateCreated > adminPreAlertEndDate) return false;
                                 if (adminPreAlertSearchText.trim() !== '') {
                                   const searchQ = adminPreAlertSearchText.toLowerCase().trim();
+                                  const user = users.find(u => u.lockerId === pa.lockerId);
+                                  const clientName = user ? user.name.toLowerCase() : '';
                                   const matchesId = (pa.id || '').toLowerCase().includes(searchQ);
                                   const matchesLocker = (pa.lockerId || '').toLowerCase().includes(searchQ);
                                   const matchesSender = (pa.sender || '').toLowerCase().includes(searchQ);
+                                  const matchesClient = clientName.includes(searchQ);
                                   const matchesDesc = desc.includes(searchQ);
-                                  if (!matchesId && !matchesLocker && !matchesSender && !matchesDesc) return false;
+                                  if (!matchesId && !matchesLocker && !matchesSender && !matchesClient && !matchesDesc) return false;
                                 }
                                 return true;
                               }).length
@@ -6860,12 +7181,11 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                           <table className="w-full text-left border-collapse">
                             <thead>
                               <tr className="bg-gray-100 border-b border-gray-200 text-4xs font-extrabold text-gray-500 uppercase tracking-wider">
-                                <th className="py-2.5 px-4">Pre-Alerta ID</th>
-                                <th className="py-2.5 px-3">Casillero</th>
-                                <th className="py-2.5 px-3">Tienda / Remitente</th>
-                                <th className="py-2.5 px-3">Descripción Contenido</th>
+                                <th className="py-2.5 px-3">1. Fecha</th>
+                                <th className="py-2.5 px-3">2. Cliente y Casillero</th>
+                                <th className="py-2.5 px-4">3. Número de Guía</th>
+                                <th className="py-2.5 px-3">4. Descripción Organizada</th>
                                 <th className="py-2.5 px-3 text-center">Peso Est. (Lbs)</th>
-                                <th className="py-2.5 px-3">Fecha Declaración</th>
                                 <th className="py-2.5 px-3">Estado</th>
                                 <th className="py-2.5 px-4 text-center">Acción</th>
                               </tr>
@@ -6882,69 +7202,132 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                 if (adminPreAlertEndDate && pa.dateCreated > adminPreAlertEndDate) return false;
                                 if (adminPreAlertSearchText.trim() !== '') {
                                   const searchQ = adminPreAlertSearchText.toLowerCase().trim();
+                                  const user = users.find(u => u.lockerId === pa.lockerId);
+                                  const clientName = user ? user.name.toLowerCase() : '';
                                   const matchesId = (pa.id || '').toLowerCase().includes(searchQ);
                                   const matchesLocker = (pa.lockerId || '').toLowerCase().includes(searchQ);
                                   const matchesSender = (pa.sender || '').toLowerCase().includes(searchQ);
+                                  const matchesClient = clientName.includes(searchQ);
                                   const matchesDesc = desc.includes(searchQ);
-                                  if (!matchesId && !matchesLocker && !matchesSender && !matchesDesc) return false;
+                                  if (!matchesId && !matchesLocker && !matchesSender && !matchesClient && !matchesDesc) return false;
                                 }
                                 return true;
                               }).reverse().map(pa => {
-                                const parts = pa.description ? pa.description.split(' | ') : [];
-                                const cleanDescription = parts.filter(p => !p.startsWith('Factura:')).join(' | ');
                                 const { fileName: invoiceFile } = parsePreAlertAttachment(pa);
+                                const parsed = parsePreAlertDetails(pa);
+                                const matchingUser = users.find(u => u.lockerId === pa.lockerId);
+                                const clientName = matchingUser ? matchingUser.name : 'Cliente No Identificado';
 
                                 return (
-                                  <tr key={pa.id} className="hover:bg-gray-50/50">
+                                  <tr key={pa.id} className="hover:bg-gray-50/70 transition-colors">
+                                    {/* 1. FECHA PRIMERO */}
+                                    <td className="py-3 px-3 whitespace-nowrap">
+                                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-slate-100 border border-slate-200 font-mono font-bold text-slate-700 text-3xs">
+                                        📅 {pa.dateCreated}
+                                      </span>
+                                    </td>
+
+                                    {/* 2. NOMBRE Y CASILLERO */}
+                                    <td className="py-3 px-3">
+                                      <div className="flex flex-col gap-0.5">
+                                        <span className="font-extrabold text-brand-gray-dark text-2xs leading-tight">
+                                          👤 {clientName}
+                                        </span>
+                                        <span className="inline-flex items-center self-start px-2 py-0.5 rounded bg-orange-50 border border-brand-orange/25 font-mono font-black text-brand-orange text-[10px]">
+                                          Casillero: {pa.lockerId}
+                                        </span>
+                                      </div>
+                                    </td>
+
+                                    {/* 3. NÚMERO DE GUÍA (CON OPCIÓN DE EDITAR) */}
                                     <td className="py-3 px-4 font-mono font-bold text-brand-orange uppercase">
-                                      <div className="flex items-center gap-1">
-                                        <span>{pa.id}</span>
+                                      <div className="flex flex-col gap-1">
+                                        <div className="flex items-center gap-1">
+                                          <span className="text-2xs tracking-wide">{pa.id}</span>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              navigator.clipboard.writeText(pa.id);
+                                              alert(`Tracking "${pa.id}" copiado al portapapeles.`);
+                                            }}
+                                            className="p-1 text-gray-400 hover:text-brand-orange hover:bg-orange-50 rounded transition cursor-pointer"
+                                            title="Copiar Número de Guía"
+                                          >
+                                            <Copy className="h-3.5 w-3.5" />
+                                          </button>
+                                        </div>
                                         <button
                                           type="button"
-                                          onClick={() => {
-                                            navigator.clipboard.writeText(pa.id);
-                                            alert(`Tracking "${pa.id}" copiado al portapapeles.`);
-                                          }}
-                                          className="p-1 text-gray-400 hover:text-brand-orange hover:bg-orange-50 rounded transition cursor-pointer"
-                                          title="Copiar Tracking"
+                                          onClick={() => handleEditPreAlert(pa)}
+                                          className="self-start inline-flex items-center gap-1 text-[9px] font-extrabold text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 px-2 py-0.5 rounded transition cursor-pointer"
+                                          title="Editar Número de Guía y Datos"
                                         >
-                                          <Copy className="h-3.5 w-3.5" />
+                                          ✏️ Editar Guía
                                         </button>
                                       </div>
                                     </td>
-                                    <td className="py-3 px-3 font-mono text-gray-500">{pa.lockerId}</td>
-                                    <td className="py-3 px-3 font-bold">{pa.sender}</td>
-                                    <td className="py-3 px-3">
-                                      <div className="flex flex-col gap-1 text-left">
-                                        <span className="italic text-brand-gray-dark font-medium">{cleanDescription}</span>
-                                        <div className="flex flex-wrap gap-1.5 mt-1">
-                                          {invoiceFile && (
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                setActivePreAlertInvoice(pa);
-                                              }}
-                                              className="self-start inline-flex items-center gap-1 px-2.5 py-0.5 rounded bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 hover:text-blue-800 text-[10px] font-black tracking-wider transition-all duration-150 cursor-pointer shadow-3xs"
-                                              title={`Ver archivo: ${invoiceFile}`}
-                                            >
-                                              📄 Ver Factura ({invoiceFile})
-                                            </button>
-                                          )}
-                                          {pa.waiverSignature && (
-                                            <button
-                                              type="button"
-                                              onClick={() => handlePrintWaiverPDF(pa)}
-                                              className="self-start inline-flex items-center gap-1 px-2.5 py-0.5 rounded bg-orange-50 border border-orange-200 text-brand-orange hover:bg-orange-100 hover:text-orange-700 text-[10px] font-black tracking-wider transition-all duration-150 cursor-pointer shadow-3xs"
-                                              title="Imprimir Exención de Responsabilidad Firmada"
-                                            >
-                                              🖨️ Ver Renuncia de Seguro
-                                            </button>
+
+                                    {/* 4. DESCRIPCIÓN ORGANIZADA */}
+                                    <td className="py-3 px-3 min-w-[270px]">
+                                      <div className="bg-slate-50/90 border border-slate-200/80 rounded-lg p-2.5 space-y-1.5 text-left">
+                                        <div className="flex flex-wrap items-center gap-1.5">
+                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white border border-slate-200 text-slate-700 text-[10px] font-extrabold">
+                                            {parsed.origin === 'Mexico' ? '🇲🇽 Bodega México' : '🇺🇸 Bodega USA'}
+                                          </span>
+                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-extrabold font-mono">
+                                            💵 Valor: ${parsed.declaredValue.toFixed(2)}
+                                          </span>
+                                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold border ${
+                                            parsed.hasInsurance
+                                              ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
+                                              : 'bg-amber-50 border-amber-200 text-amber-800'
+                                          }`}>
+                                            {parsed.hasInsurance ? '🛡️ Con Seguro (5%)' : '⚠️ Sin Seguro'}
+                                          </span>
+                                          {pa.sender && (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-600 text-[10px] font-bold">
+                                              🏪 {pa.sender}
+                                            </span>
                                           )}
                                         </div>
+
+                                        {parsed.customNote && (
+                                          <div className="text-[11px] text-slate-700 bg-white px-2.5 py-1 rounded border border-slate-200/70 font-medium">
+                                            <strong className="text-slate-900 uppercase text-[9px] tracking-wider mr-1">Contenido:</strong>
+                                            {parsed.customNote}
+                                          </div>
+                                        )}
+
+                                        {(invoiceFile || pa.waiverSignature) && (
+                                          <div className="flex flex-wrap gap-1.5 pt-1 border-t border-slate-200/60">
+                                            {invoiceFile && (
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setActivePreAlertInvoice(pa);
+                                                }}
+                                                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 hover:text-blue-800 text-[10px] font-black tracking-wider transition-all duration-150 cursor-pointer shadow-3xs"
+                                                title={`Ver archivo: ${invoiceFile}`}
+                                              >
+                                                📄 Ver Factura ({invoiceFile})
+                                              </button>
+                                            )}
+                                            {pa.waiverSignature && (
+                                              <button
+                                                type="button"
+                                                onClick={() => handlePrintWaiverPDF(pa)}
+                                                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded bg-orange-50 border border-orange-200 text-brand-orange hover:bg-orange-100 hover:text-orange-700 text-[10px] font-black tracking-wider transition-all duration-150 cursor-pointer shadow-3xs"
+                                                title="Imprimir Exención de Responsabilidad Firmada"
+                                              >
+                                                🖨️ Ver Renuncia de Seguro
+                                              </button>
+                                            )}
+                                          </div>
+                                        )}
                                       </div>
                                     </td>
-                                    <td className="py-3 px-3 text-center font-mono">{pa.weightEst} Lbs</td>
-                                    <td className="py-3 px-3 font-mono">{pa.dateCreated}</td>
+
+                                    <td className="py-3 px-3 text-center font-mono font-bold">{pa.weightEst} Lbs</td>
                                     <td className="py-3 px-3">
                                       <span className={`px-2 py-0.5 rounded text-4xs font-extrabold uppercase border ${
                                         pa.status === 'Recibido' 
@@ -7137,7 +7520,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
 
                               {preAlerts.length === 0 && (
                                 <tr>
-                                  <td colSpan={8} className="text-center py-10 text-gray-400 font-medium">
+                                  <td colSpan={7} className="text-center py-10 text-gray-400 font-medium">
                                     No hay pre-alertas declaradas en el sistema.
                                   </td>
                                 </tr>
@@ -14232,6 +14615,18 @@ El Equipo de ShipFast GT`;
                     </div>
                   </div>
 
+                  {/* DESCRIPCIÓN DEL PRODUCTO / CONTENIDO */}
+                  <div>
+                    <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">DESCRIPCIÓN / CONTENIDO DEL PRODUCTO (OPCIONAL)</label>
+                    <input
+                      type="text"
+                      placeholder="Ej: Ropa deportiva, Zapatos Nike, Repuestos, Electrónicos..."
+                      value={clientPreAlertCustomNote}
+                      onChange={(e) => setClientPreAlertCustomNote(e.target.value)}
+                      className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none font-semibold text-brand-gray-dark placeholder-gray-300"
+                    />
+                  </div>
+
                   {/* Insurance/Liability Warning Disclaimer + Signature Pad */}
                   <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl text-amber-900 text-[10px] leading-relaxed space-y-3">
                     <div className="flex items-start gap-2">
@@ -14382,6 +14777,7 @@ El Equipo de ShipFast GT`;
                     <button
                       type="button"
                       onClick={() => {
+                        setClientPreAlertCustomNote('');
                         setClientPreAlertFileName('');
                         setClientPreAlertFileData('');
                         setHasDrawnWaiverSignature(false);
@@ -14527,6 +14923,18 @@ El Equipo de ShipFast GT`;
                         <option value="Con seguro (5%)">Con seguro (5%)</option>
                       </select>
                     </div>
+                  </div>
+
+                  {/* DESCRIPCIÓN DEL PRODUCTO / CONTENIDO */}
+                  <div>
+                    <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">DESCRIPCIÓN / CONTENIDO DEL PRODUCTO (OPCIONAL)</label>
+                    <input
+                      type="text"
+                      placeholder="Ej: Ropa deportiva, Zapatos Nike, Repuestos, Electrónicos..."
+                      value={clientPreAlertCustomNote}
+                      onChange={(e) => setClientPreAlertCustomNote(e.target.value)}
+                      className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-orange focus:border-brand-orange focus:outline-none font-semibold text-brand-gray-dark placeholder-gray-300"
+                    />
                   </div>
 
                   {/* Insurance/Liability Warning Disclaimer + Signature Pad */}
@@ -14679,6 +15087,7 @@ El Equipo de ShipFast GT`;
                     <button
                       type="button"
                       onClick={() => {
+                        setClientPreAlertCustomNote('');
                         setClientPreAlertFileName('');
                         setClientPreAlertFileData('');
                         setHasDrawnWaiverSignature(false);
@@ -15055,7 +15464,7 @@ El Equipo de ShipFast GT`;
           {/* ==================== EDIT PRE-ALERT MODAL (ADMIN / USER) ==================== */}
           {isEditPreAlertModalOpen && editingPreAlert && (
             <div className="fixed inset-0 bg-brand-gray-dark/65 backdrop-blur-xs flex justify-center items-center z-[200] p-4 animate-fade-in">
-              <div className="bg-white w-full max-w-md rounded-2xl border border-slate-100 shadow-2xl overflow-hidden relative animate-zoom-in font-sans">
+              <div className="bg-white w-full max-w-lg rounded-2xl border border-slate-100 shadow-2xl overflow-hidden relative animate-zoom-in font-sans">
                 <button
                   type="button"
                   onClick={() => {
@@ -15074,20 +15483,53 @@ El Equipo de ShipFast GT`;
                     </span>
                     <div>
                       <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">ADMINISTRACIÓN</span>
-                      <h3 className="text-xs font-black uppercase text-white">Editar Pre-Alerta</h3>
+                      <h3 className="text-xs font-black uppercase text-white">Editar Pre-Alerta y Número de Guía</h3>
                     </div>
                   </div>
                 </div>
 
                 <form onSubmit={handleSaveEditedPreAlert} className="p-5 space-y-4">
                   <div>
-                    <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">TRACKING ID / PAQUETE</label>
+                    <label className="text-[9px] font-black text-brand-orange uppercase tracking-wider block mb-1">
+                      ✏️ NÚMERO DE GUÍA / TRACKING ID (EDITABLE) *
+                    </label>
                     <input
                       type="text"
-                      disabled
-                      value={editingPreAlert.id}
-                      className="w-full px-3 py-2 text-xs border border-gray-200 bg-gray-50 font-bold font-mono text-gray-400 rounded-lg cursor-not-allowed"
+                      required
+                      value={editPreAlertTracking}
+                      onChange={(e) => setEditPreAlertTracking(e.target.value)}
+                      placeholder="Ej: 1Z999AA10123456784"
+                      className="w-full px-3 py-2 text-xs border-2 border-brand-orange/40 focus:border-brand-orange bg-amber-50/30 font-extrabold font-mono text-brand-gray-dark rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-orange/30 uppercase"
                     />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">CLIENTE / CASILLERO</label>
+                      <select
+                        value={editPreAlertLockerId}
+                        onChange={(e) => setEditPreAlertLockerId(e.target.value)}
+                        disabled={currentUser?.role === 'client'}
+                        className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-orange focus:outline-none font-bold text-brand-gray-dark bg-white disabled:bg-gray-50 disabled:text-gray-400"
+                      >
+                        {users.map(u => (
+                          <option key={u.lockerId} value={u.lockerId}>
+                            {u.name} ({u.lockerId})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">TIENDA / REMITENTE</label>
+                      <input
+                        type="text"
+                        value={editPreAlertSender}
+                        onChange={(e) => setEditPreAlertSender(e.target.value)}
+                        placeholder="Ej: Amazon, Shein, eBay..."
+                        className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-orange focus:outline-none font-bold text-brand-gray-dark"
+                      />
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
@@ -15142,6 +15584,17 @@ El Equipo de ShipFast GT`;
                         <option value="Con seguro (5%)">Con seguro (5%)</option>
                       </select>
                     </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[9px] font-black text-gray-500 uppercase tracking-wider block mb-1">DESCRIPCIÓN / CONTENIDO DEL PRODUCTO</label>
+                    <input
+                      type="text"
+                      value={editPreAlertCustomNote}
+                      onChange={(e) => setEditPreAlertCustomNote(e.target.value)}
+                      placeholder="Ej: Ropa deportiva, Zapatos, Electrónicos..."
+                      className="w-full px-3 py-2 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-brand-orange focus:outline-none font-semibold text-brand-gray-dark"
+                    />
                   </div>
 
                   <div className="flex justify-end gap-3 border-t border-slate-100 pt-4 mt-2">
@@ -15718,6 +16171,7 @@ El Equipo de ShipFast GT`;
             </div>
           )}
 
+            </div>
           </main>
 
           {/* Authenticated Dashboard Footer */}
