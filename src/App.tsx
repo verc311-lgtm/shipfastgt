@@ -5037,54 +5037,103 @@ Para proporcionarle información específica, puede solicitar:
         </div>
       ) : (
         
-        // ==================== AUTHENTICATED SYSTEM: CLIENT OR ADMIN PANELS ====================
-        <div className="flex-1 flex flex-col min-h-0">
+        // ==================== AUTHENTICATED SYSTEM: FULL-HEIGHT VERTICAL SIDEBAR LAYOUT ====================
+        <div className="flex-1 flex flex-col min-h-screen bg-slate-100/80">
           
-          {/* Authenticated Dashboard Header */}
-          <header className="bg-brand-gray-dark text-white shadow-md border-b-2 border-brand-orange shrink-0">
-            <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-3 flex flex-wrap justify-between items-center gap-3">
+          {/* Mobile-Only Compact Top Bar */}
+          <header className="lg:hidden bg-brand-gray-dark text-white px-4 py-3 border-b-2 border-brand-orange flex items-center justify-between shrink-0 sticky top-0 z-40 shadow-md">
+            <div className="flex items-center gap-2.5">
+              <div className="bg-brand-orange p-1.5 rounded-lg text-white">
+                <Truck className="h-4 w-4" />
+              </div>
+              <div>
+                <h1 className="text-sm font-black tracking-wider font-display text-white leading-none">SHIPFAST GT</h1>
+                <span className="text-[9px] text-gray-400 font-bold uppercase">
+                  {currentUser.name} {currentUser.role === 'client' ? `• ${currentUser.lockerId}` : '• ADMIN'}
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsMobileSidebarOpen(prev => !prev)}
+              className="bg-brand-orange hover:bg-brand-orange-hover text-white px-3 py-1.5 rounded-lg text-3xs font-extrabold uppercase tracking-wider cursor-pointer flex items-center gap-1.5 shadow-sm"
+            >
+              <Layers className="h-3.5 w-3.5" />
+              <span>{isMobileSidebarOpen ? 'Cerrar Menú' : 'Menú'}</span>
+            </button>
+          </header>
+
+          {/* Full-Height Body Container with ONLY Vertical Sidebar (Left or Right) */}
+          <div className={`flex-1 flex flex-col ${sidebarPosition === 'right' ? 'lg:flex-row-reverse' : 'lg:flex-row'} min-h-0`}>
+            
+            {/* ==================== EXCLUSIVE VERTICAL SIDEBAR MENU (LEFT OR RIGHT) ==================== */}
+            <aside className={`w-full lg:w-68 xl:w-72 shrink-0 bg-brand-gray-dark text-white ${sidebarPosition === 'right' ? 'lg:border-l' : 'lg:border-r'} border-gray-800 shadow-xl ${isMobileSidebarOpen ? 'block' : 'hidden lg:flex'} flex-col lg:sticky lg:top-0 lg:h-screen z-30`}>
               
-              {/* Logo block */}
-              <div className="flex items-center space-x-3">
-                <div className="bg-brand-orange p-2 rounded-lg text-white">
-                  <Truck className="h-5 w-5" />
+              {/* 1. Brand Logo + Left/Right Position Switcher */}
+              <div className="p-4 bg-gray-900/95 border-b border-gray-800 flex items-center justify-between gap-2 shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="bg-brand-orange p-2 rounded-xl text-white shadow-sm">
+                    <Truck className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h1 className="text-base font-black tracking-wider font-display text-white leading-none">SHIPFAST GT</h1>
+                    <p className="text-[9px] text-gray-400 font-bold tracking-widest uppercase mt-0.5">
+                      {currentUser.role === 'admin' ? 'Panel Administrativo' : 'Portal de Casillero'}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h1 className="text-lg font-bold tracking-wider font-display text-white">SHIPFAST GT</h1>
-                  <p className="text-4xs text-gray-400 font-medium tracking-tight">SISTEMA INTEGRAL DE LOGÍSTICA CORPORATIVA</p>
-                </div>
-              </div>
-
-              {/* Center User Session info & Logout */}
-              <div className="bg-gray-800 px-4 py-1.5 rounded-lg border border-gray-700 text-3xs font-semibold flex flex-wrap items-center gap-3">
-                <div className="flex items-center gap-1.5">
-                  <User className="h-3.5 w-3.5 text-brand-orange" />
-                  <span className="text-gray-300">
-                    HOLA, <strong className="text-white uppercase">{currentUser.name}</strong> 
-                    {currentUser.role === 'client' && ` (CASILLERO: ${currentUser.lockerId})`}
-                  </span>
-                </div>
-                <span className="text-gray-600">|</span>
                 <button
-                  onClick={refreshSystemData}
-                  disabled={isRefreshingData}
-                  title="Actualizar datos del sistema sin cerrar sesión"
-                  className="text-emerald-400 hover:text-emerald-300 uppercase font-bold tracking-wider cursor-pointer flex items-center gap-1 disabled:opacity-50"
+                  type="button"
+                  onClick={() => {
+                    const nextPos = sidebarPosition === 'left' ? 'right' : 'left';
+                    setSidebarPosition(nextPos);
+                    localStorage.setItem('shipfast_sidebar_pos', nextPos);
+                  }}
+                  title="Cambiar menú vertical a lado izquierdo o derecho"
+                  className="text-[9px] font-extrabold uppercase px-2 py-1 rounded-lg bg-gray-800 hover:bg-brand-orange text-gray-300 hover:text-white border border-gray-700 transition cursor-pointer whitespace-nowrap"
                 >
-                  <RefreshCw className={`h-3 w-3 ${isRefreshingData ? 'animate-spin' : ''}`} />
-                  {isRefreshingData ? 'Actualizando...' : 'Actualizar'}
-                </button>
-                <span className="text-gray-600">|</span>
-                <button
-                  onClick={handleLogout}
-                  className="text-brand-orange hover:text-brand-orange-hover uppercase font-bold tracking-wider cursor-pointer"
-                >
-                  Cerrar Sesión
+                  {sidebarPosition === 'left' ? 'Derecha ➡' : '⬅ Izquierda'}
                 </button>
               </div>
 
-              {/* Quick Header Actions & Mobile Menu Toggle */}
-              <div className="flex items-center gap-2">
+              {/* 2. Compact User Session Profile Card */}
+              <div className="px-4 py-3 bg-gray-800/60 border-b border-gray-800 shrink-0 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-7 h-7 rounded-full bg-brand-orange/20 border border-brand-orange/40 flex items-center justify-center text-brand-orange font-black text-xs shrink-0">
+                      {currentUser.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-extrabold text-white truncate">{currentUser.name}</div>
+                      <div className="text-[10px] font-mono font-bold text-brand-orange">
+                        {currentUser.role === 'client' ? `Casillero: ${currentUser.lockerId}` : 'Administrador Central'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-1.5 pt-1">
+                  <button
+                    type="button"
+                    onClick={refreshSystemData}
+                    disabled={isRefreshingData}
+                    className="py-1 px-2 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-700 text-emerald-400 text-[9px] font-extrabold uppercase tracking-wider flex items-center justify-center gap-1 cursor-pointer transition disabled:opacity-50"
+                  >
+                    <RefreshCw className={`h-3 w-3 ${isRefreshingData ? 'animate-spin' : ''}`} />
+                    <span>{isRefreshingData ? 'Cargando' : 'Actualizar'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="py-1 px-2 rounded-lg bg-gray-800 hover:bg-red-600/90 border border-gray-700 hover:border-red-500 text-gray-300 hover:text-white text-[9px] font-extrabold uppercase tracking-wider flex items-center justify-center gap-1 cursor-pointer transition"
+                  >
+                    <span>Cerrar Sesión</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 3. Primary Quick Action inside Sidebar */}
+              <div className="p-3 border-b border-gray-800 shrink-0">
                 {currentUser.role === 'client' ? (
                   <button
                     type="button"
@@ -5098,11 +5147,12 @@ Para proporcionarle información específica, puede solicitar:
                       setClientPreAlertFileName('');
                       setClientPreAlertFileData('');
                       setIsClientPreAlertModalOpen(true);
+                      setIsMobileSidebarOpen(false);
                     }}
-                    className="px-4 py-1.5 text-3xs font-extrabold rounded-lg uppercase tracking-wider transition flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm cursor-pointer active:scale-98 whitespace-nowrap"
+                    className="w-full py-2.5 px-3.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-md transition cursor-pointer"
                   >
-                    <PlusCircle className="h-3.5 w-3.5 animate-pulse" />
-                    Pre-Alertar 🚀
+                    <PlusCircle className="h-4 w-4 animate-pulse" />
+                    <span>+ Nueva Pre-Alerta 🚀</span>
                   </button>
                 ) : (
                   <button
@@ -5110,90 +5160,43 @@ Para proporcionarle información específica, puede solicitar:
                     onClick={() => {
                       setGlobalSearchQuery('');
                       setIsGlobalSearchOpen(true);
+                      setIsMobileSidebarOpen(false);
                     }}
-                    className="bg-gray-800 hover:bg-gray-700 text-white text-3xs font-extrabold px-3.5 py-1.5 rounded-lg uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 border border-gray-700"
+                    className="w-full py-2 px-3 rounded-xl bg-gray-800 hover:bg-gray-700 border border-gray-700 text-white font-extrabold text-3xs uppercase tracking-wider flex items-center justify-center gap-2 transition cursor-pointer shadow-2xs"
                   >
                     <Search className="h-3.5 w-3.5 text-brand-orange" />
-                    <span>Buscador Rápido</span>
+                    <span>Buscador Rápido Global</span>
                   </button>
                 )}
-
-                <button
-                  type="button"
-                  onClick={() => setIsMobileSidebarOpen(prev => !prev)}
-                  className="lg:hidden bg-brand-orange text-white px-3 py-1.5 rounded-lg text-3xs font-extrabold uppercase tracking-wider cursor-pointer flex items-center gap-1"
-                >
-                  <Layers className="h-3.5 w-3.5" />
-                  <span>{isMobileSidebarOpen ? 'Ocultar Menú' : 'Menú Opciones'}</span>
-                </button>
               </div>
 
-            </div>
-          </header>
-
-          {/* Authenticated Body Area with Left/Right Sidebar Navigation */}
-          <main className={`flex-1 max-w-[1600px] w-full mx-auto p-3 sm:p-5 lg:p-6 flex flex-col ${sidebarPosition === 'right' ? 'lg:flex-row-reverse' : 'lg:flex-row'} gap-5 min-h-0`}>
-            
-            {/* ==================== VERTICAL SIDEBAR MENU (LEFT OR RIGHT) ==================== */}
-            <aside className={`w-full lg:w-64 xl:w-72 shrink-0 ${isMobileSidebarOpen ? 'block' : 'hidden lg:block'}`}>
-              <div className="bg-brand-gray-dark text-white rounded-2xl border border-gray-800 shadow-lg overflow-hidden sticky top-4 flex flex-col max-h-[calc(100vh-2rem)]">
-                
-                {/* Sidebar Header & Position Switcher */}
-                <div className="px-4 py-3 bg-gray-900/90 border-b border-gray-800 flex items-center justify-between gap-2 shrink-0">
-                  <div className="flex items-center gap-2">
-                    <Layers className="h-4 w-4 text-brand-orange shrink-0" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-white">
-                      Opciones de Plataforma
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const nextPos = sidebarPosition === 'left' ? 'right' : 'left';
-                      setSidebarPosition(nextPos);
-                      localStorage.setItem('shipfast_sidebar_pos', nextPos);
-                    }}
-                    title="Cambiar listado de opciones a lado izquierdo o derecho"
-                    className="text-[9px] font-extrabold uppercase px-2 py-1 rounded bg-gray-800 hover:bg-brand-orange text-gray-300 hover:text-white border border-gray-700 transition cursor-pointer whitespace-nowrap"
-                  >
-                    {sidebarPosition === 'left' ? 'Pasar a Derecha ➡' : '⬅ Pasar a Izquierda'}
-                  </button>
-                </div>
-
-                {/* Sidebar Scrollable List */}
-                <div className="p-3 space-y-4 overflow-y-auto flex-1">
-                  {currentUser.role === 'client' ? (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setClientPreAlertTracking('');
-                          setClientPreAlertBodega('');
-                          setClientPreAlertValue('');
-                          setClientPreAlertWeight('1.0');
-                          setClientPreAlertInsurance('Sin seguro');
-                          setClientPreAlertCustomNote('');
-                          setClientPreAlertFileName('');
-                          setClientPreAlertFileData('');
-                          setIsClientPreAlertModalOpen(true);
-                          setIsMobileSidebarOpen(false);
-                        }}
-                        className="w-full py-2.5 px-3.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 shadow-md transition cursor-pointer"
-                      >
-                        <PlusCircle className="h-4 w-4 animate-pulse" />
-                        <span>Nueva Pre-Alerta 🚀</span>
-                      </button>
-
-                      <div className="space-y-1">
-                        <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest px-2 block mb-1.5">
-                          📦 Menú de Cliente
-                        </span>
-                        {[
-                          { id: 'my-locker', label: 'Mis Envíos y Casillero', icon: Package, badge: shipments.filter(s => s.lockerId === currentUser.lockerId).length },
-                          { id: 'pickup-request', label: 'Pedir Recogida Local', icon: Plus },
+              {/* 4. Scrollable Vertical Navigation Options */}
+              <nav className="p-3 space-y-4 overflow-y-auto flex-1">
+                {currentUser.role === 'client' ? (
+                  <div className="space-y-4">
+                    {[
+                      {
+                        groupTitle: '📦 MI CASILLERO Y COMPRAS',
+                        items: [
+                          { id: 'my-locker', label: 'Mis Envíos y Rastreo', icon: Package, badge: shipments.filter(s => s.lockerId === currentUser.lockerId).length },
+                          { id: 'client-prealerts', label: 'Mis Pre-Alertas', icon: Bell, badge: preAlerts.filter(pa => pa.lockerId === currentUser.lockerId).length },
+                          { id: 'client-addresses', label: 'Direcciones Bodegas (USA/MX)', icon: MapPin },
+                        ]
+                      },
+                      {
+                        groupTitle: '🚚 SERVICIOS Y SOPORTE',
+                        items: [
+                          { id: 'pickup-request', label: 'Solicitar Recogida Local', icon: Plus },
                           { id: 'quote', label: 'Cotizar Flete', icon: SlidersHorizontal },
                           { id: 'ai-support', label: 'Soporte Inteligente IA', icon: Sparkles },
-                        ].map(item => {
+                        ]
+                      }
+                    ].map((section, idx) => (
+                      <div key={idx} className="space-y-1">
+                        <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest px-2.5 block mb-1.5">
+                          {section.groupTitle}
+                        </span>
+                        {section.items.map(item => {
                           const IconComp = item.icon;
                           const isActive = activeTab === item.id;
                           return (
@@ -5211,7 +5214,7 @@ Para proporcionarle información específica, puede solicitar:
                               }`}
                             >
                               <span className="flex items-center gap-2.5 truncate">
-                                <IconComp className="h-4 w-4 shrink-0" />
+                                <IconComp className={`h-4 w-4 shrink-0 ${isActive ? 'text-white' : 'text-brand-orange'}`} />
                                 <span className="truncate">{item.label}</span>
                               </span>
                               {typeof item.badge === 'number' && item.badge > 0 && (
@@ -5223,554 +5226,575 @@ Para proporcionarle información específica, puede solicitar:
                           );
                         })}
                       </div>
-                    </>
-                  ) : (
-                    <>
-                      {/* Admin Sidebar Sections - All options clearly listed */}
-                      {[
-                        {
-                          groupTitle: '📊 RESUMEN GENERAL',
-                          items: [
-                            { tab: 'admin-dashboard', subTab: 'portal', label: 'Dashboard Portal', icon: Database }
-                          ]
-                        },
-                        {
-                          groupTitle: '📦 LOGÍSTICA Y PRE-ALERTAS',
-                          items: [
-                            { tab: 'admin-dashboard', subTab: 'pre-alertas', label: 'Pre-Alertas Clientes', icon: Clock, badge: preAlerts.filter(p => p.status === 'Pendiente').length, badgeColor: 'bg-amber-500 text-white' },
-                            { tab: 'admin-dashboard', subTab: 'registro-paquetes', label: 'Registro de Paquetes', icon: FileText, badge: shipments.length },
-                            { tab: 'admin-dashboard', subTab: 'cliente-mayor', label: 'Registro Cliente Mayor', icon: Users }
-                          ]
-                        },
-                        {
-                          groupTitle: '🏢 ALMACÉN Y BODEGAS',
-                          items: [
-                            { tab: 'admin-dashboard', subTab: 'warehouse', label: 'Control de Warehouse', icon: Package },
-                            { tab: 'admin-dashboard', subTab: 'consolidado', label: 'Historial de Consolidados', icon: Layers }
-                          ]
-                        },
-                        {
-                          groupTitle: '💰 FINANZAS Y COBROS',
-                          items: [
-                            { tab: 'admin-dashboard', subTab: 'pagos', label: 'Registro de Pagos (Caja)', icon: Wallet, badge: invoices.filter(i => i.paymentStatus === 'Pendiente').length, badgeColor: 'bg-red-500 text-white' },
-                            { tab: 'admin-dashboard', subTab: 'facturacion', label: 'Facturación / Fletes', icon: FileSpreadsheet },
-                            { tab: 'admin-dashboard', subTab: 'cotizaciones', label: 'Generar Cotización', icon: ClipboardList },
-                            { tab: 'admin-dashboard', subTab: 'gastos', label: 'Registro de Gastos', icon: TrendingUp },
-                            { tab: 'admin-dashboard', subTab: 'reportes-financieros', label: 'Reportes Financieros', icon: DollarSign }
-                          ]
-                        },
-                        {
-                          groupTitle: '⚙️ SISTEMA Y AJUSTES',
-                          items: [
-                            { tab: 'admin-dashboard', subTab: 'usuarios', label: 'Usuarios y Casilleros', icon: Users },
-                            { tab: 'admin-dashboard', subTab: 'sucursales', label: 'Sedes y Sucursales', icon: Building },
-                            { tab: 'admin-dashboard', subTab: 'tarifas', label: 'Configuración Tarifaria', icon: SlidersHorizontal },
-                            { tab: 'admin-dashboard', subTab: 'reportes', label: 'Reportes de Sistema', icon: TrendingUp },
-                            { tab: 'admin-dashboard', subTab: 'ajustes', label: 'Ajustes de Sistema', icon: Settings }
-                          ]
-                        },
-                        {
-                          groupTitle: '🚚 TERMINALES Y SOPORTE',
-                          items: [
-                            { tab: 'driver-terminal', subTab: '', label: 'Terminal Repartidores', icon: Truck },
-                            { tab: 'ai-chat', subTab: '', label: 'Asistente IA', icon: Sparkles }
-                          ]
-                        }
-                      ].map((section, sIdx) => (
-                        <div key={sIdx} className="space-y-1">
-                          <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest px-2.5 block mb-1">
-                            {section.groupTitle}
-                          </span>
-                          {section.items.map(item => {
-                            const IconComp = item.icon;
-                            const isActive = item.tab === 'admin-dashboard'
-                              ? (activeTab === 'admin-dashboard' && adminSubTab === item.subTab)
-                              : (activeTab === item.tab);
-                            return (
-                              <button
-                                key={item.label}
-                                type="button"
-                                onClick={() => {
-                                  setActiveTab(item.tab as any);
-                                  if (item.subTab) {
-                                    setAdminSubTab(item.subTab);
-                                  }
-                                  setIsMobileSidebarOpen(false);
-                                }}
-                                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer text-left ${
+                    ))}
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {[
+                      {
+                        groupTitle: '📊 RESUMEN GENERAL',
+                        items: [
+                          { tab: 'admin-dashboard', subTab: 'portal', label: 'Dashboard Portal', icon: Database }
+                        ]
+                      },
+                      {
+                        groupTitle: '📦 LOGÍSTICA Y PRE-ALERTAS',
+                        items: [
+                          { tab: 'admin-dashboard', subTab: 'pre-alertas', label: 'Pre-Alertas Clientes', icon: Clock, badge: preAlerts.filter(p => p.status === 'Pendiente').length, badgeColor: 'bg-amber-500 text-white' },
+                          { tab: 'admin-dashboard', subTab: 'registro-paquetes', label: 'Registro de Paquetes', icon: FileText, badge: shipments.length },
+                          { tab: 'admin-dashboard', subTab: 'cliente-mayor', label: 'Registro Cliente Mayor', icon: Users }
+                        ]
+                      },
+                      {
+                        groupTitle: '🏢 ALMACÉN Y BODEGAS',
+                        items: [
+                          { tab: 'admin-dashboard', subTab: 'warehouse', label: 'Control de Warehouse', icon: Package },
+                          { tab: 'admin-dashboard', subTab: 'consolidado', label: 'Historial de Consolidados', icon: Layers }
+                        ]
+                      },
+                      {
+                        groupTitle: '💰 FINANZAS Y COBROS',
+                        items: [
+                          { tab: 'admin-dashboard', subTab: 'pagos', label: 'Registro de Pagos (Caja)', icon: Wallet, badge: invoices.filter(i => i.paymentStatus === 'Pendiente').length, badgeColor: 'bg-red-500 text-white' },
+                          { tab: 'admin-dashboard', subTab: 'facturacion', label: 'Facturación / Fletes', icon: FileSpreadsheet },
+                          { tab: 'admin-dashboard', subTab: 'cotizaciones', label: 'Generar Cotización', icon: ClipboardList },
+                          { tab: 'admin-dashboard', subTab: 'gastos', label: 'Registro de Gastos', icon: TrendingUp },
+                          { tab: 'admin-dashboard', subTab: 'reportes-financieros', label: 'Reportes Financieros', icon: DollarSign }
+                        ]
+                      },
+                      {
+                        groupTitle: '⚙️ SISTEMA Y AJUSTES',
+                        items: [
+                          { tab: 'admin-dashboard', subTab: 'usuarios', label: 'Usuarios y Casilleros', icon: Users },
+                          { tab: 'admin-dashboard', subTab: 'sucursales', label: 'Sedes y Sucursales', icon: Building },
+                          { tab: 'admin-dashboard', subTab: 'tarifas', label: 'Configuración Tarifaria', icon: SlidersHorizontal },
+                          { tab: 'admin-dashboard', subTab: 'reportes', label: 'Reportes de Sistema', icon: TrendingUp },
+                          { tab: 'admin-dashboard', subTab: 'ajustes', label: 'Ajustes de Sistema', icon: Settings }
+                        ]
+                      },
+                      {
+                        groupTitle: '🚚 TERMINALES Y SOPORTE',
+                        items: [
+                          { tab: 'driver-terminal', subTab: '', label: 'Terminal Repartidores', icon: Truck },
+                          { tab: 'ai-chat', subTab: '', label: 'Asistente IA', icon: Sparkles }
+                        ]
+                      }
+                    ].map((section, sIdx) => (
+                      <div key={sIdx} className="space-y-1">
+                        <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest px-2.5 block mb-1">
+                          {section.groupTitle}
+                        </span>
+                        {section.items.map(item => {
+                          const IconComp = item.icon;
+                          const isActive = item.tab === 'admin-dashboard'
+                            ? (activeTab === 'admin-dashboard' && adminSubTab === item.subTab)
+                            : (activeTab === item.tab);
+                          return (
+                            <button
+                              key={item.label}
+                              type="button"
+                              onClick={() => {
+                                setActiveTab(item.tab as any);
+                                if (item.subTab) {
+                                  setAdminSubTab(item.subTab);
+                                }
+                                setIsMobileSidebarOpen(false);
+                              }}
+                              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer text-left ${
+                                isActive
+                                  ? 'bg-brand-orange text-white shadow-sm font-black border-l-4 border-white'
+                                  : 'text-gray-300 hover:bg-gray-800/90 hover:text-white'
+                              }`}
+                            >
+                              <span className="flex items-center gap-2.5 truncate">
+                                <IconComp className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-white' : 'text-brand-orange'}`} />
+                                <span className="truncate">{item.label}</span>
+                              </span>
+                              {typeof item.badge === 'number' && item.badge > 0 && (
+                                <span className={`px-1.5 py-0.5 text-[9px] font-black rounded-full shrink-0 ${
                                   isActive
-                                    ? 'bg-brand-orange text-white shadow-sm font-black border-l-4 border-white'
-                                    : 'text-gray-300 hover:bg-gray-800/90 hover:text-white'
-                                }`}
-                              >
-                                <span className="flex items-center gap-2.5 truncate">
-                                  <IconComp className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-white' : 'text-brand-orange'}`} />
-                                  <span className="truncate">{item.label}</span>
+                                    ? 'bg-white text-brand-orange'
+                                    : (item.badgeColor || 'bg-gray-800 text-gray-300')
+                                }`}>
+                                  {item.badge}
                                 </span>
-                                {typeof item.badge === 'number' && item.badge > 0 && (
-                                  <span className={`px-1.5 py-0.5 text-[9px] font-black rounded-full shrink-0 ${
-                                    isActive
-                                      ? 'bg-white text-brand-orange'
-                                      : (item.badgeColor || 'bg-gray-800 text-gray-300')
-                                  }`}>
-                                    {item.badge}
-                                  </span>
-                                )}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      ))}
-                    </>
-                  )}
-                </div>
-
-              </div>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </nav>
             </aside>
 
-            {/* ==================== MAIN CONTENT AREA ==================== */}
-            <div className="flex-1 min-w-0 flex flex-col min-h-0">
+            {/* ==================== MAIN CONTENT WORKSPACE AREA ==================== */}
+            <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-7 flex flex-col min-h-0 max-w-[1440px] mx-auto w-full">
             
-            {/* ==================== CLIENT: MY LOCKER TAB ==================== */}
+            {/* ==================== CLIENT: 1. MY LOCKER & SHIPMENTS TAB ==================== */}
             {currentUser.role === 'client' && activeTab === 'my-locker' && (
-              <div className="space-y-6 flex-1 min-h-0 flex flex-col">
+              <div className="space-y-5 flex-1 min-h-0 flex flex-col">
                 
-                {/* Banner de Atención al Cliente, Teléfono y Horario en Grande */}
-                <div className="bg-brand-gray-dark text-white p-5 rounded-xl border-2 border-brand-orange shadow-lg flex flex-col md:flex-row items-center justify-between gap-4 shrink-0">
-                  <div className="flex items-center gap-4 text-center md:text-left">
-                    <div className="bg-brand-orange/20 border border-brand-orange/40 p-3.5 rounded-xl hidden sm:flex items-center justify-center">
-                      <span className="text-3xl">📞</span>
+                {/* Compact Top Info Bar: Customer Support + Insurance Reminder */}
+                <div className="bg-white rounded-xl border border-gray-200 shadow-2xs p-4 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 shrink-0">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-orange-50 border border-brand-orange/30 p-2.5 rounded-xl text-brand-orange shrink-0">
+                      <Package className="h-5 w-5" />
                     </div>
                     <div>
-                      <span className="text-[11px] font-black text-brand-orange uppercase tracking-widest block mb-0.5">
-                        CENTRO DE ATENCIÓN Y SOPORTE AL CLIENTE
+                      <span className="text-[10px] font-black text-brand-orange uppercase tracking-widest block">
+                        CASILLERO ACTIVO: {currentUser.lockerId}
                       </span>
-                      <div className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-white">
-                        +502-3599-2026
-                      </div>
+                      <h2 className="text-base font-black text-brand-gray-dark uppercase tracking-tight">
+                        Mis Envíos y Rastreo de Paquetes
+                      </h2>
                     </div>
                   </div>
-                  <div className="bg-white/10 border border-white/15 px-5 py-3 rounded-xl text-center md:text-right flex flex-col justify-center">
-                    <span className="text-[10px] font-extrabold text-gray-300 uppercase tracking-widest flex items-center justify-center md:justify-end gap-1.5 mb-0.5">
-                      <Clock className="h-4 w-4 text-brand-orange" />
-                      HORARIO DE ATENCIÓN
-                    </span>
-                    <span className="text-lg sm:text-xl font-black text-brand-orange tracking-wide">
-                      9:00 AM a 5:00 PM
-                    </span>
+
+                  <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto justify-between lg:justify-end border-t lg:border-t-0 pt-3 lg:pt-0 border-gray-100">
+                    <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 text-3xs">
+                      <span>📞 <strong>Soporte:</strong> +502-3599-2026</span>
+                      <span className="text-gray-300">|</span>
+                      <span className="text-brand-orange font-extrabold">9:00 AM - 5:00 PM</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('client-prealerts' as any)}
+                      className="px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-3xs font-extrabold uppercase tracking-wider cursor-pointer transition"
+                    >
+                      🔔 Ver Mis Pre-Alertas ({preAlerts.filter(pa => pa.lockerId === currentUser.lockerId).length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('client-addresses' as any)}
+                      className="px-3 py-1.5 rounded-lg bg-orange-50 hover:bg-orange-100 text-brand-orange border border-orange-200 text-3xs font-extrabold uppercase tracking-wider cursor-pointer transition"
+                    >
+                      📍 Direcciones USA / México
+                    </button>
                   </div>
                 </div>
 
-                {/* Banner de Recordatorios de Seguro y Pre-alertas */}
-                <div className="bg-gradient-to-r from-brand-orange/15 via-amber-500/10 to-transparent border-l-4 border-brand-orange p-4 rounded-r-lg shadow-3xs flex items-start gap-3.5 shrink-0 animate-slide-in">
-                  <span className="text-xl mt-0.5 select-none">📢</span>
-                  <div className="space-y-1 bg-transparent border-none p-0">
-                    <h5 className="text-[10px] font-black text-brand-orange uppercase tracking-wider">¡Recordatorio Importante de Logística y Seguridad!</h5>
-                    <p className="text-[9.5px] text-brand-gray-dark font-semibold leading-relaxed">
-                      No olvides <strong>pre-alertar tus paquetes</strong> antes de su llegada a bodegas. También recuerda que en caso de pérdidas, ShipFast únicamente responde por un monto máximo de <strong>$50.00</strong>. Si tus compras tienen un valor mayor, te recomendamos contratar nuestro <strong>seguro opcional del 5%</strong> del total de tu factura para garantizar la cobertura completa.
-                    </p>
-                  </div>
+                {/* Concise Insurance / Pre-Alert Notice */}
+                <div className="bg-amber-50/90 border border-amber-200/80 px-4 py-2.5 rounded-xl flex items-center gap-3 text-3xs text-amber-900 shrink-0">
+                  <span className="text-base shrink-0">📢</span>
+                  <p className="font-medium leading-snug">
+                    <strong>Importante:</strong> Es obligatorio <strong>pre-alertar todos tus paquetes</strong> antes de su llegada a bodega. En caso de pérdida o siniestro sin seguro contratado (5%), aplica la exención firmada (cobertura máxima de hasta <strong>$50.00 USD</strong>).
+                  </p>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start flex-1 min-h-0">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start flex-1 min-h-0">
                 
-                {/* Locker Profile Banner - LEFT COLUMN */}
-                <div className="lg:col-span-4 space-y-4">
-                  
-                  {/* Locker Specs Card */}
-                  <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-xs space-y-4">
-                    <div className="border-b border-gray-100 pb-3">
-                      <span className="text-4xs font-bold text-gray-400 uppercase tracking-widest block">IDENTIFICACIÓN DE CASILLERO</span>
-                      <h3 className="text-xl font-black text-brand-orange font-display tracking-wider">{currentUser.lockerId}</h3>
-                    </div>
-
-                    <div className="space-y-2 text-2xs text-brand-gray-dark">
-                      <div><span className="text-gray-400 block uppercase font-bold text-3xs">Nombre de Cuenta:</span> <strong>{currentUser.name}</strong></div>
-                      <div><span className="text-gray-400 block uppercase font-bold text-3xs">Correo de Notificaciones:</span> {currentUser.email}</div>
-                      <div><span className="text-gray-400 block uppercase font-bold text-3xs">Teléfono Registrado:</span> {currentUser.phone}</div>
-                      <div><span className="text-gray-400 block uppercase font-bold text-3xs">Dirección de Entrega:</span> {currentUser.address}</div>
-                    </div>
-
-                    <div className="p-3 bg-gray-50 border border-gray-200 rounded text-4xs text-gray-500 leading-relaxed">
-                      <strong>Instrucciones de Despacho:</strong> Para tus envíos corporativos nacionales, solicita que se coloquen con destino al Hub Central indicando tu número de casillero <strong>{currentUser.lockerId}</strong>.
-                    </div>
-
-                    <div className="p-3 bg-red-50 border border-red-200 rounded text-4xs text-red-700 leading-relaxed font-semibold">
-                      <span className="font-extrabold block text-red-800 uppercase mb-1">⚠️ AVISO OBLIGATORIO:</span>
-                      Es obligatorio pre-alertar todos tus paquetes. Si no son pre-alertados, no nos hacemos responsables por paquetes extraviados sin pre-alerta previa.
-                    </div>
-                  </div>
-
-                  {/* Bodegas de Envío / Direcciones Oficiales */}
-                  <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-xs space-y-4">
-                    <div>
-                      <h4 className="text-[11px] font-bold text-brand-gray-dark uppercase tracking-wider font-display flex items-center gap-1.5">
-                        <MapPin className="h-4 w-4 text-brand-orange animate-bounce" />
-                        DIRECCIONES PARA ENVIO DE TUS PAQUETES
-                      </h4>
-                      <p className="text-[9px] text-brand-orange font-bold uppercase mt-1.5 bg-orange-50 inline-block px-2 py-1 rounded leading-tight">
-                        DIRECCIONES AUTORIZADAS POR SHIPFAST VERIFICA ACTUALIZAR LA DIRECCION
-                      </p>
-                    </div>
-
-                    <div className="space-y-4">
-                      {/* USA / Texas */}
-                      <div className="border border-gray-200 rounded-lg overflow-hidden relative">
-                        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-gray-200 p-2.5 flex items-center justify-between">
-                          <span className="text-3xs font-black uppercase text-indigo-900 flex items-center gap-2">
-                            <span className="text-sm shadow-sm rounded-sm">🇺🇸</span> USA (TEXAS)
-                          </span>
+                  {/* Locker Profile Summary - LEFT COLUMN */}
+                  <div className="lg:col-span-4 space-y-4">
+                    <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-2xs space-y-4">
+                      <div className="border-b border-gray-100 pb-3 flex items-center justify-between">
+                        <div>
+                          <span className="text-4xs font-bold text-gray-400 uppercase tracking-widest block">MI CASILLERO</span>
+                          <h3 className="text-xl font-black text-brand-orange font-display tracking-wider">{currentUser.lockerId}</h3>
                         </div>
-                        <div className="p-3.5 bg-white space-y-2.5 text-[10px]">
-                          <div className="grid grid-cols-12 gap-2">
-                            <div className="col-span-4 text-gray-400 font-bold uppercase text-[9px]">Nombre:</div>
-                            <div className="col-span-8 font-black text-brand-gray-dark uppercase">SFG + {currentUser.name.split(' ')[0]}</div>
-                          </div>
-                          <div className="grid grid-cols-12 gap-2">
-                            <div className="col-span-4 text-gray-400 font-bold uppercase text-[9px]">Apellido:</div>
-                            <div className="col-span-8 font-black text-brand-gray-dark uppercase">{currentUser.name.split(' ').slice(1).join(' ') || 'Logistics'}</div>
-                          </div>
-                          <div className="grid grid-cols-12 gap-2">
-                            <div className="col-span-4 text-gray-400 font-bold uppercase text-[9px]">Teléfono:</div>
-                            <div className="col-span-8 font-bold text-gray-700">+1 (802)839-0011</div>
-                          </div>
-                          <div className="grid grid-cols-12 gap-2">
-                            <div className="col-span-4 text-gray-400 font-bold uppercase text-[9px]">Dirección:</div>
-                            <div className="col-span-8 font-bold text-gray-700">1900 JUSTO PENN ST</div>
-                          </div>
-                          <div className="grid grid-cols-12 gap-2 bg-indigo-50/50 p-2 rounded -mx-2 border border-indigo-100">
-                            <div className="col-span-4 text-indigo-600 font-black uppercase text-[9px]">Suite/Apto:</div>
-                            <div className="col-span-8 font-black text-indigo-700">SFG + {currentUser.lockerId}</div>
-                          </div>
-                          <div className="grid grid-cols-12 gap-2">
-                            <div className="col-span-4 text-gray-400 font-bold uppercase text-[9px]">C.P.:</div>
-                            <div className="col-span-8 font-bold text-gray-700">78041</div>
-                          </div>
-                          <div className="grid grid-cols-12 gap-2">
-                            <div className="col-span-4 text-gray-400 font-bold uppercase text-[9px]">Ciudad:</div>
-                            <div className="col-span-8 font-bold text-gray-700">Laredo</div>
-                          </div>
-                          <div className="grid grid-cols-12 gap-2">
-                            <div className="col-span-4 text-gray-400 font-bold uppercase text-[9px]">Estado:</div>
-                            <div className="col-span-8 font-bold text-gray-700">Texas</div>
-                          </div>
-                        </div>
+                        <span className="px-2.5 py-1 rounded-full bg-green-50 text-green-700 border border-green-200 text-4xs font-extrabold uppercase">
+                          Activo
+                        </span>
                       </div>
 
-                      {/* Mexico / Tapachula */}
-                      <div className="border border-gray-200 rounded-lg overflow-hidden relative">
-                        <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border-b border-gray-200 p-2.5 flex items-center justify-between">
-                          <span className="text-3xs font-black uppercase text-teal-900 flex items-center gap-2">
-                            <span className="text-sm shadow-sm rounded-sm">🇲🇽</span> MEXICO (CHIAPAS)
-                          </span>
-                        </div>
-                        <div className="p-3.5 bg-white space-y-2.5 text-[10px]">
-                          <div className="grid grid-cols-12 gap-2">
-                            <div className="col-span-4 text-gray-400 font-bold uppercase text-[9px]">Nombre:</div>
-                            <div className="col-span-8 font-black text-brand-gray-dark uppercase">SFG + {currentUser.name.split(' ')[0]}</div>
-                          </div>
-                          <div className="grid grid-cols-12 gap-2">
-                            <div className="col-span-4 text-gray-400 font-bold uppercase text-[9px]">Apellido:</div>
-                            <div className="col-span-8 font-black text-brand-gray-dark uppercase">{currentUser.name.split(' ').slice(1).join(' ') || 'Logistics'}</div>
-                          </div>
-                          <div className="grid grid-cols-12 gap-2">
-                            <div className="col-span-4 text-gray-400 font-bold uppercase text-[9px]">Teléfono:</div>
-                            <div className="col-span-8 font-bold text-gray-700">9621027742</div>
-                          </div>
-                          <div className="grid grid-cols-12 gap-2">
-                            <div className="col-span-4 text-gray-400 font-bold uppercase text-[9px]">Dirección:</div>
-                            <div className="col-span-8 font-bold text-gray-700">13 AV SUR ENTRE 22 Y 24 OTE No.62 GUATEX</div>
-                          </div>
-                          <div className="grid grid-cols-12 gap-2 bg-teal-50/50 p-2 rounded -mx-2 border border-teal-100">
-                            <div className="col-span-4 text-teal-700 font-black uppercase text-[9px]">Ref/Apto:</div>
-                            <div className="col-span-8 font-black text-teal-800">SFG + {currentUser.lockerId} (Recibe Blanca Diaz o Jony Mazariegos)</div>
-                          </div>
-                          <div className="grid grid-cols-12 gap-2">
-                            <div className="col-span-4 text-gray-400 font-bold uppercase text-[9px]">Colonia:</div>
-                            <div className="col-span-8 font-bold text-gray-700">Calcaneo Beltran</div>
-                          </div>
-                          <div className="grid grid-cols-12 gap-2">
-                            <div className="col-span-4 text-gray-400 font-bold uppercase text-[9px]">Ciudad:</div>
-                            <div className="col-span-8 font-bold text-gray-700">Tapachula</div>
-                          </div>
-                          <div className="grid grid-cols-12 gap-2">
-                            <div className="col-span-4 text-gray-400 font-bold uppercase text-[9px]">Estado:</div>
-                            <div className="col-span-8 font-bold text-gray-700">Chiapas</div>
-                          </div>
-                          <div className="grid grid-cols-12 gap-2">
-                            <div className="col-span-4 text-gray-400 font-bold uppercase text-[9px]">C.P.:</div>
-                            <div className="col-span-8 font-bold text-gray-700">30790</div>
-                          </div>
-                          <div className="grid grid-cols-12 gap-2">
-                            <div className="col-span-4 text-gray-400 font-bold uppercase text-[9px]">CURP:</div>
-                            <div className="col-span-8 font-bold text-gray-700">GADB000327MCSBZLA7</div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Pre-Alerts Status Panel */}
-                  <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs space-y-3">
-                    <div className="flex justify-between items-center">
-                      <h4 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display flex items-center gap-1.5">
-                        <Bell className="h-4 w-4 text-indigo-500" />
-                        Mis Pre-Alertas
-                      </h4>
-                      <button
-                        onClick={() => {
-                          setClientPreAlertTracking('');
-                          setClientPreAlertBodega('');
-                          setClientPreAlertValue('');
-                          setClientPreAlertWeight('1.0');
-                          setClientPreAlertInsurance('Sin seguro');
-                          setClientPreAlertCustomNote('');
-                          setClientPreAlertFileName('');
-                          setClientPreAlertFileData('');
-                          setIsClientPreAlertModalOpen(true);
-                        }}
-                        className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-5xs font-black px-2 py-1 rounded uppercase tracking-wider transition cursor-pointer active:scale-95"
-                      >
-                        + Nueva
-                      </button>
-                    </div>
-                    
-                    <div className="space-y-2.5 max-h-[280px] overflow-y-auto pr-1">
-                      {[...preAlerts].filter(pa => pa.lockerId === currentUser.lockerId).reverse().map(pa => {
-                        const { fileName: attachedFile } = parsePreAlertAttachment(pa);
-                        const parsed = parsePreAlertDetails(pa);
-                        return (
-                          <div key={pa.id} className="p-3 bg-gray-50/90 border border-gray-200 rounded-lg text-4xs space-y-2 relative overflow-hidden">
-                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500"></div>
-                            {/* 1. Fecha primero + Estado */}
-                            <div className="flex justify-between items-center border-b border-gray-200/70 pb-1">
-                              <span className="text-[9px] font-black text-gray-600 font-mono">
-                                📅 {pa.dateCreated}
-                              </span>
-                              <span className={`px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase tracking-wide ${
-                                pa.status === 'Recibido' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
-                              }`}>
-                                {pa.status}
-                              </span>
-                            </div>
-                            {/* 2. Nombre y Casillero */}
-                            <div className="flex items-center justify-between gap-1 text-[10px]">
-                              <span className="font-extrabold text-brand-gray-dark truncate">{currentUser.name}</span>
-                              <span className="bg-orange-50 text-brand-orange border border-orange-200 px-1.5 py-0.5 rounded font-mono font-black text-[9px] shrink-0">
-                                {pa.lockerId}
-                              </span>
-                            </div>
-                            {/* 3. Guía + Editar */}
-                            <div className="flex items-center justify-between bg-white px-2 py-1 rounded border border-gray-200">
-                              <span className="text-indigo-700 select-all font-black font-mono text-[10px]">
-                                Guía: {pa.id}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => handleEditPreAlert(pa)}
-                                className="text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 cursor-pointer"
-                                title="Editar número de guía o datos"
-                              >
-                                ✏️ Editar Guía
-                              </button>
-                            </div>
-                            {/* 4. Descripción organizada */}
-                            <div className="flex flex-wrap gap-1 pt-0.5">
-                              <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200 text-[8px] font-bold">
-                                {parsed.isMexico ? '🇲🇽 México' : '🇺🇸 USA'}
-                              </span>
-                              <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 text-[8px] font-bold">
-                                💵 ${parsed.declaredValue.toFixed(2)}
-                              </span>
-                              <span className={`px-1.5 py-0.5 rounded border text-[8px] font-bold ${
-                                parsed.hasInsurance ? 'bg-green-50 text-green-700 border-green-200' : 'bg-amber-50 text-amber-700 border-amber-200'
-                              }`}>
-                                {parsed.hasInsurance ? '🛡️ Con seguro' : '⚠️ Sin seguro'}
-                              </span>
-                              <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 text-[8px] font-bold">
-                                ⚖️ {pa.weightEst} Lbs
-                              </span>
-                            </div>
-                            {parsed.customNote && (
-                              <div className="text-[9px] text-gray-600 bg-white px-2 py-1 rounded border border-gray-100 italic">
-                                {parsed.customNote}
-                              </div>
-                            )}
-                            <div className="flex flex-wrap gap-1.5 pt-0.5">
-                              {attachedFile && (
-                                <button
-                                  type="button"
-                                  onClick={() => setActivePreAlertInvoice(pa)}
-                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 text-[9px] font-bold font-sans cursor-pointer"
-                                >
-                                  📄 Ver Archivo ({attachedFile})
-                                </button>
-                              )}
-                              {pa.waiverSignature && (
-                                <button
-                                  type="button"
-                                  onClick={() => handlePrintWaiverPDF(pa)}
-                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-orange-50 border border-orange-200 text-brand-orange hover:bg-orange-100 text-[9px] font-bold font-sans cursor-pointer"
-                                  title="Ver Carta Firmada de Exención de Responsabilidad"
-                                >
-                                  🖨️ Ver Renuncia Firmada
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                      {preAlerts.filter(pa => pa.lockerId === currentUser.lockerId).length === 0 && (
-                        <p className="text-4xs text-gray-400 italic text-center py-4">No tienes pre-alertas creadas en este momento.</p>
-                      )}
-                    </div>
-                  </div>
-
-                </div>
-
-                {/* Package listings / timelines tracker - RIGHT COLUMN */}
-                <div className="lg:col-span-8 space-y-6">
-                  
-                  {searchedShipment ? (
-                    <div className="bg-white rounded-lg border border-gray-200 shadow-xs overflow-hidden">
-                      
-                      {/* Title Specs */}
-                      <div className="bg-gray-100 px-6 py-4 border-b border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                        <div>
-                          <span className="text-3xs font-bold text-gray-500 uppercase tracking-wider block">ID DE SEGUIMIENTO</span>
-                          <h4 className="text-md font-extrabold text-brand-gray-dark font-display">{searchedShipment.id}</h4>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className={`px-3 py-1 text-3xs font-bold uppercase rounded-full ${
-                            searchedShipment.status === 'Entregado' ? 'bg-green-100 text-green-800' :
-                            searchedShipment.status === 'Retrasado' ? 'bg-orange-100 text-brand-orange font-extrabold border border-brand-orange/30 animate-pulse' :
-                            'bg-blue-100 text-blue-800'
-                          }`}>
-                            {searchedShipment.status}
-                          </span>
-                          <span className="bg-brand-gray-dark text-white text-3xs px-3 py-1 font-bold rounded-full uppercase">
-                            Servicio {searchedShipment.serviceType}
-                          </span>
-                        </div>
+                      <div className="space-y-2.5 text-2xs text-brand-gray-dark">
+                        <div><span className="text-gray-400 block uppercase font-bold text-4xs">Titular de Cuenta:</span> <strong>{currentUser.name}</strong></div>
+                        <div><span className="text-gray-400 block uppercase font-bold text-4xs">Correo Electrónico:</span> {currentUser.email}</div>
+                        <div><span className="text-gray-400 block uppercase font-bold text-4xs">Teléfono:</span> {currentUser.phone}</div>
+                        <div><span className="text-gray-400 block uppercase font-bold text-4xs">Dirección de Entrega:</span> {currentUser.address}</div>
                       </div>
 
-                      {/* Specs info */}
-                      <div className="p-5 grid grid-cols-2 sm:grid-cols-4 gap-4 border-b border-gray-100 bg-gray-50/50">
-                        <div>
-                          <span className="text-4xs font-bold text-gray-400 uppercase block">Origen</span>
-                          <span className="text-xs font-bold text-brand-gray-dark flex items-center gap-1 mt-0.5">
-                            <MapPin className="h-3.5 w-3.5 text-gray-400" />
-                            {searchedShipment.origin.split(',')[0]}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-4xs font-bold text-gray-400 uppercase block">Destino Final</span>
-                          <span className="text-xs font-bold text-brand-gray-dark flex items-center gap-1 mt-0.5">
-                            <MapPin className="h-3.5 w-3.5 text-brand-orange" />
-                            {searchedShipment.destination.split(',')[0]}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-4xs font-bold text-gray-400 uppercase block">Carga / Peso</span>
-                          <span className="text-xs font-bold text-brand-gray-dark mt-0.5 block">{searchedShipment.weight} Lbs</span>
-                        </div>
-                        <div>
-                          <span className="text-4xs font-bold text-gray-400 uppercase block">Último Tránsito</span>
-                          <span className="text-xs font-bold text-brand-gray-dark mt-0.5 block truncate">{searchedShipment.lastUpdated.split(' ')[1]} hrs</span>
-                        </div>
-                      </div>
-
-                      {/* History timeline log */}
-                      <div className="p-6">
-                        <h4 className="text-3xs font-extrabold text-brand-gray-dark uppercase tracking-wider mb-6 font-display">
-                          Bitácora y Despacho en Ruta
-                        </h4>
-
-                        <div className="relative border-l border-gray-200 ml-4 space-y-6 pb-2">
-                          {searchedShipment.history.map((event, idx) => {
-                            const isLatest = idx === 0;
-                            const isRetrasado = event.status === 'Retrasado';
-                            const isEntregado = event.status === 'Entregado';
-
+                      {/* Quick Shipment Selector inside Profile Card */}
+                      <div className="pt-3 border-t border-gray-100 space-y-2">
+                        <span className="text-4xs font-extrabold text-gray-500 uppercase tracking-wider block">
+                          📦 Paquetes en tu Casillero ({shipments.filter(s => s.lockerId === currentUser.lockerId).length})
+                        </span>
+                        <div className="space-y-1.5 max-h-[260px] overflow-y-auto pr-1">
+                          {shipments.filter(s => s.lockerId === currentUser.lockerId).map(s => {
+                            const isSelected = searchedShipment?.id === s.id;
                             return (
-                              <div key={idx} className="relative pl-6">
-                                
-                                <span className={`absolute -left-3 top-0.5 flex items-center justify-center rounded-full border w-6 h-6 bg-white ${
-                                  isLatest 
-                                    ? isRetrasado 
-                                      ? 'border-brand-orange text-brand-orange font-extrabold pulse-slow'
-                                      : isEntregado
-                                        ? 'border-green-600 text-green-600'
-                                        : 'border-brand-orange text-brand-orange'
-                                    : 'border-gray-300 text-gray-400'
-                                }`}>
-                                  {isEntregado ? (
-                                    <CheckCircle2 className="h-3.5 w-3.5" />
-                                  ) : isRetrasado ? (
-                                    <AlertTriangle className="h-3.5 w-3.5" />
-                                  ) : (
-                                    <Clock className="h-3 w-3" />
-                                  )}
-                                </span>
-
-                                <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-1">
-                                  <div>
-                                    <span className={`text-2xs font-extrabold ${
-                                      isLatest 
-                                        ? isRetrasado 
-                                          ? 'text-brand-orange'
-                                          : 'text-brand-gray-dark' 
-                                        : 'text-gray-500'
-                                    }`}>
-                                      {event.status} — {event.location}
-                                    </span>
-                                    <p className="text-3xs text-gray-600 mt-0.5 max-w-lg leading-normal">{event.details}</p>
-                                  </div>
-                                  <div className="text-4xs text-gray-400 font-bold uppercase shrink-0 mt-1 sm:mt-0">
-                                    {event.date} {event.time} hrs
-                                  </div>
+                              <button
+                                key={s.id}
+                                type="button"
+                                onClick={() => {
+                                  setSearchedShipment(s);
+                                  setClientSearchId(s.id);
+                                }}
+                                className={`w-full p-2.5 rounded-lg border text-left transition cursor-pointer flex items-center justify-between ${
+                                  isSelected
+                                    ? 'bg-orange-50 border-brand-orange text-brand-gray-dark shadow-2xs'
+                                    : 'bg-gray-50 hover:bg-gray-100 border-gray-200 text-gray-700'
+                                }`}
+                              >
+                                <div>
+                                  <div className="font-mono font-black text-xs text-brand-orange uppercase">{s.id}</div>
+                                  <div className="text-[10px] text-gray-500 truncate max-w-[160px]">{s.sender} • {s.weight} Lbs</div>
                                 </div>
-                              </div>
+                                <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold uppercase ${
+                                  s.status === 'Entregado' ? 'bg-green-100 text-green-800' :
+                                  s.status === 'Retrasado' ? 'bg-red-100 text-red-800' :
+                                  'bg-blue-100 text-blue-800'
+                                }`}>
+                                  {s.status}
+                                </span>
+                              </button>
                             );
                           })}
-                        </div>
-                      </div>
-
-                    </div>
-                  ) : (
-                    <div className="bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-500 shadow-2xs">
-                      <Package className="h-10 w-10 text-gray-300 mx-auto mb-2" />
-                      <p className="text-xs font-bold text-brand-gray-dark uppercase">Tus Despachos ShipFast</p>
-                      <p className="text-4xs text-gray-500 mt-1 max-w-xs mx-auto">Selecciona una guía activa en tu casillero para desplegar la bitácora logística del flete.</p>
-                      
-                      {/* Quick index selector of packages belonging to client */}
-                      <div className="mt-6 border-t border-gray-100 pt-4">
-                        <span className="text-4xs font-bold text-gray-400 uppercase tracking-wider block mb-3">Historial de Envíos en tu Casillero ({currentUser.lockerId}):</span>
-                        <div className="flex flex-wrap justify-center gap-2">
-                          {shipments.filter(s => s.lockerId === currentUser.lockerId).map(s => (
-                            <button
-                              key={s.id}
-                              onClick={() => {
-                                setSearchedShipment(s);
-                                setClientSearchId(s.id);
-                              }}
-                              className="bg-gray-100 border border-gray-200 hover:border-brand-orange hover:bg-orange-50/30 px-3 py-1.5 rounded text-3xs font-extrabold text-brand-gray-dark cursor-pointer transition uppercase"
-                            >
-                              {s.id} ({s.status})
-                            </button>
-                          ))}
                           {shipments.filter(s => s.lockerId === currentUser.lockerId).length === 0 && (
-                            <span className="text-3xs text-gray-400 italic">No posees paquetes documentados en este momento.</span>
+                            <p className="text-4xs text-gray-400 italic py-3 text-center">No posees paquetes activos en este momento.</p>
                           )}
                         </div>
                       </div>
                     </div>
-                  )}
+                  </div>
+
+                  {/* Package tracking timeline - RIGHT COLUMN */}
+                  <div className="lg:col-span-8 space-y-6">
+                    {searchedShipment ? (
+                      <div className="bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden">
+                        <div className="bg-gray-900 text-white px-6 py-4 border-b border-gray-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                          <div>
+                            <span className="text-4xs font-bold text-gray-400 uppercase tracking-wider block">NÚMERO DE GUÍA / SEGUIMIENTO</span>
+                            <h4 className="text-base font-extrabold text-brand-orange font-mono">{searchedShipment.id}</h4>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-3 py-1 text-3xs font-bold uppercase rounded-full ${
+                              searchedShipment.status === 'Entregado' ? 'bg-green-500 text-white' :
+                              searchedShipment.status === 'Retrasado' ? 'bg-red-500 text-white animate-pulse' :
+                              'bg-brand-orange text-white'
+                            }`}>
+                              {searchedShipment.status}
+                            </span>
+                            <span className="bg-gray-800 text-gray-200 text-3xs px-3 py-1 font-bold rounded-full uppercase border border-gray-700">
+                              Servicio {searchedShipment.serviceType}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="p-5 grid grid-cols-2 sm:grid-cols-4 gap-4 border-b border-gray-100 bg-gray-50/60">
+                          <div>
+                            <span className="text-4xs font-bold text-gray-400 uppercase block">Origen</span>
+                            <span className="text-xs font-bold text-brand-gray-dark flex items-center gap-1 mt-0.5">
+                              <MapPin className="h-3.5 w-3.5 text-gray-400" />
+                              {searchedShipment.origin.split(',')[0]}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-4xs font-bold text-gray-400 uppercase block">Destino Final</span>
+                            <span className="text-xs font-bold text-brand-gray-dark flex items-center gap-1 mt-0.5">
+                              <MapPin className="h-3.5 w-3.5 text-brand-orange" />
+                              {searchedShipment.destination.split(',')[0]}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-4xs font-bold text-gray-400 uppercase block">Carga / Peso</span>
+                            <span className="text-xs font-bold text-brand-gray-dark mt-0.5 block">{searchedShipment.weight} Lbs</span>
+                          </div>
+                          <div>
+                            <span className="text-4xs font-bold text-gray-400 uppercase block">Último Tránsito</span>
+                            <span className="text-xs font-bold text-brand-gray-dark mt-0.5 block truncate">{searchedShipment.lastUpdated}</span>
+                          </div>
+                        </div>
+
+                        <div className="p-6">
+                          <h4 className="text-3xs font-extrabold text-brand-gray-dark uppercase tracking-wider mb-6 font-display">
+                            Bitácora y Despacho en Ruta
+                          </h4>
+
+                          <div className="relative border-l-2 border-gray-200 ml-4 space-y-6 pb-2">
+                            {searchedShipment.history.map((event, idx) => {
+                              const isLatest = idx === 0;
+                              const isRetrasado = event.status === 'Retrasado';
+                              const isEntregado = event.status === 'Entregado';
+
+                              return (
+                                <div key={idx} className="relative pl-6">
+                                  <span className={`absolute -left-3 top-0.5 flex items-center justify-center rounded-full border w-6 h-6 bg-white ${
+                                    isLatest 
+                                      ? isRetrasado 
+                                        ? 'border-brand-orange text-brand-orange font-extrabold pulse-slow'
+                                        : isEntregado
+                                          ? 'border-green-600 text-green-600'
+                                          : 'border-brand-orange text-brand-orange'
+                                      : 'border-gray-300 text-gray-400'
+                                  }`}>
+                                    {isEntregado ? (
+                                      <CheckCircle2 className="h-3.5 w-3.5" />
+                                    ) : isRetrasado ? (
+                                      <AlertTriangle className="h-3.5 w-3.5" />
+                                    ) : (
+                                      <Clock className="h-3 w-3" />
+                                    )}
+                                  </span>
+
+                                  <div className="flex flex-col sm:flex-row justify-between sm:items-start gap-1">
+                                    <div>
+                                      <span className={`text-2xs font-extrabold ${
+                                        isLatest 
+                                          ? isRetrasado 
+                                            ? 'text-brand-orange'
+                                            : 'text-brand-gray-dark' 
+                                          : 'text-gray-500'
+                                      }`}>
+                                        {event.status} — {event.location}
+                                      </span>
+                                      <p className="text-3xs text-gray-600 mt-0.5 max-w-lg leading-normal">{event.details}</p>
+                                    </div>
+                                    <div className="text-4xs text-gray-400 font-bold uppercase shrink-0 mt-1 sm:mt-0">
+                                      {event.date} {event.time} hrs
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-white rounded-xl border border-gray-200 p-10 text-center text-gray-500 shadow-2xs">
+                        <Package className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                        <p className="text-sm font-black text-brand-gray-dark uppercase">Seguimiento de Envíos ShipFast</p>
+                        <p className="text-xs text-gray-500 mt-1 max-w-md mx-auto">
+                          Selecciona cualquiera de los paquetes de tu casillero en la columna izquierda para consultar su ubicación y bitácora en tiempo real.
+                        </p>
+                      </div>
+                    )}
+                  </div>
 
                 </div>
-
               </div>
-            </div>
+            )}
+
+            {/* ==================== CLIENT: 2. MIS PRE-ALERTAS TAB ==================== */}
+            {currentUser.role === 'client' && activeTab === 'client-prealerts' && (
+              <div className="space-y-5 flex-1 min-h-0 flex flex-col">
+                <div className="bg-white rounded-xl border border-gray-200 shadow-2xs p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div>
+                    <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest block">
+                      CASILLERO: {currentUser.lockerId} • {currentUser.name}
+                    </span>
+                    <h2 className="text-base font-black text-brand-gray-dark uppercase tracking-tight">
+                      🕒 Mis Pre-Alertas Declaradas
+                    </h2>
+                    <p className="text-3xs text-gray-500 mt-0.5">
+                      Ordenadas por Fecha, Nombre y Casillero, Número de Guía (editable) y Descripción Organizada.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setClientPreAlertTracking('');
+                      setClientPreAlertBodega('');
+                      setClientPreAlertValue('');
+                      setClientPreAlertWeight('1.0');
+                      setClientPreAlertInsurance('Sin seguro');
+                      setClientPreAlertCustomNote('');
+                      setClientPreAlertFileName('');
+                      setClientPreAlertFileData('');
+                      setIsClientPreAlertModalOpen(true);
+                    }}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold px-4 py-2.5 rounded-xl uppercase tracking-wider flex items-center gap-2 shadow-sm cursor-pointer transition"
+                  >
+                    <PlusCircle className="h-4 w-4" />
+                    + Nueva Pre-Alerta
+                  </button>
+                </div>
+
+                <div className="bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-gray-100 border-b border-gray-200 text-4xs font-extrabold text-gray-500 uppercase tracking-wider">
+                          <th className="py-3 px-4">1. Fecha</th>
+                          <th className="py-3 px-4">2. Cliente y Casillero</th>
+                          <th className="py-3 px-4">3. Número de Guía</th>
+                          <th className="py-3 px-4">4. Descripción Organizada</th>
+                          <th className="py-3 px-3 text-center">Peso Est.</th>
+                          <th className="py-3 px-3">Estado</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 text-3xs font-semibold text-brand-gray-dark">
+                        {[...preAlerts].filter(pa => pa.lockerId === currentUser.lockerId).reverse().map(pa => {
+                          const { fileName: attachedFile } = parsePreAlertAttachment(pa);
+                          const parsed = parsePreAlertDetails(pa);
+                          return (
+                            <tr key={pa.id} className="hover:bg-gray-50/70">
+                              <td className="py-3 px-4 font-mono font-bold text-slate-700 whitespace-nowrap">
+                                📅 {pa.dateCreated}
+                              </td>
+                              <td className="py-3 px-4">
+                                <div className="font-extrabold text-brand-gray-dark">{currentUser.name}</div>
+                                <span className="inline-block mt-0.5 px-2 py-0.5 rounded bg-orange-50 border border-orange-200 text-brand-orange font-mono font-black text-[10px]">
+                                  Casillero: {pa.lockerId}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 font-mono">
+                                <div className="font-black text-indigo-700 text-xs uppercase">{pa.id}</div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditPreAlert(pa)}
+                                  className="mt-1 inline-flex items-center gap-1 text-[9px] font-extrabold uppercase px-2 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 cursor-pointer"
+                                >
+                                  ✏️ Editar Guía
+                                </button>
+                              </td>
+                              <td className="py-3 px-4">
+                                <div className="flex flex-wrap gap-1.5">
+                                  <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200 text-[10px] font-bold">
+                                    {parsed.isMexico ? '🇲🇽 Bodega México' : '🇺🇸 Bodega USA'}
+                                  </span>
+                                  <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-bold font-mono">
+                                    💵 Valor: ${parsed.declaredValue.toFixed(2)}
+                                  </span>
+                                  <span className={`px-2 py-0.5 rounded border text-[10px] font-bold ${
+                                    parsed.hasInsurance ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-amber-50 text-amber-800 border-amber-200'
+                                  }`}>
+                                    {parsed.hasInsurance ? '🛡️ Con Seguro (5%)' : '⚠️ Sin Seguro'}
+                                  </span>
+                                </div>
+                                {parsed.customNote && (
+                                  <div className="mt-1.5 text-[11px] text-gray-700 bg-gray-50 px-2.5 py-1 rounded border border-gray-200">
+                                    <strong>Contenido:</strong> {parsed.customNote}
+                                  </div>
+                                )}
+                                {(attachedFile || pa.waiverSignature) && (
+                                  <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                    {attachedFile && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setActivePreAlertInvoice(pa)}
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 text-[10px] font-bold cursor-pointer"
+                                      >
+                                        📄 Ver Factura ({attachedFile})
+                                      </button>
+                                    )}
+                                    {pa.waiverSignature && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handlePrintWaiverPDF(pa)}
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-orange-50 border border-orange-200 text-brand-orange hover:bg-orange-100 text-[10px] font-bold cursor-pointer"
+                                      >
+                                        🖨️ Ver Renuncia Firmada
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="py-3 px-3 text-center font-mono font-bold">{pa.weightEst} Lbs</td>
+                              <td className="py-3 px-3">
+                                <span className={`px-2.5 py-0.5 rounded text-4xs font-extrabold uppercase border ${
+                                  pa.status === 'Recibido' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-amber-50 border-amber-200 text-amber-800'
+                                }`}>
+                                  {pa.status}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {preAlerts.filter(pa => pa.lockerId === currentUser.lockerId).length === 0 && (
+                          <tr>
+                            <td colSpan={6} className="text-center py-12 text-gray-400 font-medium">
+                              No tienes pre-alertas registradas en este momento.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ==================== CLIENT: 3. DIRECCIONES DE BODEGAS TAB ==================== */}
+            {currentUser.role === 'client' && activeTab === 'client-addresses' && (
+              <div className="space-y-5 flex-1 min-h-0 flex flex-col">
+                <div className="bg-white rounded-xl border border-gray-200 shadow-2xs p-5">
+                  <span className="text-[10px] font-black text-brand-orange uppercase tracking-widest block">
+                    DIRECCIONES OFICIALES AUTORIZADAS POR SHIPFAST
+                  </span>
+                  <h2 className="text-base font-black text-brand-gray-dark uppercase tracking-tight mt-0.5">
+                    📍 Direcciones para Envío de tus Paquetes (USA y México)
+                  </h2>
+                  <p className="text-3xs text-gray-500 mt-1">
+                    Coloca siempre tu código de casillero <strong>SFG + {currentUser.lockerId}</strong> en el campo de Suite / Referencia al comprar en tus tiendas online.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* USA / Texas */}
+                  <div className="bg-white border border-gray-200 rounded-xl shadow-2xs overflow-hidden">
+                    <div className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-4 flex items-center justify-between">
+                      <span className="text-xs font-black uppercase flex items-center gap-2">
+                        <span className="text-lg">🇺🇸</span> BODEGA USA (LAREDO, TEXAS)
+                      </span>
+                      <span className="text-[10px] font-mono bg-white/15 px-2.5 py-0.5 rounded font-bold">78041</span>
+                    </div>
+                    <div className="p-5 space-y-3 text-xs">
+                      <div className="grid grid-cols-12 gap-2 border-b border-gray-100 pb-2">
+                        <div className="col-span-4 text-gray-400 font-bold uppercase text-[10px]">Nombre:</div>
+                        <div className="col-span-8 font-black text-brand-gray-dark uppercase">SFG + {currentUser.name.split(' ')[0]}</div>
+                      </div>
+                      <div className="grid grid-cols-12 gap-2 border-b border-gray-100 pb-2">
+                        <div className="col-span-4 text-gray-400 font-bold uppercase text-[10px]">Apellido:</div>
+                        <div className="col-span-8 font-black text-brand-gray-dark uppercase">{currentUser.name.split(' ').slice(1).join(' ') || 'Logistics'}</div>
+                      </div>
+                      <div className="grid grid-cols-12 gap-2 border-b border-gray-100 pb-2">
+                        <div className="col-span-4 text-gray-400 font-bold uppercase text-[10px]">Teléfono:</div>
+                        <div className="col-span-8 font-bold text-gray-700">+1 (802)839-0011</div>
+                      </div>
+                      <div className="grid grid-cols-12 gap-2 border-b border-gray-100 pb-2">
+                        <div className="col-span-4 text-gray-400 font-bold uppercase text-[10px]">Dirección:</div>
+                        <div className="col-span-8 font-bold text-gray-700">1900 JUSTO PENN ST</div>
+                      </div>
+                      <div className="grid grid-cols-12 gap-2 bg-indigo-50 p-2.5 rounded-lg border border-indigo-200">
+                        <div className="col-span-4 text-indigo-700 font-black uppercase text-[10px]">Suite/Apto:</div>
+                        <div className="col-span-8 font-black text-indigo-800">SFG + {currentUser.lockerId}</div>
+                      </div>
+                      <div className="grid grid-cols-12 gap-2">
+                        <div className="col-span-4 text-gray-400 font-bold uppercase text-[10px]">Ciudad / Estado:</div>
+                        <div className="col-span-8 font-bold text-gray-700">Laredo, Texas (C.P. 78041)</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Mexico / Tapachula */}
+                  <div className="bg-white border border-gray-200 rounded-xl shadow-2xs overflow-hidden">
+                    <div className="bg-gradient-to-r from-emerald-600 to-teal-700 text-white p-4 flex items-center justify-between">
+                      <span className="text-xs font-black uppercase flex items-center gap-2">
+                        <span className="text-lg">🇲🇽</span> BODEGA MÉXICO (TAPACHULA, CHIAPAS)
+                      </span>
+                      <span className="text-[10px] font-mono bg-white/15 px-2.5 py-0.5 rounded font-bold">30790</span>
+                    </div>
+                    <div className="p-5 space-y-3 text-xs">
+                      <div className="grid grid-cols-12 gap-2 border-b border-gray-100 pb-2">
+                        <div className="col-span-4 text-gray-400 font-bold uppercase text-[10px]">Nombre:</div>
+                        <div className="col-span-8 font-black text-brand-gray-dark uppercase">SFG + {currentUser.name.split(' ')[0]}</div>
+                      </div>
+                      <div className="grid grid-cols-12 gap-2 border-b border-gray-100 pb-2">
+                        <div className="col-span-4 text-gray-400 font-bold uppercase text-[10px]">Apellido:</div>
+                        <div className="col-span-8 font-black text-brand-gray-dark uppercase">{currentUser.name.split(' ').slice(1).join(' ') || 'Logistics'}</div>
+                      </div>
+                      <div className="grid grid-cols-12 gap-2 border-b border-gray-100 pb-2">
+                        <div className="col-span-4 text-gray-400 font-bold uppercase text-[10px]">Teléfono:</div>
+                        <div className="col-span-8 font-bold text-gray-700">9621027742</div>
+                      </div>
+                      <div className="grid grid-cols-12 gap-2 border-b border-gray-100 pb-2">
+                        <div className="col-span-4 text-gray-400 font-bold uppercase text-[10px]">Dirección:</div>
+                        <div className="col-span-8 font-bold text-gray-700">13 AV SUR ENTRE 22 Y 24 OTE No.62 GUATEX</div>
+                      </div>
+                      <div className="grid grid-cols-12 gap-2 bg-teal-50 p-2.5 rounded-lg border border-teal-200">
+                        <div className="col-span-4 text-teal-800 font-black uppercase text-[10px]">Ref/Apto:</div>
+                        <div className="col-span-8 font-black text-teal-900">SFG + {currentUser.lockerId} (Recibe Blanca Diaz o Jony Mazariegos)</div>
+                      </div>
+                      <div className="grid grid-cols-12 gap-2">
+                        <div className="col-span-4 text-gray-400 font-bold uppercase text-[10px]">Colonia / Ciudad:</div>
+                        <div className="col-span-8 font-bold text-gray-700">Col. Calcaneo Beltran, Tapachula, Chiapas (C.P. 30790) • CURP: GADB000327MCSBZLA7</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             )}
 
             {/* ==================== CLIENT: REQUEST PICKUP TAB ==================== */}
@@ -6224,59 +6248,8 @@ Para proporcionarle información específica, puede solicitar:
               </div>
             )}
 
-            {/* ==================== ADMIN: OPERATIONS DASHBOARD TAB ==================== */}
+            {/* ==================== ADMIN: OPERATIONS DASHBOARD TAB (VERTICAL MENU ONLY) ==================== */}
             {currentUser.role === 'admin' && activeTab === 'admin-dashboard' && (() => {
-              // We derive the active Category based on the current adminSubTab state
-              const getCategoryOfSubTab = (subTab: string) => {
-                if (['portal'].includes(subTab)) return 'resumen';
-                if (['registro-paquetes', 'cliente-mayor', 'pre-alertas'].includes(subTab)) return 'logistica';
-                if (['warehouse', 'consolidado'].includes(subTab)) return 'almacen';
-                if (['reportes-financieros', 'facturacion', 'pagos', 'gastos', 'cotizaciones'].includes(subTab)) return 'finanzas';
-                if (['reportes', 'sucursales', 'usuarios', 'tarifas', 'ajustes'].includes(subTab)) return 'sistema';
-                return 'resumen';
-              };
-              
-              const activeCategory = getCategoryOfSubTab(adminSubTab);
-
-              // Categories mapping
-              const categories = [
-                { id: 'resumen', label: 'Resumen', icon: TrendingUp, char: '📊' },
-                { id: 'logistica', label: 'Logística', icon: Truck, char: '📦' },
-                { id: 'almacen', label: 'Almacén', icon: Building, char: '🏢' },
-                { id: 'finanzas', label: 'Finanzas', icon: DollarSign, char: '💰' },
-                { id: 'sistema', label: 'Sistema', icon: Settings, char: '⚙️' },
-              ];
-
-              // Sub-tabs mapping per category
-              const subTabsConfig: Record<string, { id: string; label: string; icon: any }[]> = {
-                resumen: [
-                  { id: 'portal', label: 'Dashboard Portal', icon: Database },
-                ],
-                logistica: [
-                  { id: 'registro-paquetes', label: 'Registro de Paquetes', icon: FileText },
-                  { id: 'cliente-mayor', label: 'Registro Cliente Mayor', icon: Users },
-                  { id: 'pre-alertas', label: 'Pre-alertas Clientes', icon: Clock },
-                ],
-                almacen: [
-                  { id: 'warehouse', label: 'Control de Warehouse', icon: Package },
-                  { id: 'consolidado', label: 'Historial de Consolidados', icon: Layers },
-                ],
-                finanzas: [
-                  { id: 'reportes-financieros', label: 'Reportes Financieros', icon: Wallet },
-                  { id: 'facturacion', label: 'Facturación / Fletes', icon: FileSpreadsheet },
-                  { id: 'cotizaciones', label: 'Generar Cotización', icon: ClipboardList },
-                  { id: 'pagos', label: 'Registro de Pagos', icon: Wallet },
-                  { id: 'gastos', label: 'Registro de Gastos', icon: TrendingUp },
-                ],
-                sistema: [
-                  { id: 'reportes', label: 'Reportes de Sistema', icon: TrendingUp },
-                  { id: 'sucursales', label: 'Sedes y Sucursales', icon: Building },
-                  { id: 'usuarios', label: 'Usuarios y Operadores', icon: Users },
-                  { id: 'tarifas', label: 'Configuración Tarifaria', icon: SlidersHorizontal },
-                  { id: 'ajustes', label: 'Ajustes de Sistema', icon: Settings },
-                ],
-              };
-
               // Financial Calculations (Fixed Values, in Quetzales Q)
               const totalPaidRevenues = invoices
                 .filter(i => i.paymentStatus === 'Pagado')
@@ -6292,76 +6265,54 @@ Inversiones Altiplano,Huehuetenango,Estándar,35.0,Sacos insumos industriales
 Droguería La Unión,Cobán,Express,2.8,Medicina mantener refrigerado
 Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
 
+              const sectionMeta: Record<string, { category: string; title: string; subtitle: string }> = {
+                'portal': { category: '📊 RESUMEN GENERAL', title: 'Dashboard Portal Operativo', subtitle: 'Métricas generales, alertas activas y estado financiero del Hub Central' },
+                'pre-alertas': { category: '📦 LOGÍSTICA Y PRE-ALERTAS', title: 'Pre-Alertas de Clientes', subtitle: 'Listado organizado por 1. Fecha, 2. Nombre y Casillero, 3. Número de Guía (Editable) y 4. Descripción' },
+                'registro-paquetes': { category: '📦 LOGÍSTICA Y PRE-ALERTAS', title: 'Registro y Administración de Paquetes', subtitle: 'Monitoreo de guías, edición de número de guía y actualización de bitácora en ruta' },
+                'cliente-mayor': { category: '📦 LOGÍSTICA Y PRE-ALERTAS', title: 'Carga Masiva de Clientes Mayoristas', subtitle: 'Procesamiento de lotes y manifiestos corporativos en formato CSV' },
+                'warehouse': { category: '🏢 ALMACÉN Y BODEGAS', title: 'Control de Warehouse (USA y México)', subtitle: 'Recepción física en bodegas, cubicaje e impresión térmica de etiquetas' },
+                'consolidado': { category: '🏢 ALMACÉN Y BODEGAS', title: 'Historial de Consolidados y Contenedores', subtitle: 'Control de guías madre, manifiestos consolidados y asignación de contenedores' },
+                'pagos': { category: '💰 FINANZAS Y COBROS', title: 'Registro de Pagos y Caja', subtitle: 'Control de cobros pendientes, pagos confirmados y recibos de clientes' },
+                'facturacion': { category: '💰 FINANZAS Y COBROS', title: 'Facturación y Liquidación de Fletes', subtitle: 'Emisión, edición y envío de facturas por correo o WhatsApp' },
+                'cotizaciones': { category: '💰 FINANZAS Y COBROS', title: 'Generador de Cotizaciones', subtitle: 'Cálculo formal de fletes internacionales, impuestos y entregas departamentales' },
+                'gastos': { category: '💰 FINANZAS Y COBROS', title: 'Registro de Gastos Operativos', subtitle: 'Bitácora contable de egresos de operación, transporte y planilla' },
+                'reportes-financieros': { category: '💰 FINANZAS Y COBROS', title: 'Reportes Financieros', subtitle: 'Balance general de ingresos, egresos y utilidad neta en Quetzales' },
+                'usuarios': { category: '⚙️ SISTEMA Y AJUSTES', title: 'Directorio de Usuarios y Casilleros', subtitle: 'Administración de cuentas de clientes, casilleros asignados y operadores' },
+                'sucursales': { category: '⚙️ SISTEMA Y AJUSTES', title: 'Sedes y Sucursales', subtitle: 'Gestión de agencias y centros de distribución en Guatemala, USA y México' },
+                'tarifas': { category: '⚙️ SISTEMA Y AJUSTES', title: 'Configuración Tarifaria', subtitle: 'Ajuste de precios por libra, tarifas base y recargos operativos' },
+                'reportes': { category: '⚙️ SISTEMA Y AJUSTES', title: 'Reportes de Sistema', subtitle: 'Estadísticas operativas y exportación de datos logísticos' },
+                'ajustes': { category: '⚙️ SISTEMA Y AJUSTES', title: 'Ajustes de Sistema y Correo', subtitle: 'Configuración de notificaciones automáticas EmailJS y respaldos' },
+              };
+              const currentMeta = sectionMeta[adminSubTab] || sectionMeta['portal'];
+
               return (
-                <div className="space-y-6 flex-1 min-h-0 flex flex-col">
+                <div className="space-y-5 flex-1 min-h-0 flex flex-col">
                   
-                  {/* ==================== DOUBLE-LEVEL TOP NAVIGATION BAR ==================== */}
-                  <div className="bg-white rounded-lg border border-gray-200 shadow-2xs overflow-hidden shrink-0">
-                    
-                    {/* Level 1: Category Groups */}
-                    <div className="bg-brand-gray-dark px-4 py-2 flex overflow-x-auto no-scrollbar space-x-2 border-b border-gray-800 shrink-0">
-                      {categories.map(cat => {
-                        const CategoryIcon = cat.icon;
-                        const isCatActive = activeCategory === cat.id;
-                        return (
-                          <button
-                            key={cat.id}
-                            onClick={() => {
-                              // Auto-select the first sub-tab of this category
-                              const firstSubTab = subTabsConfig[cat.id][0].id;
-                              setAdminSubTab(firstSubTab);
-                            }}
-                            className={`flex items-center space-x-2 px-4 py-2 text-2xs font-extrabold uppercase tracking-wider rounded-md transition-all cursor-pointer whitespace-nowrap ${
-                              isCatActive 
-                                ? 'bg-brand-orange text-white' 
-                                : 'text-gray-400 hover:text-white hover:bg-gray-800'
-                            }`}
-                          >
-                            <CategoryIcon className="h-3.5 w-3.5 shrink-0" />
-                            <span>{cat.label}</span>
-                          </button>
-                        );
-                      })}
+                  {/* Clean Single Section Header (Replaces old cluttered horizontal menus) */}
+                  <div className="bg-white rounded-xl border border-gray-200 shadow-2xs px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
+                    <div>
+                      <span className="text-[10px] font-black text-brand-orange uppercase tracking-widest block">
+                        {currentMeta.category}
+                      </span>
+                      <h2 className="text-base font-black text-brand-gray-dark uppercase tracking-tight mt-0.5">
+                        {currentMeta.title}
+                      </h2>
+                      <p className="text-3xs text-gray-500 mt-0.5">{currentMeta.subtitle}</p>
                     </div>
 
-                    {/* Level 2: Sub-Tabs for active category */}
-                    <div className="bg-gray-50 px-4 py-2 flex items-center justify-between border-t border-gray-100 shrink-0 gap-4 overflow-x-auto no-scrollbar">
-                      <div className="flex overflow-x-auto no-scrollbar space-x-1">
-                        {subTabsConfig[activeCategory].map(tab => {
-                          const TabIcon = tab.icon;
-                          const isTabActive = adminSubTab === tab.id;
-                          return (
-                            <button
-                              key={tab.id}
-                              onClick={() => setAdminSubTab(tab.id)}
-                              className={`flex items-center space-x-1.5 px-3 py-1.5 text-3xs font-extrabold uppercase tracking-widest rounded transition-all cursor-pointer border whitespace-nowrap ${
-                                isTabActive 
-                                  ? 'bg-white border-brand-orange text-brand-orange shadow-3xs' 
-                                  : 'bg-transparent border-transparent text-gray-500 hover:text-brand-gray-dark hover:bg-gray-100/50'
-                              }`}
-                            >
-                              <TabIcon className="h-3 w-3" />
-                              <span>{tab.label}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      <div className="shrink-0 pl-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setGlobalSearchQuery('');
-                            setIsGlobalSearchOpen(true);
-                          }}
-                          className="bg-brand-gray-dark hover:bg-slate-800 text-white text-3xs font-extrabold px-3 py-1.5 rounded-lg uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95 border border-slate-700"
-                        >
-                          <Search className="h-3.5 w-3.5 text-brand-orange animate-pulse" />
-                          <span>Buscador Rápido</span>
-                        </button>
-                      </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setGlobalSearchQuery('');
+                          setIsGlobalSearchOpen(true);
+                        }}
+                        className="bg-brand-gray-dark hover:bg-slate-800 text-white text-3xs font-extrabold px-3.5 py-2 rounded-xl uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                      >
+                        <Search className="h-3.5 w-3.5 text-brand-orange" />
+                        <span>Buscar Guía / Cliente</span>
+                      </button>
                     </div>
-
                   </div>
 
                   {/* ==================== SUB-TABS RENDER ENGINE ==================== */}
@@ -16171,8 +16122,8 @@ El Equipo de ShipFast GT`;
             </div>
           )}
 
-            </div>
-          </main>
+            </main>
+          </div>
 
           {/* Authenticated Dashboard Footer */}
           <footer className="bg-brand-gray-dark text-gray-500 py-3.5 px-6 border-t border-gray-800 text-center text-4xs font-bold uppercase tracking-widest shrink-0">
