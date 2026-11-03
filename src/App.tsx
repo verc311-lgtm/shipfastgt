@@ -2919,6 +2919,46 @@ Cargos de Flete y Tarifas Asignadas:
     // Update in Local state
     setPreAlerts(prev => prev.map(item => item.id === editingPreAlert.id ? updatedPreAlert : item));
 
+    // Also sync weight, lockerId, origin, notes and warehouse status with any linked shipment
+    const oldIdUpper = editingPreAlert.id.trim().toUpperCase();
+    const linkedShipment = shipments.find(s => {
+      const sId = (s.id || '').trim().toUpperCase();
+      const origTrack = (getOriginalTrackingHelper(s) || '').trim().toUpperCase();
+      const sNotes = (s.notes || '').toUpperCase();
+      return sId === oldIdUpper || sId === newTrackingId || origTrack === oldIdUpper || origTrack === newTrackingId || sNotes.includes(oldIdUpper) || sNotes.includes(newTrackingId);
+    });
+
+    if (linkedShipment) {
+      const currentDate = new Date().toISOString().split('T')[0];
+      const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
+      const shouldRestoreToWarehouse = updatedPreAlert.status === 'Recibido' && linkedShipment.status === 'Creado';
+      const matchingUser = users.find(u => (u.lockerId || '').trim().toUpperCase() === updatedPreAlert.lockerId);
+      const updatedShipment: Shipment = {
+        ...linkedShipment,
+        lockerId: updatedPreAlert.lockerId,
+        receiver: matchingUser ? matchingUser.name : linkedShipment.receiver,
+        origin: editPreAlertBodega,
+        weight: weightVal,
+        status: shouldRestoreToWarehouse ? 'En Sucursal' : linkedShipment.status,
+        lastUpdated: `${currentDate} ${currentTime}`,
+        notes: `${updatedPreAlert.description} | Tracking original: ${updatedPreAlert.id}`,
+        history: shouldRestoreToWarehouse
+          ? [
+              {
+                date: currentDate,
+                time: currentTime,
+                status: 'En Sucursal',
+                location: editPreAlertBodega === 'Mexico' ? 'Bodega México' : 'Bodega USA',
+                details: `Carga pre-alertada actualizada y re-ingresada a almacén (${editPreAlertBodega}). Peso registrado: ${weightVal} Lbs.`
+              },
+              ...(linkedShipment.history || [])
+            ]
+          : linkedShipment.history
+      };
+      await db.upsertShipment(updatedShipment);
+      setShipments(prev => prev.map(s => s.id === linkedShipment.id ? updatedShipment : s));
+    }
+
     setIsEditPreAlertModalOpen(false);
     setEditingPreAlert(null);
     alert(`¡Pre-alerta actualizada con éxito! Guía actual: ${updatedPreAlert.id}`);
@@ -3999,7 +4039,7 @@ Para proporcionarle información específica, puede solicitar:
     
     const totalPackages = groupsToRemove.reduce((acc: number, g: any) => acc + g.count, 0);
     
-    if (!window.confirm(`¿Está seguro que desea DESALMACENAR ${totalPackages} paquete(s)? Volverán al estado "Creado" y ya no aparecerán en el almacén.`)) {
+    if (!window.confirm(`¿Está seguro que desea DESALMACENAR ${totalPackages} paquete(s)? Volverán al estado "Creado" y sus pre-alertas vinculadas volverán a "Pendiente" para poder re-ingresarlos cuando sea necesario.`)) {
       return;
     }
 
@@ -4007,8 +4047,14 @@ Para proporcionarle información específica, puede solicitar:
     const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
 
     const updatedShipmentsList: Shipment[] = [];
+    const removedTrackings = new Set<string>();
+
     groupsToRemove.forEach(g => {
       g.shipments.forEach((s: any) => {
+        if (s.id) removedTrackings.add(String(s.id).trim().toUpperCase());
+        const origTrack = getOriginalTrackingHelper(s);
+        if (origTrack) removedTrackings.add(origTrack.trim().toUpperCase());
+
         updatedShipmentsList.push({
           ...s,
           status: 'Creado',
@@ -4034,13 +4080,75 @@ Para proporcionarle información específica, puede solicitar:
       return;
     }
 
+    // Also reset linked Pre-Alerts back to 'Pendiente' so they can be re-received if needed
+    const matchingPreAlerts = preAlerts.filter(pa =>
+      pa.status === 'Recibido' && removedTrackings.has((pa.id || '').trim().toUpperCase())
+    );
+    for (const pa of matchingPreAlerts) {
+      await db.upsertPreAlert({ ...pa, status: 'Pendiente' });
+    }
+    if (matchingPreAlerts.length > 0) {
+      const resetIds = new Set(matchingPreAlerts.map(pa => pa.id));
+      setPreAlerts(prev => prev.map(pa => resetIds.has(pa.id) ? { ...pa, status: 'Pendiente' } : pa));
+    }
+
     setShipments(prev => prev.map(s => {
       const updated = updatedShipmentsList.find(u => u.id === s.id);
       return updated ? updated : s;
     }));
     setSelectedWarehouseGroups([]);
     
-    alert(`Se desalmacenaron ${totalPackages} paquetes correctamente.`);
+    alert(`Se desalmacenaron ${totalPackages} paquete(s) correctamente.`);
+  };
+
+  const handleRemoveSingleShipmentFromWarehouse = async (shipmentToRemove: Shipment) => {
+    const origTrack = getOriginalTrackingHelper(shipmentToRemove);
+    const label = origTrack && origTrack !== shipmentToRemove.id ? `${shipmentToRemove.id} (${origTrack})` : shipmentToRemove.id;
+    if (!window.confirm(`¿Desea DESALMACENAR el paquete ${label}? Volverá al estado "Creado" y ya no aparecerá en Consolidados en Almacén.`)) {
+      return;
+    }
+
+    const currentDate = new Date().toISOString().split('T')[0];
+    const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
+
+    const updatedShipment: Shipment = {
+      ...shipmentToRemove,
+      status: 'Creado',
+      lastUpdated: `${currentDate} ${currentTime}`,
+      history: [
+        {
+          date: currentDate,
+          time: currentTime,
+          status: 'Creado',
+          location: 'Administración',
+          details: 'Paquete retirado del almacén manualmente.'
+        },
+        ...(shipmentToRemove.history || [])
+      ]
+    };
+
+    const success = await db.upsertShipment(updatedShipment);
+    if (!success) {
+      alert('Hubo un error al intentar desalmacenar el paquete en la base de datos.');
+      return;
+    }
+
+    const removedTrackings = new Set<string>([
+      (shipmentToRemove.id || '').trim().toUpperCase(),
+      (origTrack || '').trim().toUpperCase()
+    ]);
+    const matchingPreAlerts = preAlerts.filter(pa =>
+      pa.status === 'Recibido' && removedTrackings.has((pa.id || '').trim().toUpperCase())
+    );
+    for (const pa of matchingPreAlerts) {
+      await db.upsertPreAlert({ ...pa, status: 'Pendiente' });
+    }
+    if (matchingPreAlerts.length > 0) {
+      const resetIds = new Set(matchingPreAlerts.map(pa => pa.id));
+      setPreAlerts(prev => prev.map(pa => resetIds.has(pa.id) ? { ...pa, status: 'Pendiente' } : pa));
+    }
+
+    setShipments(prev => prev.map(s => s.id === updatedShipment.id ? updatedShipment : s));
   };
 
   const handleUpdateContainerStatus = async (containerName: string, newStatus: string) => {
@@ -7524,12 +7632,97 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                             México 🇲🇽
                                           </button>
                                         </div>
-                                      ) : (
-                                        <span className="text-gray-400 text-4xs font-bold uppercase flex items-center justify-center gap-0.5">
-                                          <Check className="h-3 w-3 text-green-500" />
-                                          Completado
-                                        </span>
-                                      )}
+                                      ) : (() => {
+                                        const paIdUpper = (pa.id || '').trim().toUpperCase();
+                                        const linkedShip = shipments.find(s =>
+                                          (s.id || '').trim().toUpperCase() === paIdUpper ||
+                                          (getOriginalTrackingHelper(s) || '').trim().toUpperCase() === paIdUpper ||
+                                          (s.notes || '').toUpperCase().includes(paIdUpper)
+                                        );
+                                        const isStuckOrMissing = !linkedShip || linkedShip.status === 'Creado';
+                                        return (
+                                          <div className="flex flex-col items-center gap-1">
+                                            <span className="text-gray-500 text-4xs font-bold uppercase flex items-center justify-center gap-0.5">
+                                              <Check className="h-3 w-3 text-green-500" />
+                                              {linkedShip && linkedShip.status !== 'Creado'
+                                                ? `${linkedShip.status === 'En Sucursal' ? 'En Almacén' : linkedShip.status} (${linkedShip.id})`
+                                                : 'Completado'}
+                                            </span>
+                                            {isStuckOrMissing && (
+                                              <button
+                                                type="button"
+                                                onClick={async () => {
+                                                  const currentDate = new Date().toISOString().split('T')[0];
+                                                  const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
+                                                  const isMx = (pa.description || '').toLowerCase().includes('mexico') || (pa.description || '').toLowerCase().includes('tapachula');
+                                                  const targetOrigin = isMx ? 'Mexico' : 'USA';
+                                                  const normLocker = (pa.lockerId || '').trim().toUpperCase();
+                                                  const matchingUser = users.find(u => (u.lockerId || '').trim().toUpperCase() === normLocker);
+                                                  const clientName = matchingUser ? matchingUser.name : 'Cliente Registrado';
+
+                                                  if (linkedShip) {
+                                                    const restored: Shipment = {
+                                                      ...linkedShip,
+                                                      lockerId: normLocker,
+                                                      receiver: clientName,
+                                                      origin: targetOrigin,
+                                                      status: 'En Sucursal',
+                                                      weight: pa.weightEst || linkedShip.weight || 1,
+                                                      lastUpdated: `${currentDate} ${currentTime}`,
+                                                      notes: pa.description ? `${pa.description} | Tracking original: ${pa.id}` : `Tracking original: ${pa.id}`,
+                                                      history: [
+                                                        {
+                                                          date: currentDate,
+                                                          time: currentTime,
+                                                          status: 'En Sucursal',
+                                                          location: isMx ? 'Bodega México' : 'Bodega USA',
+                                                          details: `Paquete re-ingresado a almacén (${targetOrigin}). Peso registrado: ${pa.weightEst || linkedShip.weight || 1} Lbs.`
+                                                        },
+                                                        ...(linkedShip.history || [])
+                                                      ]
+                                                    };
+                                                    await db.upsertShipment(restored);
+                                                    setShipments(prev => prev.map(s => s.id === restored.id ? restored : s));
+                                                    alert(`Paquete ${restored.id} (${pa.id}) re-ingresado a Consolidados en Almacén (${targetOrigin}) con ${restored.weight} Lbs.`);
+                                                  } else {
+                                                    const generatedId = `SF-${Math.floor(1000 + Math.random() * 9000)}-GT`;
+                                                    const newShip: Shipment = {
+                                                      id: generatedId,
+                                                      lockerId: normLocker,
+                                                      sender: pa.sender,
+                                                      receiver: clientName,
+                                                      origin: targetOrigin,
+                                                      destination: matchingUser ? matchingUser.address : 'Guatemala',
+                                                      status: 'En Sucursal',
+                                                      serviceType: 'Express',
+                                                      weight: pa.weightEst || 1,
+                                                      dimensions: '20x20x15 cm',
+                                                      lastUpdated: `${currentDate} ${currentTime}`,
+                                                      history: [
+                                                        {
+                                                          date: currentDate,
+                                                          time: currentTime,
+                                                          status: 'En Sucursal',
+                                                          location: isMx ? 'Bodega México' : 'Bodega USA',
+                                                          details: `Carga pre-alertada recibida físicamente en bodega de ${targetOrigin}. Peso registrado: ${pa.weightEst || 1} Lbs.`
+                                                        }
+                                                      ],
+                                                      notes: pa.description ? `${pa.description} | Tracking original: ${pa.id}` : `Tracking original: ${pa.id}`
+                                                    };
+                                                    await db.upsertShipment(newShip);
+                                                    setShipments(prev => [newShip, ...prev]);
+                                                    alert(`Paquete ${generatedId} (${pa.id}) ingresado a Consolidados en Almacén (${targetOrigin}) con ${newShip.weight} Lbs.`);
+                                                  }
+                                                }}
+                                                className="bg-amber-500 hover:bg-amber-600 text-white px-2 py-0.5 rounded text-[8px] font-black uppercase transition cursor-pointer shadow-2xs"
+                                                title="Este paquete fue desalmacenado o no figura en sucursal. Haz clic para enviarlo a Consolidados en Almacén."
+                                              >
+                                                🔄 Re-ingresar a Almacén
+                                              </button>
+                                            )}
+                                          </div>
+                                        );
+                                      })()}
                                       <div className="flex gap-1 justify-center mt-1 border-t border-gray-100 pt-1 w-full">
                                         <button
                                           type="button"
@@ -7572,17 +7765,19 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                         3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5, 8, 9, 7, 9, 3, 2, 3, 8, 4, 6, 2, 6
                       ];
 
-                      const inWarehouse = shipments.filter(s => s.status === 'En Sucursal' && !s.history.some(h => h.details && h.details.includes('SF-CONS-')));
+                      const inWarehouse = shipments.filter(s => s.status === 'En Sucursal' && !(s.history || []).some(h => h.details && h.details.includes('SF-CONS-')));
                       const groups: { [key: string]: { lockerId: string; clientName: string; bodega: string; count: number; totalWeight: number; shipments: Shipment[] } } = {};
                       
                       inWarehouse.forEach(s => {
-                        const key = `${s.lockerId}-${s.origin}`;
+                        const normLocker = (s.lockerId || '').trim().toUpperCase();
+                        const normBodega = (s.origin === 'Mexico' || s.origin === 'México') ? 'Mexico' : 'USA';
+                        const key = `${normLocker}-${normBodega}`;
                         if (!groups[key]) {
-                          const user = users.find(u => u.lockerId === s.lockerId);
+                          const user = users.find(u => (u.lockerId || '').trim().toUpperCase() === normLocker);
                           groups[key] = {
-                            lockerId: s.lockerId,
+                            lockerId: normLocker,
                             clientName: user ? user.name : s.receiver || 'Cliente',
-                            bodega: s.origin,
+                            bodega: normBodega,
                             count: 0,
                             totalWeight: 0,
                             shipments: []
@@ -8174,16 +8369,38 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                                   </h5>
                                                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                                     {g.shipments.map(s => {
+                                                      const origTracking = getOriginalTrackingHelper(s);
+                                                      let cleanNotes = s.notes || 'Sin descripción';
+                                                      if (cleanNotes.includes('Tracking original:')) {
+                                                        cleanNotes = cleanNotes.split('Tracking original:')[0].replace(/\|\s*$/, '').trim();
+                                                      }
                                                       return (
                                                         <div key={s.id} className="bg-white border border-gray-200 p-2.5 rounded shadow-2xs space-y-1.5 font-mono text-[9px] relative overflow-hidden">
-                                                          <div className="flex justify-between items-center border-b border-gray-100 pb-1">
-                                                            <span className="font-bold text-brand-orange">{s.id}</span>
-                                                            <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-[8px] font-bold">En Almacén</span>
+                                                          <div className="flex justify-between items-center border-b border-gray-100 pb-1 gap-1">
+                                                            <div className="flex flex-col min-w-0">
+                                                              <span className="font-black text-brand-orange text-[10px] truncate" title={origTracking}>
+                                                                {origTracking || s.id}
+                                                              </span>
+                                                              {origTracking && origTracking !== s.id && (
+                                                                <span className="text-[8px] text-gray-400 font-semibold">Guía: {s.id}</span>
+                                                              )}
+                                                            </div>
+                                                            <div className="flex items-center gap-1 shrink-0">
+                                                              <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-[8px] font-bold">En Almacén</span>
+                                                              <button
+                                                                type="button"
+                                                                onClick={() => handleRemoveSingleShipmentFromWarehouse(s)}
+                                                                className="bg-yellow-500 hover:bg-yellow-600 text-white p-1 rounded transition cursor-pointer"
+                                                                title="Desalmacenar este paquete individual"
+                                                              >
+                                                                <PackageMinus className="h-2.5 w-2.5" />
+                                                              </button>
+                                                            </div>
                                                           </div>
-                                                          <div className="flex justify-between text-gray-500">
-                                                            <span>Contenido:</span>
-                                                            <span className="text-brand-gray-dark font-semibold truncate max-w-[120px]" title={s.notes}>
-                                                              {s.notes || 'Sin descripción'}
+                                                          <div className="flex justify-between text-gray-500 gap-2">
+                                                            <span className="shrink-0">Detalle:</span>
+                                                            <span className="text-brand-gray-dark font-semibold truncate max-w-[180px]" title={cleanNotes}>
+                                                              {cleanNotes || 'Sin descripción'}
                                                             </span>
                                                           </div>
                                                           <div className="flex justify-between text-gray-500">
