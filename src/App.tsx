@@ -8779,10 +8779,11 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                 const originTitle = isMexicoOrigin ? 'MÉXICO' : 'USA';
                                 const originCity = isMexicoOrigin ? 'TAPACHULA, MX' : 'LAREDO, TX';
                                 const originFlag = isMexicoOrigin ? '🇲🇽' : '🇺🇸';
-                                const previewClientName = previewUser ? previewUser.name : (linkedPreAlert?.userId ? (users.find(u => u.id === linkedPreAlert.userId)?.name || 'Cliente Registrado') : 'Cliente Registrado');
+                                const previewClientName = previewUser ? previewUser.name : (linkedPreAlert?.lockerId ? (users.find(u => u.lockerId === linkedPreAlert.lockerId)?.name || 'Cliente Registrado') : 'Cliente Registrado');
                                 const previewClientAddress = previewUser?.address || 'Guatemala';
                                 const previewWeight = (warehouseWeightInput || 0).toFixed(1);
                                 const previewBarcodeSvg = generateCode128BarcodeSvg(previewTrack);
+                                const previewNotesText = warehouseNotes || (linkedPreAlert ? `${warehouseSenderInput ? `[${warehouseSenderInput}] ` : ''}${linkedPreAlert.description || ''}` : (warehouseSenderInput || 'Paquete Recepcionado'));
 
                                 return (
                                   <div className="max-w-[310px] mx-auto space-y-2.5">
@@ -8874,7 +8875,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                             <div className="pt-1 truncate">
                                               <span className="font-extrabold uppercase text-[6.5px] block">CONTENIDO / NOTAS:</span>
                                               <strong className="font-black text-[7.5px] truncate block">
-                                                {warehouseNotes || (linkedPreAlert ? `[${linkedPreAlert.store}] ${linkedPreAlert.description || ''}` : 'Paquete Recepcionado')}
+                                                {previewNotesText}
                                               </strong>
                                             </div>
                                           </div>
@@ -8913,7 +8914,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                           destination: previewClientAddress,
                                           origin: warehouseBodega,
                                           weight: warehouseWeightInput || 1,
-                                          notes: warehouseNotes || (linkedPreAlert ? `[${linkedPreAlert.store}] ${linkedPreAlert.description || ''}` : 'Paquete Recepcionado'),
+                                          notes: previewNotesText,
                                           serviceType: 'Express'
                                         }], 'Recepción en Almacén');
                                       }}
