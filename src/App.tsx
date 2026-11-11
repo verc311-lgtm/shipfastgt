@@ -427,17 +427,19 @@ export default function App() {
     };
   };
 
-  const getOriginalTrackingHelper = (ship: Shipment): string => {
+  const getOriginalTrackingHelper = (ship: any): string => {
+    if (!ship) return '';
     if (ship.notes) {
       const trackingRegex = /(?:tracking\s+original|original\s+tracking|tracking|original)[\s:]+([a-zA-Z0-9_-]+)/i;
-      const match = ship.notes.match(trackingRegex);
+      const match = String(ship.notes).match(trackingRegex);
       if (match && match[1]) {
         const val = match[1].trim();
         if (val.length > 4) return val;
       }
     }
 
-    const isPreAlertCreated = ship.history.some((h: any) => h.details && h.details.includes('pre-alertada'));
+    const historyList = Array.isArray(ship.history) ? ship.history : [];
+    const isPreAlertCreated = historyList.some((h: any) => h && h.details && h.details.includes('pre-alertada'));
     if (isPreAlertCreated) {
       const matchingPa = preAlerts.find((pa: any) => 
         pa.lockerId === ship.lockerId && 
@@ -453,8 +455,11 @@ export default function App() {
       }
     }
 
-    return ship.id;
+    return ship.id || '';
   };
+
+  const [labels4x6ModalData, setLabels4x6ModalData] = useState<{ title: string; count: number; htmlDoc: string } | null>(null);
+  const labels4x6IframeRef = useRef<HTMLIFrameElement | null>(null);
 
   // Selected User for Details and Password/Address Edit
   const [selectedUserForEdit, setSelectedUserForEdit] = useState<UserProfile | null>(null);
@@ -4205,24 +4210,18 @@ Para proporcionarle información específica, puede solicitar:
       return;
     }
 
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      alert('Por favor, permite las ventanas emergentes (popups) para imprimir las etiquetas 4x6.');
-      return;
-    }
-
     const totalCount = packagesToPrint.length;
     const currentDate = new Date().toISOString().split('T')[0];
 
     let labelsHtml = '';
     packagesToPrint.forEach((pkg, idx) => {
-      const normLocker = (pkg.lockerId || 'S/C').trim().toUpperCase();
+      const normLocker = String(pkg?.lockerId || 'S/C').trim().toUpperCase();
       const matchedUser = users.find(u => (u.lockerId || '').trim().toUpperCase() === normLocker);
-      const clientName = matchedUser ? matchedUser.name : (pkg.receiver || pkg.clientName || 'Cliente Registrado');
+      const clientName = matchedUser ? matchedUser.name : (pkg?.receiver || pkg?.clientName || 'Cliente Registrado');
       const clientPhone = matchedUser?.phone || '';
-      const clientDest = matchedUser?.address || pkg.destination || 'Guatemala';
+      const clientDest = matchedUser?.address || pkg?.destination || 'Guatemala';
 
-      const rawOrigin = (pkg.origin || 'USA').toString();
+      const rawOrigin = String(pkg?.origin || 'USA');
       const isMexico = rawOrigin.toLowerCase().includes('mex') || rawOrigin.toLowerCase().includes('tapachula');
       const originLabel = isMexico ? 'MÉXICO' : 'USA';
       const originFlag = isMexico ? '🇲🇽' : '🇺🇸';
@@ -4230,13 +4229,13 @@ Para proporcionarle información específica, puede solicitar:
       const originBg = isMexico ? '#065F46' : '#1E3A8A';
       const originBorder = isMexico ? '#10B981' : '#3B82F6';
 
-      const trackingCode = (getOriginalTrackingHelper(pkg) || pkg.id || 'SF-0000-GT').trim();
-      const internalId = (pkg.id || trackingCode).trim();
-      const weightNum = Number(pkg.weight || pkg.totalWeight || 1);
-      const containerLabel = pkg.containerName || batchTitle || '';
+      const trackingCode = String(getOriginalTrackingHelper(pkg) || pkg?.id || 'SF-0000-GT').trim();
+      const internalId = String(pkg?.id || trackingCode).trim();
+      const weightNum = Number(pkg?.weight || pkg?.totalWeight || 1) || 1;
+      const containerLabel = pkg?.containerName || batchTitle || '';
       const barcodeSvg = generateCode128BarcodeSvg(trackingCode);
 
-      let cleanNotes = pkg.notes || '';
+      let cleanNotes = String(pkg?.notes || '');
       if (cleanNotes.includes('Tracking original:')) {
         cleanNotes = cleanNotes.split('Tracking original:')[0].replace(/\|\s*$/, '').trim();
       }
@@ -4266,7 +4265,7 @@ Para proporcionarle información específica, puede solicitar:
               <strong>GUATEMALA HUB</strong>
             </div>
             <div class="seq-badge">
-              PAQUETE ${idx + 1} DE ${totalCount} &bull; ${pkg.lastUpdated ? pkg.lastUpdated.split(' ')[0] : currentDate}
+              PAQUETE ${idx + 1} DE ${totalCount} &bull; ${pkg?.lastUpdated ? String(pkg.lastUpdated).split(' ')[0] : currentDate}
             </div>
           </div>
 
@@ -4307,7 +4306,7 @@ Para proporcionarle información específica, puede solicitar:
               </div>` : `
               <div class="meta-row">
                 <span class="meta-label">SERVICIO:</span>
-                <strong class="meta-val">${pkg.serviceType || ' Aéreo / Terrestre'}</strong>
+                <strong class="meta-val">${pkg?.serviceType || 'Aéreo / Terrestre'}</strong>
               </div>`}
             </div>
           </div>
@@ -4361,56 +4360,6 @@ Para proporcionarle información específica, puede solicitar:
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
             background: #E2E8F0;
             color: #0F172A;
-          }
-
-          .toolbar {
-            position: sticky;
-            top: 0;
-            z-index: 50;
-            background: #0F172A;
-            color: #FFFFFF;
-            padding: 12px 24px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-          }
-
-          .toolbar-title {
-            font-size: 14px;
-            font-weight: 800;
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
-          }
-
-          .toolbar-title span {
-            color: #EA580C;
-          }
-
-          .toolbar-actions {
-            display: flex;
-            gap: 10px;
-          }
-
-          .btn {
-            border: none;
-            border-radius: 8px;
-            padding: 9px 18px;
-            font-size: 12px;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            cursor: pointer;
-          }
-
-          .btn-primary {
-            background: #EA580C;
-            color: #FFFFFF;
-          }
-
-          .btn-secondary {
-            background: #334155;
-            color: #FFFFFF;
           }
 
           .preview-Stage {
@@ -4761,9 +4710,6 @@ Para proporcionarle información específica, puede solicitar:
             body {
               background: #FFFFFF;
             }
-            .toolbar {
-              display: none !important;
-            }
             .preview-Stage {
               padding: 0 !important;
               gap: 0 !important;
@@ -4780,32 +4726,18 @@ Para proporcionarle información específica, puede solicitar:
         </style>
       </head>
       <body>
-        <div class="toolbar">
-          <div class="toolbar-title">
-            ShipFast<span>GT</span> &bull; Impresión de Etiquetas Térmicas 4" x 6" (${totalCount} ${totalCount === 1 ? 'paquete' : 'paquetes'})
-          </div>
-          <div class="toolbar-actions">
-            <button class="btn btn-primary" onclick="window.print()">🖨️ Imprimir Etiquetas (4x6")</button>
-            <button class="btn btn-secondary" onclick="window.close()">Cerrar</button>
-          </div>
-        </div>
         <div class="preview-Stage">
           ${labelsHtml}
         </div>
-        <script>
-          window.onload = function() {
-            setTimeout(function() {
-              window.print();
-            }, 350);
-          };
-        </script>
       </body>
       </html>
     `;
 
-    printWindow.document.open();
-    printWindow.document.write(htmlDoc);
-    printWindow.document.close();
+    setLabels4x6ModalData({
+      title: batchTitle || 'ShipFast GT',
+      count: totalCount,
+      htmlDoc
+    });
   };
 
   // Collect packages from Consolidated Guide IDs (or Container Master) and print 4"x6" labels
@@ -4818,7 +4750,7 @@ Para proporcionarle información específica, puede solicitar:
       if (!guide) return;
 
       const childShipments = shipments.filter(s =>
-        (s.history || []).some(h => h.details && h.details.includes(guide.id)) ||
+        (Array.isArray(s.history) && s.history.some(h => h && h.details && h.details.includes(guide.id))) ||
         (s.notes && s.notes.includes(guide.id))
       );
 
@@ -4834,7 +4766,7 @@ Para proporcionarle información específica, puede solicitar:
           }
         });
       } else {
-        const parts = guide.id.split('-');
+        const parts = String(guide.id || '').split('-');
         const fallbackLocker = guide.lockerId || parts[2] || 'S/C';
         packagesList.push({
           id: guide.id,
@@ -4843,7 +4775,8 @@ Para proporcionarle información específica, puede solicitar:
           weight: guide.totalWeight || 1,
           lastUpdated: guide.date,
           notes: guide.notes || `Guía Consolidada (${guide.itemsCount} bultos)`,
-          containerName: guide.containerName || containerTitle || guide.id
+          containerName: guide.containerName || containerTitle || guide.id,
+          history: []
         });
       }
     });
@@ -17544,6 +17477,94 @@ El Equipo de ShipFast GT`;
               >
                 Confirmar Ingreso
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 4"x6" Thermal Package Labels Preview & Print Modal */}
+      {labels4x6ModalData && (
+        <div className="fixed inset-0 bg-slate-900/85 backdrop-blur-xs flex justify-center items-center z-50 p-3 sm:p-6 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[90vh] overflow-hidden flex flex-col border border-slate-700">
+            <div className="bg-slate-900 px-5 py-3.5 border-b-2 border-brand-orange flex flex-wrap justify-between items-center gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="bg-brand-orange/20 p-2 rounded-lg border border-brand-orange/40">
+                  <Printer className="h-4 w-4 text-brand-orange" />
+                </div>
+                <div>
+                  <h3 className="text-xs sm:text-sm font-extrabold text-white uppercase tracking-wider font-display">
+                    Etiquetas Térmicas 4" × 6" — <span className="text-brand-orange">{labels4x6ModalData.title}</span>
+                  </h3>
+                  <p className="text-[10px] text-slate-400 font-mono">
+                    {labels4x6ModalData.count} {labels4x6ModalData.count === 1 ? 'etiqueta lista' : 'etiquetas listas'} para impresora térmica (formato 4in × 6in)
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    try {
+                      if (labels4x6IframeRef.current?.contentWindow) {
+                        labels4x6IframeRef.current.contentWindow.focus();
+                        labels4x6IframeRef.current.contentWindow.print();
+                      }
+                    } catch (err) {
+                      console.error('Error printing iframe:', err);
+                    }
+                  }}
+                  className="bg-brand-orange hover:bg-brand-orange-hover text-white text-3xs font-extrabold px-4 py-2 rounded-lg uppercase tracking-wider cursor-pointer transition shadow-sm flex items-center gap-1.5"
+                >
+                  <Printer className="h-3.5 w-3.5" />
+                  Imprimir Ahora (4" × 6")
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const w = window.open('', '_blank');
+                    if (w) {
+                      w.document.open();
+                      w.document.write(labels4x6ModalData.htmlDoc);
+                      w.document.close();
+                    } else {
+                      alert('Tu navegador bloqueó la pestaña emergente. Puedes usar el botón naranja "Imprimir Ahora (4" × 6")" directamente aquí.');
+                    }
+                  }}
+                  className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 text-3xs font-bold px-3 py-2 rounded-lg uppercase tracking-wider cursor-pointer transition"
+                >
+                  Abrir en Pestaña
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLabels4x6ModalData(null)}
+                  className="bg-slate-800 hover:bg-red-600 text-slate-300 hover:text-white p-2 rounded-lg transition-colors cursor-pointer"
+                  title="Cerrar"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 bg-slate-200 overflow-hidden relative">
+              <iframe
+                ref={labels4x6IframeRef}
+                title="Vista Previa Etiquetas 4x6"
+                srcDoc={labels4x6ModalData.htmlDoc}
+                onLoad={() => {
+                  setTimeout(() => {
+                    try {
+                      if (labels4x6IframeRef.current?.contentWindow) {
+                        labels4x6IframeRef.current.contentWindow.focus();
+                        labels4x6IframeRef.current.contentWindow.print();
+                      }
+                    } catch (err) {
+                      console.error('Auto-print error:', err);
+                    }
+                  }, 350);
+                }}
+                className="w-full h-full border-0"
+              />
             </div>
           </div>
         </div>
