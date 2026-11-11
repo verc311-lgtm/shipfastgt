@@ -4194,7 +4194,7 @@ Para proporcionarle información específica, puede solicitar:
       if (bits[i] === '1') {
         let run = 1;
         while (i + run < bits.length && bits[i + run] === '1') run++;
-        rects += `<rect x="${quietZone + i}" y="0" width="${run}" height="64" fill="#0F172A" />`;
+        rects += `<rect x="${quietZone + i}" y="0" width="${run}" height="64" fill="#000000" />`;
         i += run;
       } else {
         i++;
@@ -4203,7 +4203,7 @@ Para proporcionarle información específica, puede solicitar:
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalModules} 64" preserveAspectRatio="none" style="width:100%;height:68px;display:block;">${rects}</svg>`;
   };
 
-  // Print 4in x 6in Modern Thermal Package Labels
+  // Print 4in x 6in Modern Thermal Package Labels (Pure Black & White)
   const handlePrintPackageLabels4x6 = (packagesToPrint: any[], batchTitle?: string) => {
     if (!packagesToPrint || packagesToPrint.length === 0) {
       alert('No hay paquetes disponibles para imprimir etiquetas.');
@@ -4226,8 +4226,6 @@ Para proporcionarle información específica, puede solicitar:
       const originLabel = isMexico ? 'MÉXICO' : 'USA';
       const originFlag = isMexico ? '🇲🇽' : '🇺🇸';
       const originHub = isMexico ? 'TAPACHULA, MX' : 'LAREDO, TX';
-      const originBg = isMexico ? '#065F46' : '#1E3A8A';
-      const originBorder = isMexico ? '#10B981' : '#3B82F6';
 
       const trackingCode = String(getOriginalTrackingHelper(pkg) || pkg?.id || 'SF-0000-GT').trim();
       const internalId = String(pkg?.id || trackingCode).trim();
@@ -4248,7 +4246,7 @@ Para proporcionarle información específica, puede solicitar:
               <div class="brand-logo">SHIPFAST<span>GT</span></div>
               <div class="brand-sub">LOGISTICS &amp; COURIER EXPRESS</div>
             </div>
-            <div class="origin-pill" style="background:${originBg};border-color:${originBorder};">
+            <div class="origin-pill">
               <span class="origin-flag">${originFlag}</span>
               <div class="origin-text">
                 <span class="origin-country">${originLabel}</span>
@@ -4287,13 +4285,13 @@ Para proporcionarle información específica, puede solicitar:
           <!-- Package Weight & Details Grid -->
           <div class="specs-grid">
             <div class="weight-card">
-              <span class="field-caption" style="color:#EA580C;">PESO DEL PAQUETE</span>
+              <span class="field-caption" style="color:#FFFFFF;">PESO DEL PAQUETE</span>
               <div class="weight-value">${weightNum.toFixed(1)} <small>LBS</small></div>
             </div>
             <div class="meta-card">
               <div class="meta-row">
                 <span class="meta-label">ORIGEN:</span>
-                <strong class="meta-val">${originFlag} BODEGA ${originLabel}</strong>
+                <strong class="meta-val"><span class="bw-emoji">${originFlag}</span> BODEGA ${originLabel}</strong>
               </div>
               <div class="meta-row">
                 <span class="meta-label">GUÍA INT.:</span>
@@ -4358,8 +4356,12 @@ Para proporcionarle información específica, puede solicitar:
             margin: 0;
             padding: 0;
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: #E2E8F0;
-            color: #0F172A;
+            background: #D4D4D8;
+            color: #000000;
+          }
+
+          .bw-emoji {
+            filter: grayscale(100%) contrast(150%);
           }
 
           .preview-Stage {
@@ -4374,7 +4376,7 @@ Para proporcionarle información específica, puede solicitar:
             width: 4in;
             height: 6in;
             background: #FFFFFF;
-            border: 2px solid #0F172A;
+            border: 2.5px solid #000000;
             border-radius: 10px;
             padding: 0.16in;
             display: flex;
@@ -4382,19 +4384,20 @@ Para proporcionarle información específica, puede solicitar:
             justify-content: space-between;
             page-break-after: always;
             break-after: page;
-            box-shadow: 0 10px 25px rgba(15,23,42,0.12);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.18);
             overflow: hidden;
+            color: #000000;
           }
 
           .header-bar {
-            background: #0F172A;
+            background: #000000;
             color: #FFFFFF;
             border-radius: 8px;
             padding: 10px 12px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-bottom: 4px solid #EA580C;
+            border: 2px solid #000000;
           }
 
           .brand-logo {
@@ -4402,19 +4405,24 @@ Para proporcionarle información específica, puede solicitar:
             font-weight: 900;
             letter-spacing: -0.5px;
             line-height: 1;
+            color: #FFFFFF;
           }
 
           .brand-logo span {
-            color: #EA580C;
-            margin-left: 2px;
+            color: #000000;
+            background: #FFFFFF;
+            padding: 1px 5px;
+            border-radius: 4px;
+            margin-left: 4px;
+            font-size: 18px;
           }
 
           .brand-sub {
             font-size: 7.5px;
             font-weight: 700;
-            color: #94A3B8;
+            color: #FFFFFF;
             letter-spacing: 1.2px;
-            margin-top: 3px;
+            margin-top: 4px;
           }
 
           .origin-pill {
@@ -4423,13 +4431,15 @@ Para proporcionarle información específica, puede solicitar:
             gap: 6px;
             padding: 5px 10px;
             border-radius: 6px;
-            border: 1.5px solid #3B82F6;
-            color: #FFFFFF;
+            background: #FFFFFF;
+            border: 2px solid #FFFFFF;
+            color: #000000;
           }
 
           .origin-flag {
             font-size: 18px;
             line-height: 1;
+            filter: grayscale(100%) contrast(150%);
           }
 
           .origin-text {
@@ -4443,12 +4453,13 @@ Para proporcionarle información específica, puede solicitar:
             font-weight: 900;
             line-height: 1;
             letter-spacing: 0.5px;
+            color: #000000;
           }
 
           .origin-hub {
             font-size: 7px;
-            font-weight: 700;
-            opacity: 0.9;
+            font-weight: 800;
+            color: #000000;
             margin-top: 2px;
           }
 
@@ -4456,24 +4467,25 @@ Para proporcionarle información específica, puede solicitar:
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: #F8FAFC;
-            border: 1px solid #CBD5E1;
+            background: #FFFFFF;
+            border: 1.5px solid #000000;
             border-radius: 6px;
             padding: 5px 10px;
             font-size: 9px;
             font-family: 'JetBrains Mono', monospace;
+            color: #000000;
           }
 
           .route-path {
             font-weight: 800;
-            color: #0F172A;
+            color: #000000;
             display: flex;
             align-items: center;
             gap: 5px;
           }
 
           .route-arrow {
-            color: #EA580C;
+            color: #000000;
             font-weight: 900;
             font-size: 12px;
           }
@@ -4481,7 +4493,7 @@ Para proporcionarle información específica, puede solicitar:
           .seq-badge {
             font-size: 8px;
             font-weight: 800;
-            color: #475569;
+            color: #000000;
           }
 
           .recipient-section {
@@ -4492,8 +4504,8 @@ Para proporcionarle información específica, puede solicitar:
           }
 
           .locker-box {
-            background: #FFF7ED;
-            border: 2px solid #EA580C;
+            background: #FFFFFF;
+            border: 2.5px solid #000000;
             border-radius: 8px;
             padding: 8px 6px;
             display: flex;
@@ -4506,7 +4518,7 @@ Para proporcionarle información específica, puede solicitar:
           .field-caption {
             font-size: 7.5px;
             font-weight: 800;
-            color: #64748B;
+            color: #000000;
             letter-spacing: 0.8px;
             text-transform: uppercase;
             display: block;
@@ -4515,15 +4527,15 @@ Para proporcionarle información específica, puede solicitar:
           .locker-code {
             font-family: 'JetBrains Mono', monospace;
             font-size: 28px;
-            font-weight: 800;
-            color: #0F172A;
+            font-weight: 900;
+            color: #000000;
             line-height: 1.05;
             margin: 4px 0;
             word-break: break-all;
           }
 
           .locker-tag {
-            background: #EA580C;
+            background: #000000;
             color: #FFFFFF;
             font-size: 6.5px;
             font-weight: 800;
@@ -4534,7 +4546,7 @@ Para proporcionarle información específica, puede solicitar:
 
           .client-box {
             background: #FFFFFF;
-            border: 1.5px solid #0F172A;
+            border: 2px solid #000000;
             border-radius: 8px;
             padding: 8px 10px;
             display: flex;
@@ -4546,7 +4558,7 @@ Para proporcionarle información específica, puede solicitar:
           .client-name {
             font-size: 14px;
             font-weight: 900;
-            color: #0F172A;
+            color: #000000;
             text-transform: uppercase;
             line-height: 1.15;
             margin-top: 3px;
@@ -4558,16 +4570,16 @@ Para proporcionarle información específica, puede solicitar:
 
           .client-meta {
             font-size: 8.5px;
-            font-weight: 700;
-            color: #334155;
+            font-weight: 800;
+            color: #000000;
             margin-top: 3px;
             font-family: 'JetBrains Mono', monospace;
           }
 
           .client-address {
             font-size: 8px;
-            font-weight: 600;
-            color: #475569;
+            font-weight: 700;
+            color: #000000;
             margin-top: 3px;
             line-height: 1.25;
             display: -webkit-box;
@@ -4583,8 +4595,9 @@ Para proporcionarle información específica, puede solicitar:
           }
 
           .weight-card {
-            background: #0F172A;
+            background: #000000;
             color: #FFFFFF;
+            border: 2px solid #000000;
             border-radius: 8px;
             padding: 8px;
             display: flex;
@@ -4605,13 +4618,13 @@ Para proporcionarle información específica, puede solicitar:
 
           .weight-value small {
             font-size: 11px;
-            color: #FB923C;
+            color: #FFFFFF;
             font-weight: 800;
           }
 
           .meta-card {
-            background: #F8FAFC;
-            border: 1px solid #CBD5E1;
+            background: #FFFFFF;
+            border: 2px solid #000000;
             border-radius: 8px;
             padding: 7px 10px;
             display: flex;
@@ -4625,7 +4638,7 @@ Para proporcionarle información específica, puede solicitar:
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-bottom: 1px dashed #E2E8F0;
+            border-bottom: 1px dashed #000000;
             padding-bottom: 2px;
           }
 
@@ -4635,23 +4648,24 @@ Para proporcionarle información específica, puede solicitar:
           }
 
           .meta-label {
-            color: #64748B;
-            font-weight: 700;
+            color: #000000;
+            font-weight: 800;
           }
 
           .meta-val {
             font-family: 'JetBrains Mono', monospace;
-            color: #0F172A;
-            font-weight: 800;
+            color: #000000;
+            font-weight: 900;
           }
 
           .notes-strip {
-            background: #F1F5F9;
-            border-left: 3px solid #EA580C;
+            background: #FFFFFF;
+            border: 1.5px solid #000000;
+            border-left: 5px solid #000000;
             padding: 4px 8px;
             font-size: 7.5px;
-            font-weight: 600;
-            color: #334155;
+            font-weight: 700;
+            color: #000000;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -4659,12 +4673,12 @@ Para proporcionarle información específica, puede solicitar:
           }
 
           .notes-strip span {
-            font-weight: 800;
-            color: #0F172A;
+            font-weight: 900;
+            color: #000000;
           }
 
           .barcode-section {
-            border: 2px solid #0F172A;
+            border: 2.5px solid #000000;
             border-radius: 8px;
             padding: 8px 10px 6px;
             background: #FFFFFF;
@@ -4673,9 +4687,9 @@ Para proporcionarle información específica, puede solicitar:
 
           .barcode-caption {
             font-size: 7.5px;
-            font-weight: 800;
+            font-weight: 900;
             letter-spacing: 1px;
-            color: #475569;
+            color: #000000;
             margin-bottom: 4px;
             text-transform: uppercase;
           }
@@ -4688,9 +4702,9 @@ Para proporcionarle información específica, puede solicitar:
           .tracking-human {
             font-family: 'JetBrains Mono', monospace;
             font-size: 12px;
-            font-weight: 800;
+            font-weight: 900;
             letter-spacing: 1.2px;
-            color: #0F172A;
+            color: #000000;
             margin-top: 4px;
             word-break: break-all;
           }
@@ -4700,8 +4714,8 @@ Para proporcionarle información específica, puede solicitar:
             justify-content: space-between;
             align-items: center;
             font-size: 7px;
-            font-weight: 800;
-            color: #64748B;
+            font-weight: 900;
+            color: #000000;
             letter-spacing: 0.5px;
             padding-top: 2px;
           }
