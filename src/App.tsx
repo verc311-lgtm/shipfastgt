@@ -8769,82 +8769,162 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                             </form>
 
                             {/* Thermal printer sticker label simulation preview - RIGHT */}
-                            <div className="lg:col-span-5 space-y-4">
-                              <span className="text-4xs font-bold text-gray-400 uppercase tracking-widest block text-center">ETIQUETA TÉRMICA GENERADA (IMPRESORA ZEBRA)</span>
+                            <div className="lg:col-span-5 space-y-3">
+                              <span className="text-4xs font-bold text-gray-500 uppercase tracking-widest block text-center">ETIQUETA TÉRMICA GENERADA (4" x 6" • IMPRESORA ZEBRA)</span>
                               
-                              {/* The simulated sticker */}
-                              <div className="bg-white border-2 border-brand-gray-dark p-6 max-w-xs mx-auto rounded shadow-lg text-brand-gray-dark space-y-4 font-mono select-none relative overflow-hidden active-accent-border">
-                                <div className="text-center font-black border-b border-brand-gray-dark pb-2">
-                                  <div className="text-xs tracking-widest uppercase">SHIPFAST GT</div>
-                                  <div className="text-4xs text-gray-500 uppercase">BODEGA: {warehouseBodega.toUpperCase()}</div>
-                                  {isSheinActive && (
-                                    <div className="text-[7px] bg-brand-orange text-white px-1.5 py-0.5 rounded font-black inline-block uppercase mt-1 animate-pulse">
-                                      🎀 BOLSA SHEIN TARIFA FIJA
+                              {(() => {
+                                const previewTrack = warehouseSearchQuery.trim() || `${warehouseLocker || 'S/C'}-HUB-GT`;
+                                const previewUser = users.find(u => (u.lockerId || '').trim().toUpperCase() === (warehouseLocker || '').trim().toUpperCase());
+                                const isMexicoOrigin = warehouseBodega.toLowerCase().includes('tapachula') || warehouseBodega.toLowerCase().includes('mex') || warehouseBodega.toLowerCase().includes('mx');
+                                const originTitle = isMexicoOrigin ? 'MÉXICO' : 'USA';
+                                const originCity = isMexicoOrigin ? 'TAPACHULA, MX' : 'LAREDO, TX';
+                                const originFlag = isMexicoOrigin ? '🇲🇽' : '🇺🇸';
+                                const previewClientName = previewUser ? previewUser.name : (linkedPreAlert?.userId ? (users.find(u => u.id === linkedPreAlert.userId)?.name || 'Cliente Registrado') : 'Cliente Registrado');
+                                const previewClientAddress = previewUser?.address || 'Guatemala';
+                                const previewWeight = (warehouseWeightInput || 0).toFixed(1);
+                                const previewBarcodeSvg = generateCode128BarcodeSvg(previewTrack);
+
+                                return (
+                                  <div className="max-w-[310px] mx-auto space-y-2.5">
+                                    {/* Modern 4x6 Pure B&W Thermal Sticker Live Preview */}
+                                    <div className="bg-white border-[2.5px] border-black rounded-xl shadow-lg text-black font-sans select-none overflow-hidden flex flex-col justify-between">
+                                      
+                                      {/* Top Black Header Bar */}
+                                      <div className="bg-black text-white px-3.5 py-2.5 flex items-center justify-between border-b-2 border-black">
+                                        <div>
+                                          <div className="text-sm font-black tracking-tight uppercase leading-none">
+                                            SHIP<span className="underline decoration-2 underline-offset-2">FAST</span> GT
+                                          </div>
+                                          <div className="text-[7px] font-bold tracking-[0.16em] uppercase text-white/85 mt-1">
+                                            LOGISTICS &amp; COURIER EXPRESS
+                                          </div>
+                                        </div>
+                                        <div className="bg-white text-black border border-black rounded-lg px-2 py-1 flex items-center gap-1.5">
+                                          <span className="text-sm leading-none grayscale contrast-200">{originFlag}</span>
+                                          <div className="text-left">
+                                            <div className="text-[10px] font-black uppercase leading-none tracking-tight">{originTitle}</div>
+                                            <div className="text-[6.5px] font-extrabold uppercase tracking-wider mt-0.5">{originCity}</div>
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      {/* Route Strip */}
+                                      <div className="px-3.5 py-1.5 border-b-[1.5px] border-black flex items-center justify-between text-[8px] font-black uppercase tracking-wider bg-white">
+                                        <div className="flex items-center gap-1">
+                                          <span>BODEGA {originTitle}</span>
+                                          <span>→</span>
+                                          <span className="bg-black text-white px-1.5 py-0.5 rounded text-[7.5px]">GUATEMALA HUB</span>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                          {isSheinActive && (
+                                            <span className="border border-black px-1 py-0.2 rounded text-[7px] font-black uppercase">
+                                              BOLSA SHEIN
+                                            </span>
+                                          )}
+                                          <span className="font-mono text-[7.5px]">{new Date().toISOString().split('T')[0]}</span>
+                                        </div>
+                                      </div>
+
+                                      {/* Body Content */}
+                                      <div className="p-3 space-y-2.5">
+                                        {/* Casillero + Cliente Grid */}
+                                        <div className="grid grid-cols-12 gap-2 items-stretch">
+                                          <div className="col-span-5 border-2 border-black rounded-lg p-2 flex flex-col justify-center items-center text-center bg-white">
+                                            <span className="text-[6.5px] font-black uppercase tracking-widest text-black">CÓDIGO CASILLERO</span>
+                                            <strong className="text-base font-black font-mono tracking-tight leading-none mt-1 break-all">
+                                              {warehouseLocker || 'S/C'}
+                                            </strong>
+                                            <span className="mt-1.5 bg-black text-white text-[6px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded">
+                                              PRIORIDAD EXPRESS
+                                            </span>
+                                          </div>
+                                          <div className="col-span-7 border-[1.5px] border-black rounded-lg p-2 flex flex-col justify-between bg-white">
+                                            <div>
+                                              <span className="text-[6.5px] font-black uppercase tracking-widest text-black block">DESTINATARIO / CLIENTE</span>
+                                              <strong className="text-[11px] font-black uppercase leading-tight block mt-0.5 line-clamp-2">
+                                                {previewClientName}
+                                              </strong>
+                                            </div>
+                                            <div className="border-t border-dashed border-black pt-1 mt-1.5 text-[7.5px] font-bold truncate">
+                                              📍 {previewClientAddress}
+                                            </div>
+                                          </div>
+                                        </div>
+
+                                        {/* Weight + Meta Grid */}
+                                        <div className="grid grid-cols-12 gap-2 items-stretch">
+                                          <div className="col-span-5 bg-black text-white border-2 border-black rounded-lg p-2 flex flex-col justify-center items-center text-center">
+                                            <span className="text-[6.5px] font-black uppercase tracking-widest text-white/85">PESO DEL PAQUETE</span>
+                                            <div className="text-lg font-black font-mono leading-none mt-1">
+                                              {previewWeight} <span className="text-[9px] font-extrabold">LBS</span>
+                                            </div>
+                                            <span className="text-[6px] font-extrabold uppercase tracking-wider text-white/80 mt-1">
+                                              PESO VERIFICADO BÁSCULA
+                                            </span>
+                                          </div>
+                                          <div className="col-span-7 border-[1.5px] border-black rounded-lg p-2 flex flex-col justify-between text-[8px] bg-white">
+                                            <div className="flex justify-between items-center border-b border-dashed border-black pb-1">
+                                              <span className="font-extrabold uppercase text-[7px]">ORIGEN:</span>
+                                              <strong className="font-black uppercase">{originTitle} ({originCity})</strong>
+                                            </div>
+                                            <div className="flex justify-between items-center border-b border-dashed border-black py-1">
+                                              <span className="font-extrabold uppercase text-[7px]">FLETE EST.:</span>
+                                              <strong className="font-black font-mono">Q {stickerFlete.toFixed(2)}</strong>
+                                            </div>
+                                            <div className="pt-1 truncate">
+                                              <span className="font-extrabold uppercase text-[6.5px] block">CONTENIDO / NOTAS:</span>
+                                              <strong className="font-black text-[7.5px] truncate block">
+                                                {warehouseNotes || (linkedPreAlert ? `[${linkedPreAlert.store}] ${linkedPreAlert.description || ''}` : 'Paquete Recepcionado')}
+                                              </strong>
+                                            </div>
+                                          </div>
+                                        </div>
+
+                                        {/* Scannable Code-128 Barcode Block */}
+                                        <div className="border-2 border-black rounded-lg p-2 text-center bg-white">
+                                          <div className="text-[6.5px] font-black uppercase tracking-[0.2em] mb-1">
+                                            CÓDIGO DE BARRAS DE RASTREO (TRACKING ID)
+                                          </div>
+                                          <div
+                                            className="w-full h-11 flex items-center justify-center overflow-hidden bg-white px-1 [&_svg]:w-full [&_svg]:h-full"
+                                            dangerouslySetInnerHTML={{ __html: previewBarcodeSvg }}
+                                          />
+                                          <div className="mt-1 pt-1 border-t border-black font-mono text-[10px] font-black tracking-widest break-all leading-none">
+                                            {previewTrack}
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      {/* Label Footer */}
+                                      <div className="px-3 py-1.5 border-t-2 border-black flex items-center justify-between text-[6.5px] font-black uppercase tracking-wider bg-white">
+                                        <span>SHIPFAST LOGISTICS GUATEMALA</span>
+                                        <span>4" x 6" THERMAL B&amp;W</span>
+                                      </div>
                                     </div>
-                                  )}
-                                </div>
 
-                                <div className="grid grid-cols-2 gap-2 text-4xs">
-                                  <div>
-                                    <span className="block text-gray-400 uppercase font-black">Casillero:</span>
-                                    <strong className="text-xs font-black tracking-widest block">{warehouseLocker}</strong>
+                                    {/* Print Action Button */}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        handlePrintPackageLabels4x6([{
+                                          id: previewTrack,
+                                          lockerId: warehouseLocker || 'S/C',
+                                          receiver: previewClientName,
+                                          destination: previewClientAddress,
+                                          origin: warehouseBodega,
+                                          weight: warehouseWeightInput || 1,
+                                          notes: warehouseNotes || (linkedPreAlert ? `[${linkedPreAlert.store}] ${linkedPreAlert.description || ''}` : 'Paquete Recepcionado'),
+                                          serviceType: 'Express'
+                                        }], 'Recepción en Almacén');
+                                      }}
+                                      className="w-full bg-black hover:bg-neutral-800 text-white text-3xs font-black py-2.5 rounded-lg uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-2 shadow-sm"
+                                    >
+                                      <Printer className="h-3.5 w-3.5 text-white" />
+                                      Imprimir Etiqueta 4" x 6" (Blanco y Negro)
+                                    </button>
                                   </div>
-                                  <div className="text-right">
-                                    <span className="block text-gray-400 uppercase font-black">Origen Bodega:</span>
-                                    <strong className="text-xs font-black block text-brand-orange">{warehouseBodega.toUpperCase()}</strong>
-                                  </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-2 text-4xs">
-                                  <div>
-                                    <span className="block text-gray-400 uppercase font-black">Peso Físico:</span>
-                                    <strong className="text-xs font-bold block">{warehouseWeightInput.toFixed(1)} Lbs</strong>
-                                  </div>
-                                  <div className="text-right">
-                                    <span className="block text-gray-400 uppercase font-black">Flete Est.:</span>
-                                    <strong className="text-xs font-bold block">Q {stickerFlete.toFixed(2)}</strong>
-                                  </div>
-                                </div>
-
-                                <div className="border-t border-brand-gray-dark pt-2">
-                                  <div className="text-4xs text-gray-500 uppercase font-black block text-center mb-1">Rastreo de Distribución</div>
-                                  
-                                  {/* Sleek barcode simulation */}
-                                  <div className="flex justify-center items-stretch h-8 space-x-[1.5px] bg-white">
-                                    {barcodeLines.map((width, idx) => (
-                                      <div 
-                                        key={idx} 
-                                        className="bg-brand-gray-dark h-full" 
-                                        style={{ width: `${width * 0.75}px` }} 
-                                      />
-                                    ))}
-                                  </div>
-                                  
-                                  <div className="text-4xs text-center font-black mt-1">*{warehouseLocker}-HUB-GT*</div>
-                                </div>
-
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const previewTrack = warehouseSearchQuery.trim() || `${warehouseLocker}-HUB-GT`;
-                                    const previewUser = users.find(u => (u.lockerId || '').trim().toUpperCase() === warehouseLocker.trim().toUpperCase());
-                                    handlePrintPackageLabels4x6([{
-                                      id: previewTrack,
-                                      lockerId: warehouseLocker,
-                                      receiver: previewUser ? previewUser.name : 'Cliente Registrado',
-                                      destination: previewUser ? previewUser.address : 'Guatemala',
-                                      origin: warehouseBodega,
-                                      weight: warehouseWeightInput || 1,
-                                      notes: warehouseNotes || 'Paquete Recepcionado',
-                                      serviceType: 'Express'
-                                    }], 'Recepción en Almacén');
-                                  }}
-                                  className="w-full bg-brand-gray-dark hover:bg-gray-800 text-white text-4xs font-bold py-1.5 rounded uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-1.5"
-                                >
-                                  <Printer className="h-3 w-3 text-brand-orange animate-pulse" />
-                                  Imprimir Etiqueta 4" x 6"
-                                </button>
-                              </div>
+                                );
+                              })()}
                             </div>
 
                           </div>
