@@ -4151,6 +4151,706 @@ Para proporcionarle información específica, puede solicitar:
     setShipments(prev => prev.map(s => s.id === updatedShipment.id ? updatedShipment : s));
   };
 
+  // Standard ISO/IEC 15417 Code-128B SVG Barcode Generator for 4"x6" thermal labels
+  const generateCode128BarcodeSvg = (rawText: string): string => {
+    const CODE128_PATTERNS = [
+      '11011001100','11001101100','11001100110','10010011000','10010001100','10001001100','10011001000','10011000100',
+      '10001100100','11001001000','11001000100','11000100100','10110011100','10011011100','10011001110','10111001100',
+      '10011101100','10011100110','11001110010','11001011100','11001001110','11011100100','11001110100','11101101110',
+      '11101001100','11100101100','11100100110','11101100100','11100110100','11100110010','11011011000','11011000110',
+      '11000110110','10100011000','10001011000','10001000110','10110001000','10001101000','10001100010','11010001000',
+      '11000101000','11000100010','10110111000','10110001110','10001101110','10111011000','10111000110','10001110110',
+      '11101110110','11010001110','11000101110','11011101000','11011100010','11011101110','11101011000','11101000110',
+      '11100010110','11101101000','11101100010','11100011010','11101111010','11001000010','11110001010','10100110000',
+      '10100001100','10010110000','10010000110','10000101100','10000100110','10110010000','10110000100','10011010000',
+      '10011000010','10000110100','10000110010','11000010010','11001010000','11110111010','11000010100','10001111010',
+      '10100111100','10010111100','10010011110','10111100100','10011110100','10011110010','11110100100','11110010100',
+      '11110010010','11011011110','11011110110','11110110110','10101111000','10100011110','10001011110','10111101000',
+      '10111100010','11110101000','11110100010','10111011110','10111101110','11101011110','11110101110','11010000100',
+      '11010010000','11010011100','1100011101011'
+    ];
+    const clean = (rawText || 'SHIPFAST').replace(/[^\x20-\x7E]/g, '').trim() || 'SHIPFAST';
+    let bits = CODE128_PATTERNS[104]; // Start Code B
+    let checksum = 104;
+    for (let i = 0; i < clean.length; i++) {
+      const code = clean.charCodeAt(i) - 32;
+      const validCode = (code >= 0 && code < 95) ? code : 0;
+      bits += CODE128_PATTERNS[validCode];
+      checksum += validCode * (i + 1);
+    }
+    bits += CODE128_PATTERNS[checksum % 103];
+    bits += CODE128_PATTERNS[106]; // Stop Code
+
+    const quietZone = 10;
+    const totalModules = bits.length + quietZone * 2;
+    let rects = '';
+    let i = 0;
+    while (i < bits.length) {
+      if (bits[i] === '1') {
+        let run = 1;
+        while (i + run < bits.length && bits[i + run] === '1') run++;
+        rects += `<rect x="${quietZone + i}" y="0" width="${run}" height="64" fill="#0F172A" />`;
+        i += run;
+      } else {
+        i++;
+      }
+    }
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalModules} 64" preserveAspectRatio="none" style="width:100%;height:68px;display:block;">${rects}</svg>`;
+  };
+
+  // Print 4in x 6in Modern Thermal Package Labels
+  const handlePrintPackageLabels4x6 = (packagesToPrint: any[], batchTitle?: string) => {
+    if (!packagesToPrint || packagesToPrint.length === 0) {
+      alert('No hay paquetes disponibles para imprimir etiquetas.');
+      return;
+    }
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Por favor, permite las ventanas emergentes (popups) para imprimir las etiquetas 4x6.');
+      return;
+    }
+
+    const totalCount = packagesToPrint.length;
+    const currentDate = new Date().toISOString().split('T')[0];
+
+    let labelsHtml = '';
+    packagesToPrint.forEach((pkg, idx) => {
+      const normLocker = (pkg.lockerId || 'S/C').trim().toUpperCase();
+      const matchedUser = users.find(u => (u.lockerId || '').trim().toUpperCase() === normLocker);
+      const clientName = matchedUser ? matchedUser.name : (pkg.receiver || pkg.clientName || 'Cliente Registrado');
+      const clientPhone = matchedUser?.phone || '';
+      const clientDest = matchedUser?.address || pkg.destination || 'Guatemala';
+
+      const rawOrigin = (pkg.origin || 'USA').toString();
+      const isMexico = rawOrigin.toLowerCase().includes('mex') || rawOrigin.toLowerCase().includes('tapachula');
+      const originLabel = isMexico ? 'MÉXICO' : 'USA';
+      const originFlag = isMexico ? '🇲🇽' : '🇺🇸';
+      const originHub = isMexico ? 'TAPACHULA, MX' : 'LAREDO, TX';
+      const originBg = isMexico ? '#065F46' : '#1E3A8A';
+      const originBorder = isMexico ? '#10B981' : '#3B82F6';
+
+      const trackingCode = (getOriginalTrackingHelper(pkg) || pkg.id || 'SF-0000-GT').trim();
+      const internalId = (pkg.id || trackingCode).trim();
+      const weightNum = Number(pkg.weight || pkg.totalWeight || 1);
+      const containerLabel = pkg.containerName || batchTitle || '';
+      const barcodeSvg = generateCode128BarcodeSvg(trackingCode);
+
+      let cleanNotes = pkg.notes || '';
+      if (cleanNotes.includes('Tracking original:')) {
+        cleanNotes = cleanNotes.split('Tracking original:')[0].replace(/\|\s*$/, '').trim();
+      }
+
+      labelsHtml += `
+        <div class="label-page">
+          <!-- Top Brand & Origin Header -->
+          <div class="header-bar">
+            <div class="brand-col">
+              <div class="brand-logo">SHIPFAST<span>GT</span></div>
+              <div class="brand-sub">LOGISTICS &amp; COURIER EXPRESS</div>
+            </div>
+            <div class="origin-pill" style="background:${originBg};border-color:${originBorder};">
+              <span class="origin-flag">${originFlag}</span>
+              <div class="origin-text">
+                <span class="origin-country">${originLabel}</span>
+                <span class="origin-hub">${originHub}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Route & Sequence Strip -->
+          <div class="route-strip">
+            <div class="route-path">
+              <strong>${originLabel}</strong>
+              <span class="route-arrow">&rarr;</span>
+              <strong>GUATEMALA HUB</strong>
+            </div>
+            <div class="seq-badge">
+              PAQUETE ${idx + 1} DE ${totalCount} &bull; ${pkg.lastUpdated ? pkg.lastUpdated.split(' ')[0] : currentDate}
+            </div>
+          </div>
+
+          <!-- Hero Locker & Client Info -->
+          <div class="recipient-section">
+            <div class="locker-box">
+              <span class="field-caption">CASILLERO</span>
+              <div class="locker-code">${normLocker}</div>
+              <span class="locker-tag">PRIORIDAD EXPRESS</span>
+            </div>
+            <div class="client-box">
+              <span class="field-caption">DESTINATARIO / CLIENTE</span>
+              <div class="client-name">${clientName}</div>
+              ${clientPhone ? `<div class="client-meta">Tel: ${clientPhone}</div>` : ''}
+              <div class="client-address">${clientDest}</div>
+            </div>
+          </div>
+
+          <!-- Package Weight & Details Grid -->
+          <div class="specs-grid">
+            <div class="weight-card">
+              <span class="field-caption" style="color:#EA580C;">PESO DEL PAQUETE</span>
+              <div class="weight-value">${weightNum.toFixed(1)} <small>LBS</small></div>
+            </div>
+            <div class="meta-card">
+              <div class="meta-row">
+                <span class="meta-label">ORIGEN:</span>
+                <strong class="meta-val">${originFlag} BODEGA ${originLabel}</strong>
+              </div>
+              <div class="meta-row">
+                <span class="meta-label">GUÍA INT.:</span>
+                <strong class="meta-val">${internalId}</strong>
+              </div>
+              ${containerLabel ? `
+              <div class="meta-row">
+                <span class="meta-label">CONTENEDOR:</span>
+                <strong class="meta-val">${containerLabel}</strong>
+              </div>` : `
+              <div class="meta-row">
+                <span class="meta-label">SERVICIO:</span>
+                <strong class="meta-val">${pkg.serviceType || ' Aéreo / Terrestre'}</strong>
+              </div>`}
+            </div>
+          </div>
+
+          ${cleanNotes ? `
+          <div class="notes-strip">
+            <span>DETALLE:</span> ${cleanNotes}
+          </div>` : ''}
+
+          <!-- Bottom Barcode Block -->
+          <div class="barcode-section">
+            <div class="barcode-caption">TRACKING NUMBER / CÓDIGO DE RASTREO</div>
+            <div class="barcode-wrapper">
+              ${barcodeSvg}
+            </div>
+            <div class="tracking-human">${trackingCode}</div>
+          </div>
+
+          <!-- Footer -->
+          <div class="label-footer">
+            <span>SHIPFAST LOGISTICS GUATEMALA &bull; QUETZALTENANGO</span>
+            <span>4" x 6" THERMAL LABEL</span>
+          </div>
+        </div>
+      `;
+    });
+
+    const htmlDoc = `
+      <!DOCTYPE html>
+      <html lang="es">
+      <head>
+        <meta charset="UTF-8" />
+        <title>Etiquetas 4x6" - ${batchTitle || 'ShipFast GT'}</title>
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800;900&family=JetBrains+Mono:wght@600;700;800&display=swap');
+
+          @page {
+            size: 4in 6in;
+            margin: 0;
+          }
+
+          * {
+            box-sizing: border-box;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+
+          body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #E2E8F0;
+            color: #0F172A;
+          }
+
+          .toolbar {
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            background: #0F172A;
+            color: #FFFFFF;
+            padding: 12px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+          }
+
+          .toolbar-title {
+            font-size: 14px;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+          }
+
+          .toolbar-title span {
+            color: #EA580C;
+          }
+
+          .toolbar-actions {
+            display: flex;
+            gap: 10px;
+          }
+
+          .btn {
+            border: none;
+            border-radius: 8px;
+            padding: 9px 18px;
+            font-size: 12px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+          }
+
+          .btn-primary {
+            background: #EA580C;
+            color: #FFFFFF;
+          }
+
+          .btn-secondary {
+            background: #334155;
+            color: #FFFFFF;
+          }
+
+          .preview-Stage {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 24px;
+            padding: 24px 12px 48px;
+          }
+
+          .label-page {
+            width: 4in;
+            height: 6in;
+            background: #FFFFFF;
+            border: 2px solid #0F172A;
+            border-radius: 10px;
+            padding: 0.16in;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            page-break-after: always;
+            break-after: page;
+            box-shadow: 0 10px 25px rgba(15,23,42,0.12);
+            overflow: hidden;
+          }
+
+          .header-bar {
+            background: #0F172A;
+            color: #FFFFFF;
+            border-radius: 8px;
+            padding: 10px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 4px solid #EA580C;
+          }
+
+          .brand-logo {
+            font-size: 22px;
+            font-weight: 900;
+            letter-spacing: -0.5px;
+            line-height: 1;
+          }
+
+          .brand-logo span {
+            color: #EA580C;
+            margin-left: 2px;
+          }
+
+          .brand-sub {
+            font-size: 7.5px;
+            font-weight: 700;
+            color: #94A3B8;
+            letter-spacing: 1.2px;
+            margin-top: 3px;
+          }
+
+          .origin-pill {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 10px;
+            border-radius: 6px;
+            border: 1.5px solid #3B82F6;
+            color: #FFFFFF;
+          }
+
+          .origin-flag {
+            font-size: 18px;
+            line-height: 1;
+          }
+
+          .origin-text {
+            display: flex;
+            flex-direction: column;
+            text-align: right;
+          }
+
+          .origin-country {
+            font-size: 13px;
+            font-weight: 900;
+            line-height: 1;
+            letter-spacing: 0.5px;
+          }
+
+          .origin-hub {
+            font-size: 7px;
+            font-weight: 700;
+            opacity: 0.9;
+            margin-top: 2px;
+          }
+
+          .route-strip {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #F8FAFC;
+            border: 1px solid #CBD5E1;
+            border-radius: 6px;
+            padding: 5px 10px;
+            font-size: 9px;
+            font-family: 'JetBrains Mono', monospace;
+          }
+
+          .route-path {
+            font-weight: 800;
+            color: #0F172A;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+          }
+
+          .route-arrow {
+            color: #EA580C;
+            font-weight: 900;
+            font-size: 12px;
+          }
+
+          .seq-badge {
+            font-size: 8px;
+            font-weight: 800;
+            color: #475569;
+          }
+
+          .recipient-section {
+            display: grid;
+            grid-template-columns: 1.35in 1fr;
+            gap: 8px;
+            align-items: stretch;
+          }
+
+          .locker-box {
+            background: #FFF7ED;
+            border: 2px solid #EA580C;
+            border-radius: 8px;
+            padding: 8px 6px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+          }
+
+          .field-caption {
+            font-size: 7.5px;
+            font-weight: 800;
+            color: #64748B;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            display: block;
+          }
+
+          .locker-code {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 28px;
+            font-weight: 800;
+            color: #0F172A;
+            line-height: 1.05;
+            margin: 4px 0;
+            word-break: break-all;
+          }
+
+          .locker-tag {
+            background: #EA580C;
+            color: #FFFFFF;
+            font-size: 6.5px;
+            font-weight: 800;
+            padding: 2px 6px;
+            border-radius: 4px;
+            letter-spacing: 0.6px;
+          }
+
+          .client-box {
+            background: #FFFFFF;
+            border: 1.5px solid #0F172A;
+            border-radius: 8px;
+            padding: 8px 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-width: 0;
+          }
+
+          .client-name {
+            font-size: 14px;
+            font-weight: 900;
+            color: #0F172A;
+            text-transform: uppercase;
+            line-height: 1.15;
+            margin-top: 3px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+          }
+
+          .client-meta {
+            font-size: 8.5px;
+            font-weight: 700;
+            color: #334155;
+            margin-top: 3px;
+            font-family: 'JetBrains Mono', monospace;
+          }
+
+          .client-address {
+            font-size: 8px;
+            font-weight: 600;
+            color: #475569;
+            margin-top: 3px;
+            line-height: 1.25;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+          }
+
+          .specs-grid {
+            display: grid;
+            grid-template-columns: 1.35in 1fr;
+            gap: 8px;
+          }
+
+          .weight-card {
+            background: #0F172A;
+            color: #FFFFFF;
+            border-radius: 8px;
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+          }
+
+          .weight-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 24px;
+            font-weight: 800;
+            color: #FFFFFF;
+            line-height: 1.1;
+            margin-top: 2px;
+          }
+
+          .weight-value small {
+            font-size: 11px;
+            color: #FB923C;
+            font-weight: 800;
+          }
+
+          .meta-card {
+            background: #F8FAFC;
+            border: 1px solid #CBD5E1;
+            border-radius: 8px;
+            padding: 7px 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 4px;
+            font-size: 8.5px;
+          }
+
+          .meta-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px dashed #E2E8F0;
+            padding-bottom: 2px;
+          }
+
+          .meta-row:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+          }
+
+          .meta-label {
+            color: #64748B;
+            font-weight: 700;
+          }
+
+          .meta-val {
+            font-family: 'JetBrains Mono', monospace;
+            color: #0F172A;
+            font-weight: 800;
+          }
+
+          .notes-strip {
+            background: #F1F5F9;
+            border-left: 3px solid #EA580C;
+            padding: 4px 8px;
+            font-size: 7.5px;
+            font-weight: 600;
+            color: #334155;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            border-radius: 0 4px 4px 0;
+          }
+
+          .notes-strip span {
+            font-weight: 800;
+            color: #0F172A;
+          }
+
+          .barcode-section {
+            border: 2px solid #0F172A;
+            border-radius: 8px;
+            padding: 8px 10px 6px;
+            background: #FFFFFF;
+            text-align: center;
+          }
+
+          .barcode-caption {
+            font-size: 7.5px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            color: #475569;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+          }
+
+          .barcode-wrapper {
+            width: 100%;
+            padding: 2px 0;
+          }
+
+          .tracking-human {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 1.2px;
+            color: #0F172A;
+            margin-top: 4px;
+            word-break: break-all;
+          }
+
+          .label-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 7px;
+            font-weight: 800;
+            color: #64748B;
+            letter-spacing: 0.5px;
+            padding-top: 2px;
+          }
+
+          @media print {
+            body {
+              background: #FFFFFF;
+            }
+            .toolbar {
+              display: none !important;
+            }
+            .preview-Stage {
+              padding: 0 !important;
+              gap: 0 !important;
+              display: block !important;
+            }
+            .label-page {
+              box-shadow: none !important;
+              border-radius: 0 !important;
+              margin: 0 !important;
+              width: 4in !important;
+              height: 6in !important;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="toolbar">
+          <div class="toolbar-title">
+            ShipFast<span>GT</span> &bull; Impresión de Etiquetas Térmicas 4" x 6" (${totalCount} ${totalCount === 1 ? 'paquete' : 'paquetes'})
+          </div>
+          <div class="toolbar-actions">
+            <button class="btn btn-primary" onclick="window.print()">🖨️ Imprimir Etiquetas (4x6")</button>
+            <button class="btn btn-secondary" onclick="window.close()">Cerrar</button>
+          </div>
+        </div>
+        <div class="preview-Stage">
+          ${labelsHtml}
+        </div>
+        <script>
+          window.onload = function() {
+            setTimeout(function() {
+              window.print();
+            }, 350);
+          };
+        </script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(htmlDoc);
+    printWindow.document.close();
+  };
+
+  // Collect packages from Consolidated Guide IDs (or Container Master) and print 4"x6" labels
+  const handlePrintGuidesLabels4x6 = (guideIds: string[], containerTitle?: string) => {
+    const packagesList: any[] = [];
+    const seenShipmentIds = new Set<string>();
+
+    guideIds.forEach(gid => {
+      const guide = consolidatedGuides.find(g => g.id === gid);
+      if (!guide) return;
+
+      const childShipments = shipments.filter(s =>
+        (s.history || []).some(h => h.details && h.details.includes(guide.id)) ||
+        (s.notes && s.notes.includes(guide.id))
+      );
+
+      if (childShipments.length > 0) {
+        childShipments.forEach(s => {
+          if (!seenShipmentIds.has(s.id)) {
+            seenShipmentIds.add(s.id);
+            packagesList.push({
+              ...s,
+              origin: s.origin || guide.origin,
+              containerName: guide.containerName || containerTitle || guide.id
+            });
+          }
+        });
+      } else {
+        const parts = guide.id.split('-');
+        const fallbackLocker = guide.lockerId || parts[2] || 'S/C';
+        packagesList.push({
+          id: guide.id,
+          lockerId: fallbackLocker,
+          origin: guide.origin || 'USA',
+          weight: guide.totalWeight || 1,
+          lastUpdated: guide.date,
+          notes: guide.notes || `Guía Consolidada (${guide.itemsCount} bultos)`,
+          containerName: guide.containerName || containerTitle || guide.id
+        });
+      }
+    });
+
+    handlePrintPackageLabels4x6(packagesList, containerTitle);
+  };
+
   const handleUpdateContainerStatus = async (containerName: string, newStatus: string) => {
     const targetGuides = consolidatedGuides.filter(g => g.containerName === containerName);
     if (targetGuides.length === 0) return;
@@ -8179,12 +8879,23 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    alert('Imprimiendo etiqueta en Impresora Térmica Zebra GK420d... (Simulación Completada).');
+                                    const previewTrack = warehouseSearchQuery.trim() || `${warehouseLocker}-HUB-GT`;
+                                    const previewUser = users.find(u => (u.lockerId || '').trim().toUpperCase() === warehouseLocker.trim().toUpperCase());
+                                    handlePrintPackageLabels4x6([{
+                                      id: previewTrack,
+                                      lockerId: warehouseLocker,
+                                      receiver: previewUser ? previewUser.name : 'Cliente Registrado',
+                                      destination: previewUser ? previewUser.address : 'Guatemala',
+                                      origin: warehouseBodega,
+                                      weight: warehouseWeightInput || 1,
+                                      notes: warehouseNotes || 'Paquete Recepcionado',
+                                      serviceType: 'Express'
+                                    }], 'Recepción en Almacén');
                                   }}
                                   className="w-full bg-brand-gray-dark hover:bg-gray-800 text-white text-4xs font-bold py-1.5 rounded uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-1.5"
                                 >
                                   <Printer className="h-3 w-3 text-brand-orange animate-pulse" />
-                                  Imprimir Sticker Técnico
+                                  Imprimir Etiqueta 4" x 6"
                                 </button>
                               </div>
                             </div>
@@ -8206,6 +8917,18 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                               <div className="flex gap-2.5 items-center flex-wrap">
                                 {selectedWarehouseGroups.length > 0 && (
                                   <>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const groups = groupList.filter(g => selectedWarehouseGroups.includes(`${g.lockerId}-${g.bodega}`));
+                                        const allPkgs = groups.flatMap(g => g.shipments);
+                                        handlePrintPackageLabels4x6(allPkgs, 'Consolidados en Almacén');
+                                      }}
+                                      className="bg-slate-800 hover:bg-slate-900 text-white text-[10px] font-extrabold px-3 py-1.5 rounded uppercase tracking-wider cursor-pointer transition shadow-3xs flex items-center gap-1.5 active:scale-98"
+                                    >
+                                      <Printer className="h-3.5 w-3.5 text-brand-orange" />
+                                      <span>Imprimir Etiquetas 4x6" ({selectedWarehouseGroups.length})</span>
+                                    </button>
                                     <button
                                       type="button"
                                       onClick={() => {
@@ -8337,6 +9060,15 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                                 <div className="flex gap-1 justify-center mt-1">
                                                   <button
                                                     type="button"
+                                                    onClick={() => handlePrintPackageLabels4x6(g.shipments, `${g.lockerId} - ${g.bodega}`)}
+                                                    className="bg-slate-800 hover:bg-slate-900 text-white text-[9px] font-extrabold px-2 py-1 rounded uppercase tracking-wider transition cursor-pointer flex items-center gap-0.5"
+                                                    title="Imprimir Etiquetas 4x6 de este cliente"
+                                                  >
+                                                    <Printer className="h-3 w-3 text-brand-orange" />
+                                                    <span>4x6"</span>
+                                                  </button>
+                                                  <button
+                                                    type="button"
                                                     onClick={() => handleRemoveFromWarehouseGroups([g])}
                                                     className="bg-yellow-500 hover:bg-yellow-600 text-white text-[9px] font-extrabold px-2 py-1 rounded uppercase tracking-wider transition cursor-pointer"
                                                     title="Desalmacenar"
@@ -8387,6 +9119,14 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                                             </div>
                                                             <div className="flex items-center gap-1 shrink-0">
                                                               <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded text-[8px] font-bold">En Almacén</span>
+                                                              <button
+                                                                type="button"
+                                                                onClick={() => handlePrintPackageLabels4x6([s], g.lockerId)}
+                                                                className="bg-slate-800 hover:bg-slate-900 text-white p-1 rounded transition cursor-pointer"
+                                                                title="Imprimir Etiqueta 4x6 de este paquete"
+                                                              >
+                                                                <Printer className="h-2.5 w-2.5 text-brand-orange" />
+                                                              </button>
                                                               <button
                                                                 type="button"
                                                                 onClick={() => handleRemoveSingleShipmentFromWarehouse(s)}
@@ -9455,6 +10195,14 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                     <Printer className="h-3.5 w-3.5" />
                                     <span>Imprimir Facturas ({selectedConsolidados.length})</span>
                                   </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handlePrintGuidesLabels4x6(selectedConsolidados, 'Lote Consolidado')}
+                                    className="bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-extrabold px-3 py-1.5 rounded uppercase tracking-wider cursor-pointer transition shadow-3xs flex items-center gap-1.5 active:scale-98 border border-slate-700"
+                                  >
+                                    <Printer className="h-3.5 w-3.5 text-brand-orange" />
+                                    <span>Imprimir Etiquetas 4x6" ({selectedConsolidados.length})</span>
+                                  </button>
                                 </>
                               )}
                             </div>
@@ -9641,6 +10389,14 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                         >
                                           <Printer className="h-3 w-3" />
                                           Imprimir Facturas
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handlePrintGuidesLabels4x6(guidesInContainer.map(g => g.id), cName)}
+                                          className="w-full bg-slate-900 hover:bg-slate-800 border border-slate-900 text-white text-[8px] font-extrabold py-1.5 px-2 rounded-lg uppercase tracking-wider cursor-pointer transition active:scale-97 flex items-center justify-center gap-1.5 shadow-3xs"
+                                        >
+                                          <Printer className="h-3 w-3 text-brand-orange" />
+                                          Imprimir Etiquetas (4x6")
                                         </button>
                                       </div>
                                     </div>
@@ -9892,6 +10648,13 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                               >
                                                 <Printer className="h-3 w-3 inline" /> Imprimir
                                               </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => handlePrintGuidesLabels4x6(item.guides.map((g: any) => g.id), item.id)}
+                                                className="text-brand-gray-dark hover:text-brand-orange text-4xs font-black uppercase tracking-wider underline cursor-pointer flex items-center gap-0.5"
+                                              >
+                                                <Printer className="h-3 w-3 inline text-brand-orange" /> Etiquetas 4x6"
+                                              </button>
                                             </div>
                                           </td>
                                         </tr>
@@ -9959,6 +10722,15 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                                                 }
                                                               }}
                                                             >{guide.totalWeight.toFixed(1)} Lbs (Editar)</strong></span>
+                                                            <button
+                                                              type="button"
+                                                              onClick={() => handlePrintGuidesLabels4x6([guide.id], guide.containerName || guide.id)}
+                                                              className="bg-slate-900 hover:bg-slate-800 text-white px-2 py-0.5 rounded text-[8px] font-extrabold uppercase flex items-center gap-1 cursor-pointer transition"
+                                                              title="Imprimir Etiquetas 4x6 de esta guía"
+                                                            >
+                                                              <Printer className="h-2.5 w-2.5 text-brand-orange" />
+                                                              <span>4x6"</span>
+                                                            </button>
                                                           </div>
                                                         </div>
 
@@ -9982,15 +10754,26 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                                                     <div className="flex justify-between items-center border-b border-gray-100 pb-1">
                                                                       <div className="flex items-center gap-1">
                                                                         <span className="text-gray-400 font-extrabold uppercase text-[8px] tracking-widest">Tracking:</span>
-                                                                        <strong className="text-brand-orange font-black text-[10px] truncate max-w-[150px]" title={originalTracking}>{originalTracking}</strong>
+                                                                        <strong className="text-brand-orange font-black text-[10px] truncate max-w-[130px]" title={originalTracking}>{originalTracking}</strong>
                                                                       </div>
-                                                                      <span className={`px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase ${
-                                                                        ship.status === 'Entregado' ? 'bg-green-100 text-green-800' :
-                                                                        ship.status === 'En Sucursal' ? 'bg-amber-100 text-amber-800' :
-                                                                        'bg-blue-100 text-blue-800'
-                                                                      }`}>
-                                                                        {ship.status}
-                                                                      </span>
+                                                                      <div className="flex items-center gap-1">
+                                                                        <button
+                                                                          type="button"
+                                                                          onClick={() => handlePrintPackageLabels4x6([{ ...ship, origin: ship.origin || guide.origin, containerName: guide.containerName || guide.id }], guide.containerName || guide.id)}
+                                                                          className="bg-slate-900 hover:bg-slate-800 text-white px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase flex items-center gap-0.5 cursor-pointer transition"
+                                                                          title="Imprimir Etiqueta 4x6 de este paquete"
+                                                                        >
+                                                                          <Printer className="h-2.5 w-2.5 text-brand-orange" />
+                                                                          <span>4x6"</span>
+                                                                        </button>
+                                                                        <span className={`px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase ${
+                                                                          ship.status === 'Entregado' ? 'bg-green-100 text-green-800' :
+                                                                          ship.status === 'En Sucursal' ? 'bg-amber-100 text-amber-800' :
+                                                                          'bg-blue-100 text-blue-800'
+                                                                        }`}>
+                                                                          {ship.status}
+                                                                        </span>
+                                                                      </div>
                                                                     </div>
                                                                     <div className="grid grid-cols-2 gap-y-0.5 gap-x-2 text-gray-500 font-medium">
                                                                       <div>&bull; Casillero: <strong className="text-brand-gray-dark">{ship.lockerId}</strong></div>
