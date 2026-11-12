@@ -476,6 +476,7 @@ export default function App() {
   const [warehouseNotes, setWarehouseNotes] = useState('');
   const [warehouseBodega, setWarehouseBodega] = useState<'Laredo' | 'USA' | 'Mexico'>('USA');
   const [isSheinPackage, setIsSheinPackage] = useState(false);
+  const [isNotPreAlertedPackage, setIsNotPreAlertedPackage] = useState(false);
   const [warehouseSearchQuery, setWarehouseSearchQuery] = useState('');
   const [warehouseBillingToggle, setWarehouseBillingToggle] = useState(false); // false = Almacenar para Consolidar, true = Facturar de Inmediato
   const [linkedPreAlert, setLinkedPreAlert] = useState<PreAlert | null>(null);
@@ -3983,24 +3984,29 @@ Para proporcionarle información específica, puede solicitar:
       };
       newGuidesList.push(newGuide);
 
+      let nonPreAlertCount = 0;
       const estimatedFlete = g.shipments.reduce((acc: number, s: any) => {
         const isShein = (s.notes || '').toLowerCase().includes('shein');
+        const isNoPreAlert = /no pre[\s-]*alertado/i.test(String(s.notes || '')) ||
+          (Array.isArray(s.history) && s.history.some((h: any) => /no pre[\s-]*alertado/i.test(String(h?.details || ''))));
+        if (isNoPreAlert) nonPreAlertCount++;
         const sFlete = isShein
           ? ratesSettings.sheinRate
           : ((origin === 'Laredo' || origin === 'USA')
             ? s.weight * ratesSettings.laredoRate
             : s.weight * ratesSettings.mexicoRate);
-        return acc + sFlete;
+        return acc + sFlete + (isNoPreAlert ? 30 : 0);
       }, 0);
 
       const invoiceId = `FAC-${Math.floor(1000 + Math.random() * 9000)}`;
       const user = users.find(u => u.lockerId === g.lockerId);
       const trackingList = g.shipments.map((s: any) => s.id).join(', ');
+      const noPreAlertSuffix = nonPreAlertCount > 0 ? ` [Incluye ${nonPreAlertCount} Paq. No Pre-Alertado +Q${nonPreAlertCount * 30}]` : '';
       const newInvoice = {
         id: invoiceId,
         lockerId: g.lockerId,
         date: currentDate,
-        concept: `Flete Consolidado - ${g.shipments.length} Paquetes desde Bodega ${origin} [Guía: ${masterWaybillId}] [Trackings: ${trackingList}]`,
+        concept: `Flete Consolidado - ${g.shipments.length} Paquetes desde Bodega ${origin} [Guía: ${masterWaybillId}] [Trackings: ${trackingList}]${noPreAlertSuffix}`,
         amount: estimatedFlete,
         paymentStatus: 'Pendiente',
         nit: user?.nit || 'C/F',
@@ -4299,10 +4305,13 @@ Para proporcionarle información específica, puede solicitar:
       const containerLabel = pkg?.containerName || batchTitle || '';
       const barcodeSvg = generateCode128BarcodeSvg(trackingCode);
 
-      let cleanNotes = String(pkg?.notes || '');
-      if (cleanNotes.includes('Tracking original:')) {
-        cleanNotes = cleanNotes.split('Tracking original:')[0].replace(/\|\s*$/, '').trim();
-      }
+      const isNoPreAlertPkg = Boolean(pkg?.isNotPreAlerted) ||
+        /no pre[\s-]*alertado/i.test(String(pkg?.notes || '')) ||
+        (Array.isArray(pkg?.history) && pkg.history.some((h: any) => /no pre[\s-]*alertado/i.test(String(h?.details || ''))));
+
+      const labelNoteText = isNoPreAlertPkg
+        ? 'PAQUETE NO PRE ALERTADO - COBRO EXTRA Q30'
+        : 'Paquete Pre Alertado';
 
       labelsHtml += `
         <div class="label-page">
@@ -4375,10 +4384,9 @@ Para proporcionarle información específica, puede solicitar:
             </div>
           </div>
 
-          ${cleanNotes ? `
           <div class="notes-strip">
-            <span>DETALLE:</span> ${cleanNotes}
-          </div>` : ''}
+            <span>NOTAS:</span> ${labelNoteText}
+          </div>
 
           <!-- Bottom Barcode Block -->
           <div class="barcode-section">
@@ -8412,6 +8420,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
 
                         if (match) {
                           setLinkedPreAlert(match);
+                          setIsNotPreAlertedPackage(false);
                           setWarehouseLocker(match.lockerId);
                           setWarehouseNotes(match.description || '');
                           setWarehouseSenderInput(match.sender || '');
@@ -8445,23 +8454,29 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                         const currentDate = new Date().toISOString().split('T')[0];
                         const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
 
-                        // Calculate live flete based on warehouse and Shein package classification
+                        // Calculate live flete based on warehouse, Shein classification, and non-pre-alerted +Q30 surcharge
                         const matchingUser = users.find(u => u.lockerId === warehouseLocker);
                         const clientName = matchingUser ? matchingUser.name : 'Cliente';
                         const isShein = isSheinPackage || warehouseNotes.toLowerCase().includes('shein');
-                        const fleteTotal = isShein
+                        const baseFlete = isShein
                           ? ratesSettings.sheinRate
                           : ((warehouseBodega === 'Laredo' || warehouseBodega === 'USA')
                             ? warehouseWeightInput * ratesSettings.laredoRate
                             : warehouseWeightInput * ratesSettings.mexicoRate);
+                        const extraNoPreAlert = isNotPreAlertedPackage ? 30 : 0;
+                        const fleteTotal = baseFlete + extraNoPreAlert;
 
                         // Prepare package history details
                         let historyDetails = isShein
                           ? `Ingreso físico de Bolsa Shein a bodega de ${warehouseBodega}.`
                           : `Ingreso físico a bodega de ${warehouseBodega}. Peso registrado: ${warehouseWeightInput} Lbs.`;
 
-                        if (linkedPreAlert) {
-                          historyDetails += ` (Pre-alerta vinculada: ${linkedPreAlert.id})`;
+                        if (isNotPreAlertedPackage) {
+                          historyDetails += ` (Paquete no pre alertado cobro extra Q30)`;
+                        } else if (linkedPreAlert) {
+                          historyDetails += ` (Pre-alerta vinculada: ${linkedPreAlert.id} - Paquete Pre Alertado)`;
+                        } else {
+                          historyDetails += ` (Paquete Pre Alertado)`;
                         }
                         if (warehouseDeclaredValue > 0) {
                           historyDetails += ` Valor Declarado: Q${warehouseDeclaredValue}.`;
@@ -8469,6 +8484,10 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                         if (warehouseInsurance !== 'Sin seguro') {
                           historyDetails += ` Seguro: ${warehouseInsurance}.`;
                         }
+
+                        const persistedNotes = isNotPreAlertedPackage
+                          ? `${warehouseNotes.trim()} | Paquete no pre alertado cobro extra Q30`
+                          : `${warehouseNotes.trim()} | Paquete Pre Alertado`;
 
                         const newShip: Shipment = {
                           id: generatedId,
@@ -8491,7 +8510,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                               details: historyDetails
                             }
                           ],
-                          notes: warehouseNotes
+                          notes: persistedNotes
                         };
 
                         // Save to Supabase
@@ -8508,16 +8527,22 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
 
                         // Generate invoice ONLY if the billing toggle is enabled (Facturar de Inmediato)
                         let alertMessage = `¡Paquete ingresado formalmente en Bodega de ${warehouseBodega}! ID asignado: ${generatedId}.`;
+                        if (isNotPreAlertedPackage) {
+                          alertMessage += ` Se aplicó cargo por Paquete No Pre-Alertado (+Q 30.00).`;
+                        }
                         
                         if (warehouseBillingToggle && !linkedPreAlert) {
                           const newFacId = `FAC-${1000 + invoices.length + 1}`;
+                          const baseConcept = isShein
+                            ? `Flete Especial Bolsa Shein ${generatedId}`
+                            : `Cargo Flete Almacén ${warehouseBodega} ${generatedId} (${warehouseWeightInput} Lbs)`;
                           const newInvoice = {
                             id: newFacId,
                             lockerId: warehouseLocker,
                             date: currentDate,
-                            concept: isShein
-                              ? `Flete Especial Bolsa Shein ${generatedId}`
-                              : `Cargo Flete Almacén ${warehouseBodega} ${generatedId} (${warehouseWeightInput} Lbs)`,
+                            concept: isNotPreAlertedPackage
+                              ? `${baseConcept} [Paquete No Pre Alertado Cobro Extra Q30]`
+                              : baseConcept,
                             amount: fleteTotal,
                             paymentStatus: 'Pendiente',
                             nit: matchingUser?.nit || 'C/F',
@@ -8542,14 +8567,16 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                         setWarehouseDeclaredValue(0);
                         setWarehouseInsurance('Sin seguro');
                         setIsSheinPackage(false);
+                        setIsNotPreAlertedPackage(false);
                       };
 
                       const isSheinActive = isSheinPackage || warehouseNotes.toLowerCase().includes('shein');
-                      const stickerFlete = isSheinActive
+                      const stickerBaseFlete = isSheinActive
                         ? ratesSettings.sheinRate
                         : ((warehouseBodega === 'Laredo' || warehouseBodega === 'USA')
                           ? warehouseWeightInput * ratesSettings.laredoRate
                           : warehouseWeightInput * ratesSettings.mexicoRate);
+                      const stickerFlete = stickerBaseFlete + (isNotPreAlertedPackage ? 30 : 0);
 
                       return (
                         <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs space-y-6">
@@ -8679,7 +8706,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                   />
                                 </div>
 
-                                <div className="space-y-1">
+                                <div className="space-y-1.5">
                                   <span className="text-4xs font-bold text-gray-500 uppercase block">Clasificación / Servicio</span>
                                   {/* Shein package classification checkbox */}
                                   <div className="flex items-center space-x-2 bg-gray-50 border border-gray-200 p-1.5 rounded hover:border-brand-orange transition select-none h-[30px]">
@@ -8695,6 +8722,29 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                       className="text-[9px] font-bold text-brand-gray-dark uppercase cursor-pointer select-none flex items-center space-x-1"
                                     >
                                       <span>🎀 ¿Bolsa Shein? (Plana Q {ratesSettings.sheinRate})</span>
+                                    </label>
+                                  </div>
+
+                                  {/* Paquete No Pre-Alertado (+Q 30) checkbox below Clasificación / Servicio */}
+                                  <div className={`flex items-center space-x-2 border p-1.5 rounded transition select-none h-[30px] ${isNotPreAlertedPackage ? 'bg-amber-50 border-amber-400' : 'bg-gray-50 border-gray-200 hover:border-brand-orange'}`}>
+                                    <input
+                                      id="isNotPreAlertedPackageCheckbox"
+                                      type="checkbox"
+                                      checked={isNotPreAlertedPackage}
+                                      onChange={(e) => {
+                                        const checked = e.target.checked;
+                                        setIsNotPreAlertedPackage(checked);
+                                        if (checked && linkedPreAlert) {
+                                          setLinkedPreAlert(null);
+                                        }
+                                      }}
+                                      className="w-3.5 h-3.5 accent-brand-orange rounded cursor-pointer"
+                                    />
+                                    <label
+                                      htmlFor="isNotPreAlertedPackageCheckbox"
+                                      className="text-[9px] font-bold text-brand-gray-dark uppercase cursor-pointer select-none flex items-center space-x-1"
+                                    >
+                                      <span>⚠️ Paquete No Pre Alertado (+Q 30)</span>
                                     </label>
                                   </div>
                                 </div>
@@ -8740,7 +8790,9 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                 const previewClientAddress = previewUser?.address || 'Guatemala';
                                 const previewWeight = (warehouseWeightInput || 0).toFixed(1);
                                 const previewBarcodeSvg = generateCode128BarcodeSvg(previewTrack);
-                                const previewNotesText = warehouseNotes || (linkedPreAlert ? `${warehouseSenderInput ? `[${warehouseSenderInput}] ` : ''}${linkedPreAlert.description || ''}` : (warehouseSenderInput || 'Paquete Recepcionado'));
+                                const previewNotesText = isNotPreAlertedPackage
+                                  ? 'PAQUETE NO PRE ALERTADO - COBRO EXTRA Q30'
+                                  : 'Paquete Pre Alertado';
 
                                 return (
                                   <div className="max-w-[310px] mx-auto space-y-2.5">
@@ -8827,11 +8879,13 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                             </div>
                                             <div className="flex justify-between items-center border-b border-dashed border-black py-1">
                                               <span className="font-extrabold uppercase text-[7px]">FLETE EST.:</span>
-                                              <strong className="font-black font-mono">Q {stickerFlete.toFixed(2)}</strong>
+                                              <strong className="font-black font-mono">
+                                                Q {stickerFlete.toFixed(2)}{isNotPreAlertedPackage ? ' (+Q30)' : ''}
+                                              </strong>
                                             </div>
-                                            <div className="pt-1 truncate">
-                                              <span className="font-extrabold uppercase text-[6.5px] block">CONTENIDO / NOTAS:</span>
-                                              <strong className="font-black text-[7.5px] truncate block">
+                                            <div className="pt-1">
+                                              <span className="font-extrabold uppercase text-[6.5px] block">NOTAS:</span>
+                                              <strong className={`font-black text-[7.5px] leading-tight block ${isNotPreAlertedPackage ? 'bg-black text-white px-1 py-0.5 rounded mt-0.5' : ''}`}>
                                                 {previewNotesText}
                                               </strong>
                                             </div>
@@ -8872,6 +8926,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                           origin: warehouseBodega,
                                           weight: warehouseWeightInput || 1,
                                           notes: previewNotesText,
+                                          isNotPreAlerted: isNotPreAlertedPackage,
                                           serviceType: 'Express'
                                         }], 'Recepción en Almacén');
                                       }}
@@ -9183,18 +9238,23 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                             const lockerId = guide.lockerId || parts[2] || 'N/A';
                             const invoiceId = `FAC-${Math.floor(1000 + Math.random() * 9000)}`;
                             const rate = guide.origin === 'Mexico' ? ratesSettings.mexicoRate : ratesSettings.laredoRate;
-                            const amount = guide.totalWeight * rate;
 
-                            // Find packages for this guide to include trackings
+                            // Find packages for this guide to include trackings and non-pre-alerted surcharges
                             const guideShipments = shipments.filter(s => s.history && s.history.some(h => h.details && h.details.includes(guide.id)));
+                            const nonPreAlertCount = guideShipments.filter(s =>
+                              /no pre[\s-]*alertado/i.test(String(s.notes || '')) ||
+                              (Array.isArray(s.history) && s.history.some(h => /no pre[\s-]*alertado/i.test(String(h?.details || ''))))
+                            ).length;
+                            const amount = (guide.totalWeight * rate) + (nonPreAlertCount * 30);
                             const trackingList = guideShipments.map(s => s.id).join(', ');
                             const trackingSuffix = trackingList ? ` [Trackings: ${trackingList}]` : '';
+                            const noPreAlertSuffix = nonPreAlertCount > 0 ? ` [Incluye ${nonPreAlertCount} Paq. No Pre-Alertado +Q${nonPreAlertCount * 30}]` : '';
 
                             inv = {
                               id: invoiceId,
                               lockerId: lockerId,
                               date: currentDate,
-                              concept: `Flete Consolidado - ${guide.itemsCount} Paquetes desde Bodega ${guide.origin} [Guía: ${guide.id}]${trackingSuffix}`,
+                              concept: `Flete Consolidado - ${guide.itemsCount} Paquetes desde Bodega ${guide.origin} [Guía: ${guide.id}]${trackingSuffix}${noPreAlertSuffix}`,
                               amount: amount,
                               paymentStatus: 'Pendiente'
                             };
@@ -9241,18 +9301,23 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                             const lockerId = parts[2] || '';
                             const invoiceId = `FAC-${Math.floor(1000 + Math.random() * 9000)}`;
                             const rate = guide.origin === 'Mexico' ? ratesSettings.mexicoRate : ratesSettings.laredoRate;
-                            const amount = guide.totalWeight * rate;
 
-                            // Find packages for this guide to include trackings
+                            // Find packages for this guide to include trackings and non-pre-alerted surcharges
                             const guideShipments = shipments.filter(s => s.history && s.history.some(h => h.details && h.details.includes(guide.id)));
+                            const nonPreAlertCount = guideShipments.filter(s =>
+                              /no pre[\s-]*alertado/i.test(String(s.notes || '')) ||
+                              (Array.isArray(s.history) && s.history.some(h => /no pre[\s-]*alertado/i.test(String(h?.details || ''))))
+                            ).length;
+                            const amount = (guide.totalWeight * rate) + (nonPreAlertCount * 30);
                             const trackingList = guideShipments.map(s => s.id).join(', ');
                             const trackingSuffix = trackingList ? ` [Trackings: ${trackingList}]` : '';
+                            const noPreAlertSuffix = nonPreAlertCount > 0 ? ` [Incluye ${nonPreAlertCount} Paq. No Pre-Alertado +Q${nonPreAlertCount * 30}]` : '';
 
                             inv = {
                               id: invoiceId,
                               lockerId: lockerId || 'N/A',
                               date: currentDate,
-                              concept: `Flete Consolidado - ${guide.itemsCount} Paquetes desde Bodega ${guide.origin} [Guía: ${guide.id}]${trackingSuffix}`,
+                              concept: `Flete Consolidado - ${guide.itemsCount} Paquetes desde Bodega ${guide.origin} [Guía: ${guide.id}]${trackingSuffix}${noPreAlertSuffix}`,
                               amount: amount,
                               paymentStatus: 'Pendiente'
                             };
