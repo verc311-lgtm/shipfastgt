@@ -7944,7 +7944,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                               className="bg-slate-900 hover:bg-black text-white text-3xs font-extrabold px-4 py-2 rounded uppercase tracking-wider cursor-pointer transition shadow-3xs flex items-center gap-1.5 border border-black active:scale-98"
                             >
                               <Package className="h-3.5 w-3.5 text-brand-orange" />
-                              🏢 Recepción de Carga y Báscula
+                              Registrar Paquete
                             </button>
                           </div>
                         </div>
