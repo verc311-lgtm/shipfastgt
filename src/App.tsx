@@ -477,6 +477,7 @@ export default function App() {
   const [warehouseBodega, setWarehouseBodega] = useState<'Laredo' | 'USA' | 'Mexico'>('USA');
   const [isSheinPackage, setIsSheinPackage] = useState(false);
   const [isNotPreAlertedPackage, setIsNotPreAlertedPackage] = useState(false);
+  const [isWarehouseCheckInModalOpen, setIsWarehouseCheckInModalOpen] = useState(false);
   const [warehouseSearchQuery, setWarehouseSearchQuery] = useState('');
   const [warehouseBillingToggle, setWarehouseBillingToggle] = useState(false); // false = Almacenar para Consolidar, true = Facturar de Inmediato
   const [linkedPreAlert, setLinkedPreAlert] = useState<PreAlert | null>(null);
@@ -7937,6 +7938,14 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                               <PlusCircle className="h-3.5 w-3.5" />
                               Registrar Pre-Alerta Manual
                             </button>
+                            <button
+                              type="button"
+                              onClick={() => setIsWarehouseCheckInModalOpen(true)}
+                              className="bg-slate-900 hover:bg-black text-white text-3xs font-extrabold px-4 py-2 rounded uppercase tracking-wider cursor-pointer transition shadow-3xs flex items-center gap-1.5 border border-black active:scale-98"
+                            >
+                              <Package className="h-3.5 w-3.5 text-brand-orange" />
+                              🏢 Recepción de Carga y Báscula
+                            </button>
                           </div>
                         </div>
 
@@ -8370,8 +8379,8 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                       </div>
                     )}
 
-                    {/* ==================== 5. WAREHOUSE RECEPCIÓN Y BASCULA (`warehouse`) ==================== */}
-                    {adminSubTab === 'warehouse' && (() => {
+                    {/* ==================== 5. WAREHOUSE RECEPCIÓN Y BASCULA (`warehouse` + Modal en `pre-alertas`) ==================== */}
+                    {(adminSubTab === 'warehouse' || isWarehouseCheckInModalOpen) && (() => {
                       // We build a thermal barcode representation dynamically
                       const barcodeLines = [
                         3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5, 8, 9, 7, 9, 3, 2, 3, 8, 4, 6, 2, 6
@@ -8578,8 +8587,8 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                           : warehouseWeightInput * ratesSettings.mexicoRate);
                       const stickerFlete = stickerBaseFlete + (isNotPreAlertedPackage ? 30 : 0);
 
-                      return (
-                        <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs space-y-6">
+                      const warehouseCheckInPanelContent = (
+                        <div className="space-y-6">
                           <div>
                             <h3 className="text-xs font-bold text-brand-gray-dark uppercase tracking-wider font-display mb-1">🏢 Recepción de Carga y Báscula (Warehouse Check-In)</h3>
                             <p className="text-4xs text-gray-500">Módulo operativo en andén para pesar, medir e ingresar paquetes a estanterías físicas de almacenamiento, con generación de código QR/Etiqueta Zebra.</p>
@@ -8941,9 +8950,39 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                             </div>
 
                           </div>
+                        </div>
+                      );
 
-                          {/* Consolidated Packages list by Client and Bodega */}
-                          <div className="border-t border-gray-200 pt-6">
+                      return (
+                        <>
+                          {isWarehouseCheckInModalOpen && (
+                            <div
+                              className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-fadeIn"
+                              onClick={(e) => {
+                                if (e.target === e.currentTarget) setIsWarehouseCheckInModalOpen(false);
+                              }}
+                            >
+                              <div className="bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-5xl max-h-[92vh] overflow-y-auto p-6 relative">
+                                <button
+                                  type="button"
+                                  onClick={() => setIsWarehouseCheckInModalOpen(false)}
+                                  className="absolute top-4 right-4 bg-gray-100 hover:bg-gray-200 text-gray-700 hover:text-black rounded-full p-2 transition cursor-pointer flex items-center gap-1 text-3xs font-extrabold uppercase px-3"
+                                  title="Cerrar ventana emergente"
+                                >
+                                  <X className="h-4 w-4" />
+                                  <span>Cerrar</span>
+                                </button>
+                                {warehouseCheckInPanelContent}
+                              </div>
+                            </div>
+                          )}
+
+                          {adminSubTab === 'warehouse' && (
+                            <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs space-y-6">
+                              {warehouseCheckInPanelContent}
+
+                              {/* Consolidated Packages list by Client and Bodega */}
+                              <div className="border-t border-gray-200 pt-6">
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                               <div>
                                 <h4 className="text-2xs font-extrabold text-brand-gray-dark uppercase tracking-wider font-display flex items-center gap-2">
@@ -9207,7 +9246,9 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                               </table>
                             </div>
                           </div>
-                        </div>
+                            </div>
+                          )}
+                        </>
                       );
                     })()}
 
