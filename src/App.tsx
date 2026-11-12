@@ -692,6 +692,7 @@ export default function App() {
   const [adminPreAlertSearchText, setAdminPreAlertSearchText] = useState('');
   const [adminPreAlertStartDate, setAdminPreAlertStartDate] = useState('');
   const [adminPreAlertEndDate, setAdminPreAlertEndDate] = useState('');
+  const [processingPreAlertId, setProcessingPreAlertId] = useState<string | null>(null);
   const [selectedWarehouseGroups, setSelectedWarehouseGroups] = useState<string[]>([]);
   const [selectedAdminShipment, setSelectedAdminShipment] = useState<Shipment | null>(null);
   const [newShipmentModal, setNewShipmentModal] = useState(false);
@@ -8114,42 +8115,68 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                   <td className="py-3 px-4 text-center">
                                     <div className="flex flex-col gap-1.5 items-center justify-center">
                                       {pa.status === 'Pendiente' ? (
-                                        <div className="flex gap-1.5 justify-center">
+                                        processingPreAlertId !== pa.id ? (
                                           <button
                                             type="button"
-                                            onClick={() => {
-                                              const updatedPa = { ...pa, status: 'Recibido' as const };
-                                              setPreAlerts(prev => prev.map(item => item.id === pa.id ? updatedPa : item));
-                                              db.upsertPreAlert(updatedPa);
-
-                                              // Notificación al cliente por correo (si EmailJS está configurado)
-                                              sendPreAlertReceivedEmailHelper(pa, pa.id, 0, 0, 0, true);
-
-                                              alert(`Paquete con tracking ${pa.id} confirmado como recibido en Bodega USA (procesado sin almacenar).`);
-                                            }}
-                                            className="bg-brand-orange hover:bg-brand-orange-hover text-white px-2.5 py-1 rounded text-4xs font-black uppercase transition cursor-pointer shadow-3xs flex items-center gap-0.5 active:scale-95"
-                                            title="Confirmar recepción física en Bodega USA"
+                                            onClick={() => setProcessingPreAlertId(pa.id)}
+                                            className="bg-brand-orange hover:bg-brand-orange-hover text-white px-3 py-1 rounded text-4xs font-black uppercase transition cursor-pointer shadow-3xs flex items-center gap-1 active:scale-95"
+                                            title="Procesar y confirmar recepción en bodega"
                                           >
-                                            USA 🇺🇸
+                                            ⚡ Procesar
                                           </button>
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              const updatedPa = { ...pa, status: 'Recibido' as const };
-                                              setPreAlerts(prev => prev.map(item => item.id === pa.id ? updatedPa : item));
-                                              db.upsertPreAlert(updatedPa);
+                                        ) : (
+                                          <div className="flex flex-col items-center gap-1 animate-fadeIn">
+                                            <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">
+                                              Seleccionar Bodega:
+                                            </span>
+                                            <div className="flex gap-1 justify-center items-center">
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  const updatedPa = { ...pa, status: 'Recibido' as const };
+                                                  setPreAlerts(prev => prev.map(item => item.id === pa.id ? updatedPa : item));
+                                                  db.upsertPreAlert(updatedPa);
+                                                  setProcessingPreAlertId(null);
 
-                                              // Notificación al cliente por correo (si EmailJS está configurado)
-                                              sendPreAlertReceivedEmailHelper(pa, pa.id, 0, 0, 0, true);
+                                                  // Notificación al cliente por correo (si EmailJS está configurado)
+                                                  sendPreAlertReceivedEmailHelper(pa, pa.id, 0, 0, 0, true);
 
-                                              alert(`Paquete con tracking ${pa.id} confirmado como recibido en Bodega México (procesado sin almacenar).`);
-                                            }}
-                                            className="bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1 rounded text-4xs font-black uppercase transition cursor-pointer shadow-3xs flex items-center gap-0.5 active:scale-95"
-                                            title="Confirmar recepción física en Bodega México"
-                                          >
-                                            México 🇲🇽
-                                          </button>
-                                        </div>
+                                                  alert(`Paquete con tracking ${pa.id} confirmado como recibido en Bodega USA (procesado sin almacenar).`);
+                                                }}
+                                                className="bg-brand-orange hover:bg-brand-orange-hover text-white px-2 py-0.5 rounded text-4xs font-black uppercase transition cursor-pointer shadow-3xs flex items-center gap-0.5 active:scale-95"
+                                                title="Confirmar recepción en Bodega USA"
+                                              >
+                                                USA 🇺🇸
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  const updatedPa = { ...pa, status: 'Recibido' as const };
+                                                  setPreAlerts(prev => prev.map(item => item.id === pa.id ? updatedPa : item));
+                                                  db.upsertPreAlert(updatedPa);
+                                                  setProcessingPreAlertId(null);
+
+                                                  // Notificación al cliente por correo (si EmailJS está configurado)
+                                                  sendPreAlertReceivedEmailHelper(pa, pa.id, 0, 0, 0, true);
+
+                                                  alert(`Paquete con tracking ${pa.id} confirmado como recibido en Bodega México (procesado sin almacenar).`);
+                                                }}
+                                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-0.5 rounded text-4xs font-black uppercase transition cursor-pointer shadow-3xs flex items-center gap-0.5 active:scale-95"
+                                                title="Confirmar recepción en Bodega México"
+                                              >
+                                                México 🇲🇽
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => setProcessingPreAlertId(null)}
+                                                className="text-gray-400 hover:text-gray-600 p-0.5 text-xs font-bold leading-none cursor-pointer"
+                                                title="Cancelar"
+                                              >
+                                                ✕
+                                              </button>
+                                            </div>
+                                          </div>
+                                        )
                                       ) : (
                                         <div className="flex flex-col items-center gap-1">
                                           <span className="inline-flex items-center gap-1 text-emerald-800 text-[10px] font-extrabold uppercase bg-emerald-100/70 border border-emerald-300 px-2 py-0.5 rounded shadow-3xs">
