@@ -206,6 +206,27 @@ export const db = {
       return false;
     }
   },
+  async deleteConsolidatedGuide(id: string): Promise<boolean> {
+    try {
+      const { error } = await supabase.from('consolidated_guides').delete().eq('id', id);
+      if (error) throw error;
+      return true;
+    } catch (err) {
+      console.error("Supabase: deleteConsolidatedGuide error", err);
+      return false;
+    }
+  },
+  async deleteConsolidatedGuides(ids: string[]): Promise<boolean> {
+    if (!ids.length) return true;
+    try {
+      const { error } = await supabase.from('consolidated_guides').delete().in('id', ids);
+      if (error) throw error;
+      return true;
+    } catch (err) {
+      console.error("Supabase: deleteConsolidatedGuides error", err);
+      return false;
+    }
+  },
 
   // Invoices
   async getInvoices(limit?: number, offset?: number): Promise<any[]> {

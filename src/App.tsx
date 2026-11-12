@@ -9707,7 +9707,25 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                         alert(`¡Guía Madre ${guideId} actualizada a: ${newStatus}!\nSe ha propagado el estado a todos sus paquetes individuales.`);
                       };
 
+                      const handleDeleteConsolidados = async (guideIds: string[], label: string) => {
+                        if (!guideIds || guideIds.length === 0) return;
+                        const confirmed = window.confirm(
+                          `¿Estás seguro de que deseas eliminar ${label}?\n\nSe eliminarán ${guideIds.length} guía(s) consolidada(s) del historial de consolidados. Esta acción no se puede deshacer.`
+                        );
+                        if (!confirmed) return;
 
+                        try {
+                          await db.deleteConsolidatedGuides(guideIds);
+                          setConsolidatedGuides(prev => prev.filter(g => !guideIds.includes(g.id)));
+                          setSelectedConsolidados(prev => prev.filter(id => !guideIds.includes(id)));
+                          if (expandedConsolidadoGuide && (guideIds.includes(expandedConsolidadoGuide) || label.includes(expandedConsolidadoGuide))) {
+                            setExpandedConsolidadoGuide(null);
+                          }
+                        } catch (err) {
+                          console.error("Error deleting consolidated guides:", err);
+                          alert("Ocurrió un error al intentar eliminar el consolidado de la base de datos.");
+                        }
+                      };
 
                       // Filter Master Guides list
                       const filteredGuides = consolidatedGuides.filter(guide => {
@@ -10188,6 +10206,14 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                     <Printer className="h-3.5 w-3.5 text-brand-orange" />
                                     <span>Imprimir Etiquetas 4x6" ({selectedConsolidados.length})</span>
                                   </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDeleteConsolidados(selectedConsolidados, `${selectedConsolidados.length} guía(s) seleccionada(s)`)}
+                                    className="bg-red-600 hover:bg-red-700 text-white text-[10px] font-extrabold px-3 py-1.5 rounded uppercase tracking-wider cursor-pointer transition shadow-3xs flex items-center gap-1.5 active:scale-98"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                    <span>Eliminar ({selectedConsolidados.length})</span>
+                                  </button>
                                 </>
                               )}
                             </div>
@@ -10264,13 +10290,23 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                           <h4 className="text-xs font-black truncate max-w-[180px]" title={cName}>{cName}</h4>
                                           <span className="text-[9px] text-slate-400 block font-mono">Despachado: {date}</span>
                                         </div>
-                                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase border ${
-                                          origin === 'Mexico'
-                                            ? 'bg-emerald-950 text-emerald-400 border-emerald-800'
-                                            : 'bg-blue-950 text-blue-400 border-blue-800'
-                                        }`}>
-                                          {origin === 'Mexico' ? '🇲🇽 MX' : '🇺🇸 USA'}
-                                        </span>
+                                        <div className="flex items-center gap-1.5">
+                                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase border ${
+                                            origin === 'Mexico'
+                                              ? 'bg-emerald-950 text-emerald-400 border-emerald-800'
+                                              : 'bg-blue-950 text-blue-400 border-blue-800'
+                                          }`}>
+                                            {origin === 'Mexico' ? '🇲🇽 MX' : '🇺🇸 USA'}
+                                          </span>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleDeleteConsolidados(guidesInContainer.map(g => g.id), `el Contenedor ${cName}`)}
+                                            className="p-1 rounded-lg bg-red-950/70 hover:bg-red-600 text-red-400 hover:text-white border border-red-800/70 transition cursor-pointer"
+                                            title={`Eliminar Contenedor ${cName}`}
+                                          >
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                          </button>
+                                        </div>
                                       </div>
 
                                       {/* Card body */}
@@ -10375,14 +10411,25 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                           <Printer className="h-3 w-3" />
                                           Imprimir Facturas
                                         </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => handlePrintGuidesLabels4x6(guidesInContainer.map(g => g.id), cName)}
-                                          className="w-full bg-slate-900 hover:bg-slate-800 border border-slate-900 text-white text-[8px] font-extrabold py-1.5 px-2 rounded-lg uppercase tracking-wider cursor-pointer transition active:scale-97 flex items-center justify-center gap-1.5 shadow-3xs"
-                                        >
-                                          <Printer className="h-3 w-3 text-brand-orange" />
-                                          Imprimir Etiquetas (4x6")
-                                        </button>
+                                        <div className="flex items-center gap-2">
+                                          <button
+                                            type="button"
+                                            onClick={() => handlePrintGuidesLabels4x6(guidesInContainer.map(g => g.id), cName)}
+                                            className="flex-1 bg-slate-900 hover:bg-slate-800 border border-slate-900 text-white text-[8px] font-extrabold py-1.5 px-2 rounded-lg uppercase tracking-wider cursor-pointer transition active:scale-97 flex items-center justify-center gap-1.5 shadow-3xs"
+                                          >
+                                            <Printer className="h-3 w-3 text-brand-orange" />
+                                            Imprimir Etiquetas (4x6")
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleDeleteConsolidados(guidesInContainer.map(g => g.id), `el Contenedor ${cName}`)}
+                                            className="bg-red-50 hover:bg-red-600 border border-red-200 hover:border-red-600 text-red-600 hover:text-white text-[8px] font-extrabold py-1.5 px-2.5 rounded-lg uppercase tracking-wider cursor-pointer transition active:scale-97 flex items-center justify-center gap-1 shadow-3xs"
+                                            title={`Borrar Contenedor ${cName}`}
+                                          >
+                                            <Trash2 className="h-3 w-3" />
+                                            Borrar
+                                          </button>
+                                        </div>
                                       </div>
                                     </div>
                                   );
@@ -10640,6 +10687,13 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                               >
                                                 <Printer className="h-3 w-3 inline text-brand-orange" /> Etiquetas 4x6"
                                               </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => handleDeleteConsolidados(item.guides.map((g: any) => g.id), item.type === 'container' ? `el Contenedor ${item.id}` : `la Guía Madre ${item.id}`)}
+                                                className="text-red-600 hover:text-red-800 text-4xs font-black uppercase tracking-wider underline cursor-pointer flex items-center gap-0.5"
+                                              >
+                                                <Trash2 className="h-3 w-3 inline" /> Borrar
+                                              </button>
                                             </div>
                                           </td>
                                         </tr>
@@ -10715,6 +10769,15 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                                             >
                                                               <Printer className="h-2.5 w-2.5 text-brand-orange" />
                                                               <span>4x6"</span>
+                                                            </button>
+                                                            <button
+                                                              type="button"
+                                                              onClick={() => handleDeleteConsolidados([guide.id], `la Guía Consolidada ${guide.id}`)}
+                                                              className="bg-red-50 hover:bg-red-600 text-red-600 hover:text-white border border-red-200 hover:border-red-600 px-2 py-0.5 rounded text-[8px] font-extrabold uppercase flex items-center gap-1 cursor-pointer transition"
+                                                              title="Borrar esta guía consolidada"
+                                                            >
+                                                              <Trash2 className="h-2.5 w-2.5" />
+                                                              <span>Borrar</span>
                                                             </button>
                                                           </div>
                                                         </div>
