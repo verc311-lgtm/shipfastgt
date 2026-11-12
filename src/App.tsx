@@ -8074,14 +8074,34 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                   (getOriginalTrackingHelper(s) || '').trim().toUpperCase() === paIdUpper ||
                                   (s.notes || '').toUpperCase().includes(paIdUpper)
                                 );
-                                const isProcessed = pa.status === 'Recibido' || (linkedShip && linkedShip.status === 'En Sucursal');
+                                const isInWarehouse = linkedShip && linkedShip.status === 'En Sucursal';
+                                const isProcessed = pa.status === 'Recibido' || isInWarehouse;
+                                const isProcessing = processingPreAlertId === pa.id;
 
                                 return (
-                                  <tr key={pa.id} className={`transition-all duration-150 ${isProcessed ? 'bg-emerald-50/90 hover:bg-emerald-100/80 border-b border-emerald-200' : 'hover:bg-gray-50/70'}`}>
+                                  <tr key={pa.id} className={`transition-all duration-150 ${
+                                    isProcessed
+                                      ? 'bg-emerald-100/60 hover:bg-emerald-100/80 border-b border-emerald-300 font-medium text-emerald-950'
+                                      : isProcessing
+                                        ? 'bg-emerald-50 hover:bg-emerald-100/50 border-b border-emerald-300 ring-2 ring-emerald-400/50'
+                                        : 'hover:bg-gray-50/70'
+                                  }`}>
                                     {/* 1. FECHA PRIMERO */}
-                                    <td className={`py-3 px-3 whitespace-nowrap ${isProcessed ? 'border-l-4 border-emerald-500 bg-emerald-50/90' : ''}`}>
-                                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md font-mono font-bold text-3xs border ${isProcessed ? "bg-emerald-100 border-emerald-300 text-emerald-800" : "bg-slate-100 border-slate-200 text-slate-700"}`}>
-                                        {isProcessed ? "✓ " : ""}📅 {pa.dateCreated}
+                                    <td className={`py-3 px-3 whitespace-nowrap transition-colors ${
+                                      isProcessed
+                                        ? 'border-l-4 border-emerald-600 bg-emerald-100/60'
+                                        : isProcessing
+                                          ? 'border-l-4 border-emerald-400 bg-emerald-50'
+                                          : ''
+                                    }`}>
+                                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md font-mono font-bold text-3xs border transition-colors ${
+                                        isProcessed
+                                          ? 'bg-emerald-200/90 border-emerald-400 text-emerald-950 font-black'
+                                          : isProcessing
+                                            ? 'bg-emerald-100 border-emerald-300 text-emerald-800 font-bold'
+                                            : 'bg-slate-100 border-slate-200 text-slate-700'
+                                      }`}>
+                                        {isProcessed ? '✓ ' : isProcessing ? '⚡ ' : ''}📅 {pa.dateCreated}
                                       </span>
                                     </td>
 
@@ -8192,24 +8212,35 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
 
                                     <td className="py-3 px-3 text-center font-mono font-bold">
                                       {pa.weightEst} Lbs
-                                      {pa.status === 'Recibido' && (
-                                        <span className="block text-[8px] text-emerald-600 font-extrabold uppercase tracking-widest">
+                                      {isProcessed && (
+                                        <span className="block text-[8px] text-emerald-700 font-extrabold uppercase tracking-widest">
                                           Báscula
                                         </span>
                                       )}
                                     </td>
                                     <td className="py-3 px-3">
-                                      <span className={`px-2 py-0.5 rounded text-4xs font-extrabold uppercase border inline-flex items-center gap-1 shadow-3xs ${
-                                        pa.status === 'Recibido' 
-                                          ? 'bg-emerald-100/80 border-emerald-300 text-emerald-800' 
-                                          : 'bg-orange-50 border-orange-200 text-brand-orange animate-pulse'
+                                      <span className={`px-2.5 py-1 rounded text-4xs font-extrabold uppercase border inline-flex items-center gap-1.5 shadow-3xs ${
+                                        isProcessed 
+                                          ? 'bg-emerald-100 border-emerald-400 text-emerald-900 font-black' 
+                                          : isProcessing
+                                            ? 'bg-emerald-100 border-emerald-300 text-emerald-800 font-black animate-pulse'
+                                            : 'bg-orange-50 border-orange-200 text-brand-orange animate-pulse'
                                       }`}>
-                                        {pa.status === 'Recibido' ? '✓ EN ALMACÉN' : pa.status}
+                                        {isProcessed ? (
+                                          <>
+                                            <Check className="h-3 w-3 text-emerald-700 stroke-[3]" />
+                                            <span>EN ALMACÉN</span>
+                                          </>
+                                        ) : isProcessing ? (
+                                          <span>⚡ PROCESANDO...</span>
+                                        ) : (
+                                          pa.status
+                                        )}
                                       </span>
                                     </td>
                                   <td className="py-3 px-4 text-center">
                                     <div className="flex flex-col gap-1.5 items-center justify-center">
-                                      {pa.status === 'Pendiente' ? (
+                                      {!isProcessed ? (
                                         processingPreAlertId !== pa.id ? (
                                           <button
                                             type="button"
