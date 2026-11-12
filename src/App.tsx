@@ -6437,7 +6437,7 @@ Para proporcionarle información específica, puede solicitar:
                           const { fileName: attachedFile } = parsePreAlertAttachment(pa);
                           const parsed = parsePreAlertDetails(pa);
                           return (
-                            <tr key={pa.id} className="hover:bg-gray-50/70">
+                            <tr key={pa.id} className={`transition-colors ${pa.status === 'Recibido' ? 'bg-emerald-50/40 hover:bg-emerald-100/50 border-l-4 border-emerald-400' : 'hover:bg-gray-50/70'}`}>
                               <td className="py-3 px-4 font-mono font-bold text-slate-700 whitespace-nowrap">
                                 📅 {pa.dateCreated}
                               </td>
@@ -6502,7 +6502,7 @@ Para proporcionarle información específica, puede solicitar:
                               <td className="py-3 px-3 text-center font-mono font-bold">{pa.weightEst} Lbs</td>
                               <td className="py-3 px-3">
                                 <span className={`px-2.5 py-0.5 rounded text-4xs font-extrabold uppercase border ${
-                                  pa.status === 'Recibido' ? 'bg-green-50 border-green-200 text-green-700' : 'bg-amber-50 border-amber-200 text-amber-800'
+                                  pa.status === 'Recibido' ? 'bg-emerald-100/80 border-emerald-300 text-emerald-800' : 'bg-amber-50 border-amber-200 text-amber-800'
                                 }`}>
                                   {pa.status}
                                 </span>
@@ -7873,8 +7873,8 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                               className="px-2.5 py-1 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark bg-white focus:ring-1 focus:ring-brand-orange"
                             >
                               <option value="todos">Todos los Estados</option>
-                              <option value="Pendiente">Pendiente (No Recibidos)</option>
-                              <option value="Recibido">Recibido (En Almacén)</option>
+                              <option value="Pendiente">Pendiente (Sin Procesar)</option>
+                              <option value="Recibido">Confirmado en Bodega</option>
                             </select>
                           </div>
 
@@ -7988,7 +7988,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                 const clientName = matchingUser ? matchingUser.name : 'Cliente No Identificado';
 
                                 return (
-                                  <tr key={pa.id} className="hover:bg-gray-50/70 transition-colors">
+                                  <tr key={pa.id} className={`transition-colors ${pa.status === 'Recibido' ? 'bg-emerald-50/40 hover:bg-emerald-100/50 border-l-4 border-emerald-400' : 'hover:bg-gray-50/70'}`}>
                                     {/* 1. FECHA PRIMERO */}
                                     <td className="py-3 px-3 whitespace-nowrap">
                                       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-slate-100 border border-slate-200 font-mono font-bold text-slate-700 text-3xs">
@@ -8103,12 +8103,12 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
 
                                     <td className="py-3 px-3 text-center font-mono font-bold">{pa.weightEst} Lbs</td>
                                     <td className="py-3 px-3">
-                                      <span className={`px-2 py-0.5 rounded text-4xs font-extrabold uppercase border ${
+                                      <span className={`px-2 py-0.5 rounded text-4xs font-extrabold uppercase border inline-flex items-center gap-1 shadow-3xs ${
                                         pa.status === 'Recibido' 
-                                          ? 'bg-green-50 border-green-200 text-green-700' 
+                                          ? 'bg-emerald-100/80 border-emerald-300 text-emerald-800' 
                                           : 'bg-orange-50 border-orange-200 text-brand-orange animate-pulse'
                                       }`}>
-                                        {pa.status}
+                                        {pa.status === 'Recibido' ? '✓ EN BODEGA' : pa.status}
                                       </span>
                                     </td>
                                   <td className="py-3 px-4 text-center">
@@ -8116,245 +8116,60 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                       {pa.status === 'Pendiente' ? (
                                         <div className="flex gap-1.5 justify-center">
                                           <button
+                                            type="button"
                                             onClick={() => {
-                                              // Set received status
-                                              setPreAlerts(prev => prev.map(item => item.id === pa.id ? { ...item, status: 'Recibido' } : item));
-                                              
-                                              // Add package to shipments
-                                              const matchingUser = users.find(u => u.lockerId === pa.lockerId);
-                                              const clientName = matchingUser ? matchingUser.name : 'Cliente Registrado';
-                                              const generatedId = `SF-${Math.floor(1000 + Math.random() * 9000)}-GT`;
-                                              const currentDate = new Date().toISOString().split('T')[0];
-                                              const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
+                                              const updatedPa = { ...pa, status: 'Recibido' as const };
+                                              setPreAlerts(prev => prev.map(item => item.id === pa.id ? updatedPa : item));
+                                              db.upsertPreAlert(updatedPa);
 
-                                              // Calculate Laredo / Shein rate
-                                              const isShein = pa.description.toLowerCase().includes('shein');
-                                              const flete = isShein
-                                                ? ratesSettings.sheinRate
-                                                : pa.weightEst * ratesSettings.laredoRate;
+                                              // Notificación al cliente por correo (si EmailJS está configurado)
+                                              sendPreAlertReceivedEmailHelper(pa, pa.id, 0, 0, 0, true);
 
-                                              const newShip: Shipment = {
-                                                id: generatedId,
-                                                lockerId: pa.lockerId,
-                                                sender: pa.sender,
-                                                receiver: clientName,
-                                                origin: 'USA',
-                                                destination: matchingUser ? matchingUser.address : 'Guatemala',
-                                                status: 'En Sucursal', // checked-in at Laredo warehouse
-                                                serviceType: 'Express',
-                                                weight: pa.weightEst,
-                                                dimensions: '20x20x15 cm',
-                                                lastUpdated: `${currentDate} ${currentTime}`,
-                                                history: [
-                                                  {
-                                                    date: currentDate,
-                                                    time: currentTime,
-                                                    status: 'En Sucursal',
-                                                    location: 'Bodega USA',
-                                                    details: isShein
-                                                      ? `Carga pre-alertada (Bolsa Shein) recibida físicamente en bodega de USA.`
-                                                      : `Carga pre-alertada recibida físicamente en bodega de USA. Peso registrado: ${pa.weightEst} Lbs.`
-                                                  }
-                                                ],
-                                                notes: pa.description ? `${pa.description} | Tracking original: ${pa.id}` : `Tracking original: ${pa.id}`
-                                              };
-
-                                                  const declaredValue = pa.declaredValue || (() => {
-                                                    if (pa.description && pa.description.includes('Valor: $')) {
-                                                      const valParts = pa.description.split('Valor: $');
-                                                      if (valParts.length > 1) {
-                                                        const val = parseFloat(valParts[1].split(' | ')[0]);
-                                                        if (!isNaN(val)) return val;
-                                                      }
-                                                    }
-                                                    return 0;
-                                                  })();
-                                                  const hasInsurance = pa.insurance === 'Con seguro (5%)' || (pa.description && pa.description.includes('Seguro: Con seguro (5%)'));
-                                                  const insuranceFeeUsd = hasInsurance ? (declaredValue * 0.05) : 0;
-                                                  const insuranceFeeGtq = insuranceFeeUsd * 8.00;
-                                                  const totalCharge = flete + insuranceFeeGtq;
-
-                                               // Save to Supabase (sin generar factura)
-                                               db.upsertPreAlert({ ...pa, status: 'Recibido' });
-                                               db.upsertShipment(newShip);
-
-                                               setShipments([newShip, ...shipments]);
-
-                                               // Trigger background receipt email to client!
-                                               sendPreAlertReceivedEmailHelper(pa, generatedId, flete, insuranceFeeGtq, totalCharge, true);
-
-                                               alert(`Paquete pre-alertado registrado como recibido en Bodega USA (sin facturar). Se ha asignado la guía: ${generatedId}. Listo para consolidación.`);
+                                              alert(`Paquete con tracking ${pa.id} confirmado como recibido en Bodega USA (procesado sin almacenar).`);
                                             }}
-                                            className="bg-brand-orange hover:bg-brand-orange-hover text-white px-2 py-0.5 rounded text-4xs font-black uppercase transition cursor-pointer shadow-3xs flex items-center gap-0.5"
+                                            className="bg-brand-orange hover:bg-brand-orange-hover text-white px-2.5 py-1 rounded text-4xs font-black uppercase transition cursor-pointer shadow-3xs flex items-center gap-0.5 active:scale-95"
+                                            title="Confirmar recepción física en Bodega USA"
                                           >
                                             USA 🇺🇸
                                           </button>
                                           <button
+                                            type="button"
                                             onClick={() => {
-                                              // Set received status
-                                              setPreAlerts(prev => prev.map(item => item.id === pa.id ? { ...item, status: 'Recibido' } : item));
-                                              
-                                              // Add package to shipments
-                                              const matchingUser = users.find(u => u.lockerId === pa.lockerId);
-                                              const clientName = matchingUser ? matchingUser.name : 'Cliente Registrado';
-                                              const generatedId = `SF-${Math.floor(1000 + Math.random() * 9000)}-GT`;
-                                              const currentDate = new Date().toISOString().split('T')[0];
-                                              const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
+                                              const updatedPa = { ...pa, status: 'Recibido' as const };
+                                              setPreAlerts(prev => prev.map(item => item.id === pa.id ? updatedPa : item));
+                                              db.upsertPreAlert(updatedPa);
 
-                                              // Calculate Mexico / Shein rate
-                                              const isShein = pa.description.toLowerCase().includes('shein');
-                                              const flete = isShein
-                                                ? ratesSettings.sheinRate
-                                                : pa.weightEst * ratesSettings.mexicoRate;
+                                              // Notificación al cliente por correo (si EmailJS está configurado)
+                                              sendPreAlertReceivedEmailHelper(pa, pa.id, 0, 0, 0, true);
 
-                                              const newShip: Shipment = {
-                                                id: generatedId,
-                                                lockerId: pa.lockerId,
-                                                sender: pa.sender,
-                                                receiver: clientName,
-                                                origin: 'Mexico',
-                                                destination: matchingUser ? matchingUser.address : 'Guatemala',
-                                                status: 'En Sucursal', // checked-in at Mexico warehouse
-                                                serviceType: 'Express',
-                                                weight: pa.weightEst,
-                                                dimensions: '20x20x15 cm',
-                                                lastUpdated: `${currentDate} ${currentTime}`,
-                                                history: [
-                                                  {
-                                                    date: currentDate,
-                                                    time: currentTime,
-                                                    status: 'En Sucursal',
-                                                    location: 'Bodega México',
-                                                    details: isShein
-                                                      ? `Carga pre-alertada (Bolsa Shein) recibida físicamente en bodega de México.`
-                                                      : `Carga pre-alertada recibida físicamente en bodega de México. Peso registrado: ${pa.weightEst} Lbs.`
-                                                  }
-                                                ],
-                                                notes: pa.description ? `${pa.description} | Tracking original: ${pa.id}` : `Tracking original: ${pa.id}`
-                                              };
-
-                                                  const declaredValue = pa.declaredValue || (() => {
-                                                    if (pa.description && pa.description.includes('Valor: $')) {
-                                                      const valParts = pa.description.split('Valor: $');
-                                                      if (valParts.length > 1) {
-                                                        const val = parseFloat(valParts[1].split(' | ')[0]);
-                                                        if (!isNaN(val)) return val;
-                                                      }
-                                                    }
-                                                    return 0;
-                                                  })();
-                                                  const hasInsurance = pa.insurance === 'Con seguro (5%)' || (pa.description && pa.description.includes('Seguro: Con seguro (5%)'));
-                                                  const insuranceFeeUsd = hasInsurance ? (declaredValue * 0.05) : 0;
-                                                  const insuranceFeeGtq = insuranceFeeUsd * 8.00;
-                                                  const totalCharge = flete + insuranceFeeGtq;
-
-                                               // Save to Supabase (sin generar factura)
-                                               db.upsertPreAlert({ ...pa, status: 'Recibido' });
-                                               db.upsertShipment(newShip);
-
-                                               setShipments([newShip, ...shipments]);
-
-                                               // Trigger background receipt email to client!
-                                               sendPreAlertReceivedEmailHelper(pa, generatedId, flete, insuranceFeeGtq, totalCharge, true);
-
-                                               alert(`Paquete pre-alertado registrado como recibido en Bodega México (sin facturar). Se ha asignado la guía: ${generatedId}. Listo para consolidación.`);
+                                              alert(`Paquete con tracking ${pa.id} confirmado como recibido en Bodega México (procesado sin almacenar).`);
                                             }}
-                                            className="bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-0.5 rounded text-4xs font-black uppercase transition cursor-pointer shadow-3xs flex items-center gap-0.5"
+                                            className="bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1 rounded text-4xs font-black uppercase transition cursor-pointer shadow-3xs flex items-center gap-0.5 active:scale-95"
+                                            title="Confirmar recepción física en Bodega México"
                                           >
                                             México 🇲🇽
                                           </button>
                                         </div>
-                                      ) : (() => {
-                                        const paIdUpper = (pa.id || '').trim().toUpperCase();
-                                        const linkedShip = shipments.find(s =>
-                                          (s.id || '').trim().toUpperCase() === paIdUpper ||
-                                          (getOriginalTrackingHelper(s) || '').trim().toUpperCase() === paIdUpper ||
-                                          (s.notes || '').toUpperCase().includes(paIdUpper)
-                                        );
-                                        const isStuckOrMissing = !linkedShip || linkedShip.status === 'Creado';
-                                        return (
-                                          <div className="flex flex-col items-center gap-1">
-                                            <span className="text-gray-500 text-4xs font-bold uppercase flex items-center justify-center gap-0.5">
-                                              <Check className="h-3 w-3 text-green-500" />
-                                              {linkedShip && linkedShip.status !== 'Creado'
-                                                ? `${linkedShip.status === 'En Sucursal' ? 'En Almacén' : linkedShip.status} (${linkedShip.id})`
-                                                : 'Completado'}
-                                            </span>
-                                            {isStuckOrMissing && (
-                                              <button
-                                                type="button"
-                                                onClick={async () => {
-                                                  const currentDate = new Date().toISOString().split('T')[0];
-                                                  const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
-                                                  const isMx = (pa.description || '').toLowerCase().includes('mexico') || (pa.description || '').toLowerCase().includes('tapachula');
-                                                  const targetOrigin = isMx ? 'Mexico' : 'USA';
-                                                  const normLocker = (pa.lockerId || '').trim().toUpperCase();
-                                                  const matchingUser = users.find(u => (u.lockerId || '').trim().toUpperCase() === normLocker);
-                                                  const clientName = matchingUser ? matchingUser.name : 'Cliente Registrado';
-
-                                                  if (linkedShip) {
-                                                    const restored: Shipment = {
-                                                      ...linkedShip,
-                                                      lockerId: normLocker,
-                                                      receiver: clientName,
-                                                      origin: targetOrigin,
-                                                      status: 'En Sucursal',
-                                                      weight: pa.weightEst || linkedShip.weight || 1,
-                                                      lastUpdated: `${currentDate} ${currentTime}`,
-                                                      notes: pa.description ? `${pa.description} | Tracking original: ${pa.id}` : `Tracking original: ${pa.id}`,
-                                                      history: [
-                                                        {
-                                                          date: currentDate,
-                                                          time: currentTime,
-                                                          status: 'En Sucursal',
-                                                          location: isMx ? 'Bodega México' : 'Bodega USA',
-                                                          details: `Paquete re-ingresado a almacén (${targetOrigin}). Peso registrado: ${pa.weightEst || linkedShip.weight || 1} Lbs.`
-                                                        },
-                                                        ...(linkedShip.history || [])
-                                                      ]
-                                                    };
-                                                    await db.upsertShipment(restored);
-                                                    setShipments(prev => prev.map(s => s.id === restored.id ? restored : s));
-                                                    alert(`Paquete ${restored.id} (${pa.id}) re-ingresado a Consolidados en Almacén (${targetOrigin}) con ${restored.weight} Lbs.`);
-                                                  } else {
-                                                    const generatedId = `SF-${Math.floor(1000 + Math.random() * 9000)}-GT`;
-                                                    const newShip: Shipment = {
-                                                      id: generatedId,
-                                                      lockerId: normLocker,
-                                                      sender: pa.sender,
-                                                      receiver: clientName,
-                                                      origin: targetOrigin,
-                                                      destination: matchingUser ? matchingUser.address : 'Guatemala',
-                                                      status: 'En Sucursal',
-                                                      serviceType: 'Express',
-                                                      weight: pa.weightEst || 1,
-                                                      dimensions: '20x20x15 cm',
-                                                      lastUpdated: `${currentDate} ${currentTime}`,
-                                                      history: [
-                                                        {
-                                                          date: currentDate,
-                                                          time: currentTime,
-                                                          status: 'En Sucursal',
-                                                          location: isMx ? 'Bodega México' : 'Bodega USA',
-                                                          details: `Carga pre-alertada recibida físicamente en bodega de ${targetOrigin}. Peso registrado: ${pa.weightEst || 1} Lbs.`
-                                                        }
-                                                      ],
-                                                      notes: pa.description ? `${pa.description} | Tracking original: ${pa.id}` : `Tracking original: ${pa.id}`
-                                                    };
-                                                    await db.upsertShipment(newShip);
-                                                    setShipments(prev => [newShip, ...prev]);
-                                                    alert(`Paquete ${generatedId} (${pa.id}) ingresado a Consolidados en Almacén (${targetOrigin}) con ${newShip.weight} Lbs.`);
-                                                  }
-                                                }}
-                                                className="bg-amber-500 hover:bg-amber-600 text-white px-2 py-0.5 rounded text-[8px] font-black uppercase transition cursor-pointer shadow-2xs"
-                                                title="Este paquete fue desalmacenado o no figura en sucursal. Haz clic para enviarlo a Consolidados en Almacén."
-                                              >
-                                                🔄 Re-ingresar a Almacén
-                                              </button>
-                                            )}
-                                          </div>
-                                        );
-                                      })()}
+                                      ) : (
+                                        <div className="flex flex-col items-center gap-1">
+                                          <span className="inline-flex items-center gap-1 text-emerald-800 text-[10px] font-extrabold uppercase bg-emerald-100/70 border border-emerald-300 px-2 py-0.5 rounded shadow-3xs">
+                                            <Check className="h-3 w-3 text-emerald-600" />
+                                            Confirmado en Bodega
+                                          </span>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const revertedPa = { ...pa, status: 'Pendiente' as const };
+                                              setPreAlerts(prev => prev.map(item => item.id === pa.id ? revertedPa : item));
+                                              db.upsertPreAlert(revertedPa);
+                                            }}
+                                            className="text-gray-400 hover:text-amber-600 text-[8px] font-bold underline transition cursor-pointer"
+                                            title="Revertir a Pendiente para volver a mostrar los botones"
+                                          >
+                                            ↩ Desmarcar
+                                          </button>
+                                        </div>
+                                      )}
                                       <div className="flex gap-1 justify-center mt-1 border-t border-gray-100 pt-1 w-full">
                                         <button
                                           type="button"
