@@ -46,7 +46,8 @@ import {
   Eye,
   EyeOff,
   ArrowLeft,
-  PackageMinus
+  PackageMinus,
+  Scale
 } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
 
@@ -693,6 +694,10 @@ export default function App() {
   const [adminPreAlertStartDate, setAdminPreAlertStartDate] = useState('');
   const [adminPreAlertEndDate, setAdminPreAlertEndDate] = useState('');
   const [processingPreAlertId, setProcessingPreAlertId] = useState<string | null>(null);
+  const [isCheckInModalOpen, setIsCheckInModalOpen] = useState(false);
+  const [checkInModalPreAlert, setCheckInModalPreAlert] = useState<PreAlert | null>(null);
+  const [checkInModalBodega, setCheckInModalBodega] = useState<'USA' | 'Mexico'>('USA');
+  const [checkInModalWeight, setCheckInModalWeight] = useState<number>(2.0);
   const [selectedWarehouseGroups, setSelectedWarehouseGroups] = useState<string[]>([]);
   const [selectedAdminShipment, setSelectedAdminShipment] = useState<Shipment | null>(null);
   const [newShipmentModal, setNewShipmentModal] = useState(false);
@@ -4140,6 +4145,81 @@ Para proporcionarle información específica, puede solicitar:
     }
 
     setShipments(prev => prev.map(s => s.id === updatedShipment.id ? updatedShipment : s));
+  };
+
+  const handleOpenCheckInModal = (pa: PreAlert, bodega: 'USA' | 'Mexico') => {
+    setCheckInModalPreAlert(pa);
+    setCheckInModalBodega(bodega);
+    setCheckInModalWeight(pa.weightEst || 1.0);
+    setIsCheckInModalOpen(true);
+  };
+
+  const handleConfirmCheckIn = async () => {
+    if (!checkInModalPreAlert) return;
+    const pa = checkInModalPreAlert;
+    const verifiedWeight = Math.max(0.1, Number(checkInModalWeight) || pa.weightEst || 1.0);
+
+    const normLocker = (pa.lockerId || '').trim().toUpperCase();
+    const matchingUser = users.find(u => (u.lockerId || '').trim().toUpperCase() === normLocker);
+    const clientName = matchingUser ? matchingUser.name : 'Cliente Registrado';
+    const destination = matchingUser ? matchingUser.address : 'Guatemala';
+
+    const generatedId = `SF-${Math.floor(1000 + Math.random() * 9000)}-GT`;
+    const currentDate = new Date().toISOString().split('T')[0];
+    const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
+
+    const isShein = (pa.description || '').toLowerCase().includes('shein');
+    const flete = isShein
+      ? ratesSettings.sheinRate
+      : (checkInModalBodega === 'USA' ? verifiedWeight * ratesSettings.laredoRate : verifiedWeight * ratesSettings.mexicoRate);
+
+    const newShip: Shipment = {
+      id: generatedId,
+      lockerId: pa.lockerId,
+      sender: pa.sender || 'Tienda Courier Intern.',
+      receiver: clientName,
+      origin: checkInModalBodega,
+      destination: destination,
+      status: 'En Sucursal', // Ingreso directo a Warehouse
+      serviceType: 'Express',
+      weight: verifiedWeight,
+      dimensions: '20x20x15 cm',
+      lastUpdated: `${currentDate} ${currentTime}`,
+      history: [
+        {
+          date: currentDate,
+          time: currentTime,
+          status: 'En Sucursal',
+          location: `Bodega ${checkInModalBodega}`,
+          details: isShein
+            ? `Carga pre-alertada (Bolsa Shein) recibida en bodega de ${checkInModalBodega} e ingresada a almacén.`
+            : `Carga pre-alertada recibida e ingresada a almacén de ${checkInModalBodega}. Peso verificado en báscula: ${verifiedWeight} Lbs.`
+        }
+      ],
+      notes: pa.description ? `${pa.description} | Tracking original: ${pa.id}` : `Tracking original: ${pa.id}`
+    };
+
+    const updatedPa: PreAlert = {
+      ...pa,
+      status: 'Recibido',
+      weightEst: verifiedWeight
+    };
+
+    // Guardar en Supabase (Pre-alerta recibida y Paquete en Almacén, SIN GENERAR FACTURA)
+    await db.upsertPreAlert(updatedPa);
+    await db.upsertShipment(newShip);
+
+    setPreAlerts(prev => prev.map(item => item.id === pa.id ? updatedPa : item));
+    setShipments(prev => [newShip, ...prev]);
+
+    // Enviar notificación al cliente por correo (sin cobro ni factura)
+    sendPreAlertReceivedEmailHelper(pa, generatedId, flete, 0, flete, true);
+
+    setIsCheckInModalOpen(false);
+    setCheckInModalPreAlert(null);
+    setProcessingPreAlertId(null);
+
+    alert(`¡Paquete con tracking ${pa.id} ingresado exitosamente a Bodega ${checkInModalBodega}! Peso verificado: ${verifiedWeight} Lbs. Almacenado en Warehouse con ID: ${generatedId} (sin facturar).`);
   };
 
   // Standard ISO/IEC 15417 Code-128B SVG Barcode Generator for 4"x6" thermal labels
@@ -8102,14 +8182,21 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                       </div>
                                     </td>
 
-                                    <td className="py-3 px-3 text-center font-mono font-bold">{pa.weightEst} Lbs</td>
+                                    <td className="py-3 px-3 text-center font-mono font-bold">
+                                      {pa.weightEst} Lbs
+                                      {pa.status === 'Recibido' && (
+                                        <span className="block text-[8px] text-emerald-600 font-extrabold uppercase tracking-widest">
+                                          Báscula
+                                        </span>
+                                      )}
+                                    </td>
                                     <td className="py-3 px-3">
                                       <span className={`px-2 py-0.5 rounded text-4xs font-extrabold uppercase border inline-flex items-center gap-1 shadow-3xs ${
                                         pa.status === 'Recibido' 
                                           ? 'bg-emerald-100/80 border-emerald-300 text-emerald-800' 
                                           : 'bg-orange-50 border-orange-200 text-brand-orange animate-pulse'
                                       }`}>
-                                        {pa.status === 'Recibido' ? '✓ EN BODEGA' : pa.status}
+                                        {pa.status === 'Recibido' ? '✓ EN ALMACÉN' : pa.status}
                                       </span>
                                     </td>
                                   <td className="py-3 px-4 text-center">
@@ -8132,37 +8219,17 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                             <div className="flex gap-1 justify-center items-center">
                                               <button
                                                 type="button"
-                                                onClick={() => {
-                                                  const updatedPa = { ...pa, status: 'Recibido' as const };
-                                                  setPreAlerts(prev => prev.map(item => item.id === pa.id ? updatedPa : item));
-                                                  db.upsertPreAlert(updatedPa);
-                                                  setProcessingPreAlertId(null);
-
-                                                  // Notificación al cliente por correo (si EmailJS está configurado)
-                                                  sendPreAlertReceivedEmailHelper(pa, pa.id, 0, 0, 0, true);
-
-                                                  alert(`Paquete con tracking ${pa.id} confirmado como recibido en Bodega USA (procesado sin almacenar).`);
-                                                }}
+                                                onClick={() => handleOpenCheckInModal(pa, 'USA')}
                                                 className="bg-brand-orange hover:bg-brand-orange-hover text-white px-2 py-0.5 rounded text-4xs font-black uppercase transition cursor-pointer shadow-3xs flex items-center gap-0.5 active:scale-95"
-                                                title="Confirmar recepción en Bodega USA"
+                                                title="Confirmar recepción en Bodega USA (modificar libras)"
                                               >
                                                 USA 🇺🇸
                                               </button>
                                               <button
                                                 type="button"
-                                                onClick={() => {
-                                                  const updatedPa = { ...pa, status: 'Recibido' as const };
-                                                  setPreAlerts(prev => prev.map(item => item.id === pa.id ? updatedPa : item));
-                                                  db.upsertPreAlert(updatedPa);
-                                                  setProcessingPreAlertId(null);
-
-                                                  // Notificación al cliente por correo (si EmailJS está configurado)
-                                                  sendPreAlertReceivedEmailHelper(pa, pa.id, 0, 0, 0, true);
-
-                                                  alert(`Paquete con tracking ${pa.id} confirmado como recibido en Bodega México (procesado sin almacenar).`);
-                                                }}
+                                                onClick={() => handleOpenCheckInModal(pa, 'Mexico')}
                                                 className="bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-0.5 rounded text-4xs font-black uppercase transition cursor-pointer shadow-3xs flex items-center gap-0.5 active:scale-95"
-                                                title="Confirmar recepción en Bodega México"
+                                                title="Confirmar recepción en Bodega México (modificar libras)"
                                               >
                                                 México 🇲🇽
                                               </button>
@@ -8177,26 +8244,50 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                             </div>
                                           </div>
                                         )
-                                      ) : (
-                                        <div className="flex flex-col items-center gap-1">
-                                          <span className="inline-flex items-center gap-1 text-emerald-800 text-[10px] font-extrabold uppercase bg-emerald-100/70 border border-emerald-300 px-2 py-0.5 rounded shadow-3xs">
-                                            <Check className="h-3 w-3 text-emerald-600" />
-                                            Confirmado en Bodega
-                                          </span>
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              const revertedPa = { ...pa, status: 'Pendiente' as const };
-                                              setPreAlerts(prev => prev.map(item => item.id === pa.id ? revertedPa : item));
-                                              db.upsertPreAlert(revertedPa);
-                                            }}
-                                            className="text-gray-400 hover:text-amber-600 text-[8px] font-bold underline transition cursor-pointer"
-                                            title="Revertir a Pendiente para volver a mostrar los botones"
-                                          >
-                                            ↩ Desmarcar
-                                          </button>
-                                        </div>
-                                      )}
+                                      ) : (() => {
+                                        const paIdUpper = (pa.id || '').trim().toUpperCase();
+                                        const linkedShip = shipments.find(s =>
+                                          (s.id || '').trim().toUpperCase() === paIdUpper ||
+                                          (getOriginalTrackingHelper(s) || '').trim().toUpperCase() === paIdUpper ||
+                                          (s.notes || '').toUpperCase().includes(paIdUpper)
+                                        );
+                                        const isInWarehouse = linkedShip && linkedShip.status === 'En Sucursal';
+                                        return (
+                                          <div className="flex flex-col items-center gap-1">
+                                            <span className="inline-flex items-center gap-1 text-emerald-800 text-[10px] font-extrabold uppercase bg-emerald-100/70 border border-emerald-300 px-2 py-0.5 rounded shadow-3xs">
+                                              <Check className="h-3 w-3 text-emerald-600" />
+                                              {isInWarehouse
+                                                ? `En Almacén (${linkedShip.id})`
+                                                : linkedShip && linkedShip.status !== 'Creado'
+                                                  ? `${linkedShip.status} (${linkedShip.id})`
+                                                  : 'En Almacén'}
+                                            </span>
+                                            {linkedShip && linkedShip.status === 'En Sucursal' ? (
+                                              <button
+                                                type="button"
+                                                onClick={() => handleRemoveSingleShipmentFromWarehouse(linkedShip)}
+                                                className="text-gray-400 hover:text-amber-600 text-[8px] font-bold underline transition cursor-pointer"
+                                                title="Desalmacenar y regresar a Pendiente"
+                                              >
+                                                ↩ Desalmacenar
+                                              </button>
+                                            ) : (
+                                              <button
+                                                type="button"
+                                                onClick={async () => {
+                                                  const revertedPa = { ...pa, status: 'Pendiente' as const };
+                                                  setPreAlerts(prev => prev.map(item => item.id === pa.id ? revertedPa : item));
+                                                  await db.upsertPreAlert(revertedPa);
+                                                }}
+                                                className="text-gray-400 hover:text-amber-600 text-[8px] font-bold underline transition cursor-pointer"
+                                                title="Revertir a Pendiente"
+                                              >
+                                                ↩ Desmarcar
+                                              </button>
+                                            )}
+                                          </div>
+                                        );
+                                      })()}
                                       <div className="flex gap-1 justify-center mt-1 border-t border-gray-100 pt-1 w-full">
                                         <button
                                           type="button"
@@ -17491,6 +17582,173 @@ El Equipo de ShipFast GT`;
           </div>
         </div>
       )}
+
+    
+      {/* Modal de Modificación de Libras e Ingreso a Almacén */}
+      {isCheckInModalOpen && checkInModalPreAlert && (() => {
+        const pa = checkInModalPreAlert;
+        const isUSA = checkInModalBodega === 'USA';
+        const normLocker = (pa.lockerId || '').trim().toUpperCase();
+        const matchingUser = users.find(u => (u.lockerId || '').trim().toUpperCase() === normLocker);
+        const clientName = matchingUser ? matchingUser.name : 'Cliente Registrado';
+
+        return (
+          <div className="fixed inset-0 bg-brand-gray-dark/80 backdrop-blur-xs flex justify-center items-center z-50 p-4 animate-fadeIn">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col border border-gray-200">
+              {/* Header */}
+              <div className={`p-5 text-white flex justify-between items-center ${isUSA ? 'bg-gradient-to-r from-brand-orange to-amber-600' : 'bg-gradient-to-r from-indigo-600 to-indigo-800'}`}>
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-white/20 rounded-xl backdrop-blur-xs">
+                    <Scale className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-extrabold uppercase tracking-wider font-display flex items-center gap-1.5">
+                      <span>{isUSA ? '🇺🇸' : '🇲🇽'}</span>
+                      <span>Ingreso a Bodega {isUSA ? 'USA' : 'México'}</span>
+                    </h3>
+                    <p className="text-[10px] text-white/85 font-medium">Verificar peso en báscula e ingresar a Warehouse</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCheckInModalOpen(false);
+                    setCheckInModalPreAlert(null);
+                  }}
+                  className="text-white/80 hover:text-white transition-colors cursor-pointer p-1"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Content */}
+              <div className="p-5 space-y-4 bg-gray-50/50">
+                {/* Package Information Card */}
+                <div className="bg-white p-3.5 rounded-xl border border-gray-200 space-y-2 text-3xs">
+                  <div className="flex justify-between items-center border-b border-gray-100 pb-2">
+                    <span className="text-gray-500 font-bold uppercase tracking-wider">Tracking Pre-alerta:</span>
+                    <strong className="font-mono text-brand-gray-dark text-xs font-black">{pa.id}</strong>
+                  </div>
+                  <div className="flex justify-between items-center border-b border-gray-100 pb-2">
+                    <span className="text-gray-500 font-bold uppercase tracking-wider">Cliente:</span>
+                    <div className="text-right">
+                      <span className="font-bold text-gray-800 block">{clientName}</span>
+                      <span className="text-brand-orange font-mono font-black text-[10px]">Casillero: {pa.lockerId}</span>
+                    </div>
+                  </div>
+                  <div className="flex justify-between items-center border-b border-gray-100 pb-2">
+                    <span className="text-gray-500 font-bold uppercase tracking-wider">Contenido / Detalle:</span>
+                    <span className="font-medium text-gray-700 text-right max-w-[200px] truncate">
+                      {pa.description || 'Sin descripción'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500 font-bold uppercase tracking-wider">Peso Estimado Inicial:</span>
+                    <span className="font-mono font-bold text-gray-600 bg-gray-100 px-2 py-0.5 rounded text-[10px]">
+                      {pa.weightEst} Lbs
+                    </span>
+                  </div>
+                </div>
+
+                {/* Weight Adjustment Section */}
+                <div className="bg-white p-4 rounded-xl border-2 border-brand-orange/30 shadow-xs text-center space-y-3">
+                  <label className="block text-[11px] font-black uppercase text-brand-gray-dark tracking-wider">
+                    ⚖️ Modificar / Confirmar Libras (Peso en Báscula)
+                  </label>
+                  
+                  <div className="flex items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCheckInModalWeight(w => Math.max(0.5, Math.round((Number(w) - 0.5) * 10) / 10))}
+                      className="px-2.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-black rounded-lg text-xs cursor-pointer active:scale-95 transition"
+                      title="Restar 0.5 Lb"
+                    >
+                      -0.5
+                    </button>
+                    <div className="relative inline-block">
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="0.1"
+                        value={checkInModalWeight || ''}
+                        onChange={(e) => setCheckInModalWeight(parseFloat(e.target.value) || 0)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleConfirmCheckIn();
+                          }
+                        }}
+                        className="w-32 text-center text-3xl font-black font-mono border-2 border-brand-orange rounded-xl py-1.5 focus:ring-2 focus:ring-brand-orange focus:outline-none bg-orange-50/20 text-brand-gray-dark"
+                        autoFocus
+                      />
+                      <span className="absolute right-2.5 top-3.5 text-[9px] font-black text-brand-orange">LBS</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setCheckInModalWeight(w => Math.round((Number(w) + 0.5) * 10) / 10)}
+                      className="px-2.5 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-black rounded-lg text-xs cursor-pointer active:scale-95 transition"
+                      title="Sumar 0.5 Lb"
+                    >
+                      +0.5
+                    </button>
+                  </div>
+
+                  {/* Quick chips presets */}
+                  <div className="flex justify-center gap-1.5 flex-wrap pt-1">
+                    {[1, 2, 3, 5, 8, 10].map(val => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => setCheckInModalWeight(val)}
+                        className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold transition cursor-pointer ${
+                          Number(checkInModalWeight) === val
+                            ? 'bg-brand-orange text-white'
+                            : 'bg-gray-100 hover:bg-gray-200 text-gray-600'
+                        }`}
+                      >
+                        {val} Lb{val > 1 ? 's' : ''}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Logistics Warehouse Note */}
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 text-3xs text-emerald-800 leading-relaxed flex items-start gap-2">
+                  <span className="text-emerald-600 text-sm shrink-0 mt-0.5">📦</span>
+                  <div>
+                    <strong>Almacenamiento en Warehouse:</strong> El paquete quedará guardado en estado <strong>"En Sucursal"</strong> dentro de Bodega {isUSA ? 'USA' : 'México'}, listo para consolidación hacia Guatemala.
+                    <p className="mt-1 text-[10px] text-emerald-700 font-bold">
+                      ✓ No genera factura en este paso (la facturación se realizará al consolidar o manualmente).
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer Actions */}
+              <div className="bg-gray-100 px-5 py-3.5 border-t border-gray-200 flex justify-end gap-2.5 items-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCheckInModalOpen(false);
+                    setCheckInModalPreAlert(null);
+                  }}
+                  className="px-4 py-2 text-3xs font-bold text-gray-600 hover:text-gray-800 uppercase tracking-wider cursor-pointer transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmCheckIn}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-3xs font-black uppercase tracking-wider shadow-md transition-all cursor-pointer flex items-center gap-1.5 active:scale-95"
+                >
+                  <Check className="h-4 w-4" />
+                  <span>Confirmar e Ingresar a Almacén</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
     </div>
   );
