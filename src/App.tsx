@@ -8068,12 +8068,20 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                 const matchingUser = users.find(u => u.lockerId === pa.lockerId);
                                 const clientName = matchingUser ? matchingUser.name : 'Cliente No Identificado';
 
+                                const paIdUpper = (pa.id || '').trim().toUpperCase();
+                                const linkedShip = shipments.find(s =>
+                                  (s.id || '').trim().toUpperCase() === paIdUpper ||
+                                  (getOriginalTrackingHelper(s) || '').trim().toUpperCase() === paIdUpper ||
+                                  (s.notes || '').toUpperCase().includes(paIdUpper)
+                                );
+                                const isProcessed = pa.status === 'Recibido' || (linkedShip && linkedShip.status === 'En Sucursal');
+
                                 return (
-                                  <tr key={pa.id} className={`transition-colors ${pa.status === 'Recibido' ? 'bg-emerald-50/40 hover:bg-emerald-100/50 border-l-4 border-emerald-400' : 'hover:bg-gray-50/70'}`}>
+                                  <tr key={pa.id} className={`transition-all duration-150 ${isProcessed ? 'bg-emerald-50/90 hover:bg-emerald-100/80 border-b border-emerald-200' : 'hover:bg-gray-50/70'}`}>
                                     {/* 1. FECHA PRIMERO */}
-                                    <td className="py-3 px-3 whitespace-nowrap">
-                                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-slate-100 border border-slate-200 font-mono font-bold text-slate-700 text-3xs">
-                                        📅 {pa.dateCreated}
+                                    <td className={`py-3 px-3 whitespace-nowrap ${isProcessed ? 'border-l-4 border-emerald-500 bg-emerald-50/90' : ''}`}>
+                                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md font-mono font-bold text-3xs border ${isProcessed ? "bg-emerald-100 border-emerald-300 text-emerald-800" : "bg-slate-100 border-slate-200 text-slate-700"}`}>
+                                        {isProcessed ? "✓ " : ""}📅 {pa.dateCreated}
                                       </span>
                                     </td>
 
@@ -8119,7 +8127,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
 
                                     {/* 4. DESCRIPCIÓN ORGANIZADA */}
                                     <td className="py-3 px-3 min-w-[270px]">
-                                      <div className="bg-slate-50/90 border border-slate-200/80 rounded-lg p-2.5 space-y-1.5 text-left">
+                                      <div className={`${isProcessed ? 'bg-white/95 border-emerald-300/80 shadow-2xs' : 'bg-slate-50/90 border-slate-200/80'} border rounded-lg p-2.5 space-y-1.5 text-left`}>
                                         <div className="flex flex-wrap items-center gap-1.5">
                                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white border border-slate-200 text-slate-700 text-[10px] font-extrabold">
                                             {parsed.origin === 'Mexico' ? '🇲🇽 Bodega México' : '🇺🇸 Bodega USA'}
