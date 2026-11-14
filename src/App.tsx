@@ -472,7 +472,7 @@ export default function App() {
 
   // Warehouse Receipt States
   const [warehouseLocker, setWarehouseLocker] = useState('');
-  const [warehouseWeightInput, setWarehouseWeightInput] = useState(2.0);
+  const [warehouseWeightInput, setWarehouseWeightInput] = useState<string>('');
   const [warehouseNotes, setWarehouseNotes] = useState('');
   const [warehouseBodega, setWarehouseBodega] = useState<'Laredo' | 'USA' | 'Mexico'>('USA');
   const [isSheinPackage, setIsSheinPackage] = useState(false);
@@ -8435,7 +8435,6 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                           setWarehouseSenderInput(match.sender || '');
                           setWarehouseDeclaredValue(match.declaredValue || 0);
                           setWarehouseInsurance(match.insurance || 'Sin seguro');
-                          setWarehouseWeightInput(match.weightEst || 2.0);
                           
                           const desc = (match.description || '').toLowerCase();
                           if (desc.includes('mexico') || desc.includes('tapachula')) {
@@ -8450,6 +8449,11 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
 
                       const handleWarehouseCheckIn = (e: React.FormEvent) => {
                         e.preventDefault();
+                        const weightValue = parseFloat(warehouseWeightInput) || 0;
+                        if (weightValue <= 0) {
+                          alert('Por favor ingrese el peso del paquete en libras.');
+                          return;
+                        }
                         if (!warehouseNotes.trim()) {
                           alert('Por favor ingrese una descripción detallada para el contenido del paquete.');
                           return;
@@ -8470,15 +8474,15 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                         const baseFlete = isShein
                           ? ratesSettings.sheinRate
                           : ((warehouseBodega === 'Laredo' || warehouseBodega === 'USA')
-                            ? warehouseWeightInput * ratesSettings.laredoRate
-                            : warehouseWeightInput * ratesSettings.mexicoRate);
+                            ? weightValue * ratesSettings.laredoRate
+                            : weightValue * ratesSettings.mexicoRate);
                         const extraNoPreAlert = isNotPreAlertedPackage ? 30 : 0;
                         const fleteTotal = baseFlete + extraNoPreAlert;
 
                         // Prepare package history details
                         let historyDetails = isShein
                           ? `Ingreso físico de Bolsa Shein a bodega de ${warehouseBodega}.`
-                          : `Ingreso físico a bodega de ${warehouseBodega}. Peso registrado: ${warehouseWeightInput} Lbs.`;
+                          : `Ingreso físico a bodega de ${warehouseBodega}. Peso registrado: ${weightValue} Lbs.`;
 
                         if (isNotPreAlertedPackage) {
                           historyDetails += ` (Paquete no pre alertado cobro extra Q30)`;
@@ -8507,7 +8511,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                           destination: matchingUser ? matchingUser.address : 'Guatemala Hub Central',
                           status: 'En Sucursal', // Recepcionado en bodega central
                           serviceType: 'Estándar',
-                          weight: warehouseWeightInput,
+                          weight: weightValue,
                           dimensions: '30x25x20 cm',
                           lastUpdated: `${currentDate} ${currentTime}`,
                           history: [
@@ -8544,7 +8548,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                           const newFacId = `FAC-${1000 + invoices.length + 1}`;
                           const baseConcept = isShein
                             ? `Flete Especial Bolsa Shein ${generatedId}`
-                            : `Cargo Flete Almacén ${warehouseBodega} ${generatedId} (${warehouseWeightInput} Lbs)`;
+                            : `Cargo Flete Almacén ${warehouseBodega} ${generatedId} (${weightValue} Lbs)`;
                           const newInvoice = {
                             id: newFacId,
                             lockerId: warehouseLocker,
@@ -8571,7 +8575,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                         setWarehouseSearchQuery('');
                         setLinkedPreAlert(null);
                         setWarehouseNotes('');
-                        setWarehouseWeightInput(2.0);
+                        setWarehouseWeightInput('');
                         setWarehouseSenderInput('');
                         setWarehouseDeclaredValue(0);
                         setWarehouseInsurance('Sin seguro');
@@ -8579,12 +8583,13 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                         setIsNotPreAlertedPackage(false);
                       };
 
+                      const liveWeightVal = parseFloat(warehouseWeightInput) || 0;
                       const isSheinActive = isSheinPackage || warehouseNotes.toLowerCase().includes('shein');
                       const stickerBaseFlete = isSheinActive
                         ? ratesSettings.sheinRate
                         : ((warehouseBodega === 'Laredo' || warehouseBodega === 'USA')
-                          ? warehouseWeightInput * ratesSettings.laredoRate
-                          : warehouseWeightInput * ratesSettings.mexicoRate);
+                          ? liveWeightVal * ratesSettings.laredoRate
+                          : liveWeightVal * ratesSettings.mexicoRate);
                       const stickerFlete = stickerBaseFlete + (isNotPreAlertedPackage ? 30 : 0);
 
                       const warehouseCheckInPanelContent = (
@@ -8691,13 +8696,16 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                 <div>
                                   <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Lectura de Báscula (Peso en Lbs) *</label>
                                   <input
-                                    type="number"
-                                    step="0.1"
-                                    min="0.1"
+                                    type="text"
+                                    inputMode="decimal"
                                     required
+                                    placeholder="Ingrese peso en Lbs..."
                                     value={warehouseWeightInput}
-                                    onChange={(e) => setWarehouseWeightInput(Number(e.target.value))}
-                                    className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold font-mono"
+                                    onChange={(e) => {
+                                      const sanitized = e.target.value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1');
+                                      setWarehouseWeightInput(sanitized);
+                                    }}
+                                    className="w-full px-3 py-1.5 text-3xs border border-gray-300 rounded font-semibold font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                   />
                                 </div>
                               </div>
@@ -8797,7 +8805,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                 const originFlag = isMexicoOrigin ? '🇲🇽' : '🇺🇸';
                                 const previewClientName = previewUser ? previewUser.name : (linkedPreAlert?.lockerId ? (users.find(u => u.lockerId === linkedPreAlert.lockerId)?.name || 'Cliente Registrado') : 'Cliente Registrado');
                                 const previewClientAddress = previewUser?.address || 'Guatemala';
-                                const previewWeight = (warehouseWeightInput || 0).toFixed(1);
+                                const previewWeight = liveWeightVal.toFixed(1);
                                 const previewBarcodeSvg = generateCode128BarcodeSvg(previewTrack);
                                 const previewNotesText = isNotPreAlertedPackage
                                   ? 'PAQUETE NO PRE ALERTADO - COBRO EXTRA Q30'
@@ -8933,7 +8941,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                           receiver: previewClientName,
                                           destination: previewClientAddress,
                                           origin: warehouseBodega,
-                                          weight: warehouseWeightInput || 1,
+                                          weight: liveWeightVal || 1,
                                           notes: previewNotesText,
                                           isNotPreAlerted: isNotPreAlertedPackage,
                                           serviceType: 'Express'
