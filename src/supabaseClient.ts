@@ -245,7 +245,15 @@ export const db = {
   },
   async upsertInvoice(invoice: any): Promise<boolean> {
     try {
-      const dbObj = toSnake(invoice);
+      const raw = toSnake(invoice);
+      const dbObj = {
+        id: raw.id,
+        locker_id: raw.locker_id ?? null,
+        date: raw.date,
+        concept: raw.concept,
+        amount: raw.amount,
+        payment_status: raw.payment_status || 'Pendiente'
+      };
       const { error } = await supabase.from('invoices').upsert(dbObj);
       if (error) throw error;
       return true;
@@ -261,6 +269,17 @@ export const db = {
       return true;
     } catch (err) {
       console.error("Supabase: deleteInvoice error", err);
+      return false;
+    }
+  },
+  async deleteInvoices(ids: string[]): Promise<boolean> {
+    if (!ids.length) return true;
+    try {
+      const { error } = await supabase.from('invoices').delete().in('id', ids);
+      if (error) throw error;
+      return true;
+    } catch (err) {
+      console.error("Supabase: deleteInvoices error", err);
       return false;
     }
   },

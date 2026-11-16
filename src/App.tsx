@@ -779,10 +779,62 @@ export default function App() {
         setConsolidatedGuides(dbConsolidated);
       }
       
-      // 5. Load invoices
+      // 5. Load invoices (with automatic deduplication)
       const dbInvoices = await db.getInvoices();
       if (dbInvoices.length > 0) {
-        setInvoices(dbInvoices);
+        const seenIds = new Set<string>();
+        const seenGuideIds = new Set<string>();
+        const duplicateInvoiceIdsToDelete: string[] = [];
+        const consolidatedTrackings = new Set<string>();
+
+        // Collect all package trackings already billed inside Flete Consolidado invoices
+        dbInvoices.forEach((inv: any) => {
+          const conceptStr = String(inv.concept || '');
+          const trkMatch = conceptStr.match(/\[Trackings:\s*([^\]]+)\]/);
+          if (trkMatch && trkMatch[1]) {
+            trkMatch[1].split(',').map((t: string) => t.trim()).filter(Boolean).forEach((t: string) => consolidatedTrackings.add(t));
+          }
+        });
+
+        // Sort so 'Pagado' invoices take priority over 'Pendiente' if a duplicate exists
+        const sortedForDedup = [...dbInvoices].sort((a: any, b: any) => {
+          if (a.paymentStatus === 'Pagado' && b.paymentStatus !== 'Pagado') return -1;
+          if (b.paymentStatus === 'Pagado' && a.paymentStatus !== 'Pagado') return 1;
+          return 0;
+        });
+
+        const keptIds = new Set<string>();
+        sortedForDedup.forEach((inv: any) => {
+          if (!inv?.id || seenIds.has(inv.id)) return;
+          seenIds.add(inv.id);
+
+          const conceptStr = String(inv.concept || '');
+          const guideMatch = conceptStr.match(/SF-CONS-[A-Z0-9-]+/);
+          if (guideMatch) {
+            const gId = guideMatch[0];
+            if (seenGuideIds.has(gId)) {
+              duplicateInvoiceIdsToDelete.push(inv.id);
+              return;
+            }
+            seenGuideIds.add(gId);
+          } else if (!conceptStr.trim().startsWith('{') && inv.paymentStatus !== 'Pagado') {
+            // Check if this is an old auto-generated single-package invoice whose tracking is already inside a consolidated invoice
+            const pkgMatch = conceptStr.match(/SF-\d+-GT/);
+            if (pkgMatch && consolidatedTrackings.has(pkgMatch[0])) {
+              duplicateInvoiceIdsToDelete.push(inv.id);
+              return;
+            }
+          }
+
+          keptIds.add(inv.id);
+        });
+
+        if (duplicateInvoiceIdsToDelete.length > 0) {
+          db.deleteInvoices(duplicateInvoiceIdsToDelete);
+        }
+
+        const cleanInvoices = dbInvoices.filter((inv: any) => keptIds.has(inv.id));
+        setInvoices(cleanInvoices);
       }
       
       // 6. Load payments log
@@ -3493,11 +3545,7 @@ Estado en Bodega:
     // Use weight directly in Lbs
     const weightLbs = row.weight;
 
-    // Calculate flete based on warehouse and Shein package classification
     const isShein = !!row.isShein || row.trackingNumber.toLowerCase().includes('shein');
-    const fleteTotal = isShein
-      ? ratesSettings.sheinRate
-      : Number(((row.bodega === 'Laredo' || row.bodega === 'USA') ? weightLbs * ratesSettings.laredoRate : weightLbs * ratesSettings.mexicoRate).toFixed(2));
 
     const newShip: Shipment = {
       id: newId,
@@ -3523,29 +3571,14 @@ Estado en Bodega:
       notes: isShein ? `Ingreso rápido Shein. Tracking original: ${row.trackingNumber}.` : `Ingreso secuencial rápido. Tracking original: ${row.trackingNumber}.`
     };
 
-    // Auto-create invoice
-    const invoiceId = `FAC-${1000 + invoices.length + 1}`;
-    const newInvoice = {
-      id: invoiceId,
-      lockerId: matchedClient.lockerId,
-      date: currentDate,
-      concept: isShein
-        ? `Flete Especial Bolsa Shein ${newId}`
-        : `Flete Bodega ${row.bodega} ${newId} (${row.weight} Lbs)`,
-      amount: fleteTotal,
-      paymentStatus: 'Pendiente'
-    };
-
-    // Save to Supabase
+    // Save to Supabase (sin generar factura automática; solo se factura al consolidar o manualmente)
     db.upsertShipment(newShip);
-    db.upsertInvoice(newInvoice);
 
     setShipments(prev => [newShip, ...prev]);
-    setInvoices(prev => [...prev, newInvoice]);
 
     // Mark row as saved
     setBulkRows(prev => prev.map(r => r.id === rowId ? { ...r, saved: true } : r));
-    alert(`Paquete con Tracking ${row.trackingNumber} guardado correctamente (Guía: ${newId}).`);
+    alert(`Paquete con Tracking ${row.trackingNumber} guardado correctamente en almacén (Guía: ${newId}). Listo para consolidar.`);
   };
 
   const saveAllBulkRows = () => {
@@ -3573,8 +3606,6 @@ Estado en Bodega:
     const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
 
     const newShipmentsList: Shipment[] = [];
-    const newInvoicesList: any[] = [];
-    let invoiceCounter = invoices.length;
 
     const updatedRows = bulkRows.map((row) => {
       if (row.saved) return row;
@@ -3584,9 +3615,6 @@ Estado en Bodega:
       const weightLbs = row.weight;
       
       const isShein = !!row.isShein || row.trackingNumber.toLowerCase().includes('shein');
-      const fleteTotal = isShein
-        ? ratesSettings.sheinRate
-        : Number(((row.bodega === 'Laredo' || row.bodega === 'USA') ? weightLbs * ratesSettings.laredoRate : weightLbs * ratesSettings.mexicoRate).toFixed(2));
 
       const newShip: Shipment = {
         id: newId,
@@ -3612,38 +3640,20 @@ Estado en Bodega:
         notes: isShein ? `Ingreso rápido Shein por lote. Tracking original: ${row.trackingNumber}.` : `Ingreso rápido por lote. Tracking original: ${row.trackingNumber}.`
       };
 
-      invoiceCounter++;
-      const invoiceId = `FAC-${1000 + invoiceCounter}`;
-      const newInvoice = {
-        id: invoiceId,
-        lockerId: matchedClient.lockerId,
-        date: currentDate,
-        concept: isShein
-          ? `Flete Especial Bolsa Shein ${newId}`
-          : `Flete Bodega ${row.bodega} ${newId} (${row.weight} Lbs)`,
-        amount: fleteTotal,
-        paymentStatus: 'Pendiente'
-      };
-
       newShipmentsList.push(newShip);
-      newInvoicesList.push(newInvoice);
 
       return { ...row, saved: true };
     });
 
-    // Save to Supabase
+    // Save to Supabase (sin generar facturas automáticas individuales)
     if (newShipmentsList.length > 0) {
       db.upsertShipments(newShipmentsList);
-      for (const inv of newInvoicesList) {
-        db.upsertInvoice(inv);
-      }
     }
 
     setShipments(prev => [...newShipmentsList, ...prev]);
-    setInvoices(prev => [...prev, ...newInvoicesList]);
     setBulkRows(updatedRows);
 
-    alert(`¡Ingreso por lote completado! Se guardaron exitosamente ${newShipmentsList.length} paquetes y se generaron sus facturas.`);
+    alert(`¡Ingreso por lote completado! Se guardaron exitosamente ${newShipmentsList.length} paquetes en almacén listos para consolidar.`);
   };
 
   const handleSimulatePrint = () => {
@@ -3945,7 +3955,6 @@ Para proporcionarle información específica, puede solicitar:
 
     const updatedShipmentsList: Shipment[] = [];
     const newGuidesList: any[] = [];
-    const newInvoicesList: any[] = [];
     const summaryDetails: string[] = [];
 
     groupsToDispatch.forEach(g => {
@@ -3985,42 +3994,11 @@ Para proporcionarle información específica, puede solicitar:
       };
       newGuidesList.push(newGuide);
 
-      let nonPreAlertCount = 0;
-      const estimatedFlete = g.shipments.reduce((acc: number, s: any) => {
-        const isShein = (s.notes || '').toLowerCase().includes('shein');
-        const isNoPreAlert = /no pre[\s-]*alertado/i.test(String(s.notes || '')) ||
-          (Array.isArray(s.history) && s.history.some((h: any) => /no pre[\s-]*alertado/i.test(String(h?.details || ''))));
-        if (isNoPreAlert) nonPreAlertCount++;
-        const sFlete = isShein
-          ? ratesSettings.sheinRate
-          : ((origin === 'Laredo' || origin === 'USA')
-            ? s.weight * ratesSettings.laredoRate
-            : s.weight * ratesSettings.mexicoRate);
-        return acc + sFlete + (isNoPreAlert ? 30 : 0);
-      }, 0);
-
-      const invoiceId = `FAC-${Math.floor(1000 + Math.random() * 9000)}`;
-      const user = users.find(u => u.lockerId === g.lockerId);
-      const trackingList = g.shipments.map((s: any) => s.id).join(', ');
-      const noPreAlertSuffix = nonPreAlertCount > 0 ? ` [Incluye ${nonPreAlertCount} Paq. No Pre-Alertado +Q${nonPreAlertCount * 30}]` : '';
-      const newInvoice = {
-        id: invoiceId,
-        lockerId: g.lockerId,
-        date: currentDate,
-        concept: `Flete Consolidado - ${g.shipments.length} Paquetes desde Bodega ${origin} [Guía: ${masterWaybillId}] [Trackings: ${trackingList}]${noPreAlertSuffix}`,
-        amount: estimatedFlete,
-        paymentStatus: 'Pendiente',
-        nit: user?.nit || 'C/F',
-        address: user?.address || 'Ciudad de Guatemala'
-      };
-      newInvoicesList.push(newInvoice);
-
       summaryDetails.push(`- Cliente ${g.lockerId} (${origin}): ${g.shipments.length} paq, Guía: ${masterWaybillId}`);
     });
 
     db.upsertShipments(updatedShipmentsList);
     newGuidesList.forEach(g => db.upsertConsolidatedGuide(g));
-    newInvoicesList.forEach(inv => db.upsertInvoice(inv));
 
     setShipments(prev => prev.map(s => {
       const updated = updatedShipmentsList.find(u => u.id === s.id);
@@ -4028,11 +4006,10 @@ Para proporcionarle información específica, puede solicitar:
     }));
 
     setConsolidatedGuides(prev => [...newGuidesList, ...prev]);
-    setInvoices(prev => [...newInvoicesList, ...prev]);
     setSelectedWarehouseGroups([]);
     setDispatchGroupsPending([]);
 
-    alert(`¡Despacho a contenedor "${cName}" completado con éxito!\n\nSe procesaron ${groupsToDispatch.length} grupos:\n${summaryDetails.join('\n')}`);
+    alert(`¡Despacho a contenedor "${cName}" completado con éxito!\n\nSe procesaron ${groupsToDispatch.length} grupos:\n${summaryDetails.join('\n')}\n\nPara generar las facturas de este consolidado, presiona el botón "Generar Facturas" en Consolidados.`);
     
     setAdminSubTab('consolidado');
   };
@@ -7737,7 +7714,6 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
 
                                 const rows = bulkFileText.split('\n');
                                 let addedCount = 0;
-                                const newInvoices: any[] = [];
                                 const newShipmentsList: Shipment[] = [];
                                 const currentDate = new Date().toISOString().split('T')[0];
                                 const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
@@ -7753,11 +7729,6 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                     const notesText = cols[4] ? cols[4].trim() : 'Carga de lote mayorista';
 
                                     const generatedId = `SF-${Math.floor(1000 + Math.random() * 9000)}-GT`;
-                                    
-                                    // Calculate flete
-                                    const baseVal = serviceType === 'Express' ? ratesSettings.baseExpress : ratesSettings.baseEstandar;
-                                    const extraWeightVal = weightLbs * (serviceType === 'Express' ? ratesSettings.pesoExpress : ratesSettings.pesoEstandar);
-                                    const fleteTotal = baseVal + extraWeightVal;
 
                                     const newShipment: Shipment = {
                                       id: generatedId,
@@ -7784,32 +7755,16 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                     };
 
                                     newShipmentsList.push(newShipment);
-
-                                    // Auto-create invoice
-                                    const invoiceId = `FAC-${1000 + invoices.length + addedCount + 1}`;
-                                    newInvoices.push({
-                                      id: invoiceId,
-                                      lockerId: bulkLocker,
-                                      date: currentDate,
-                                      concept: `Flete ${serviceType} ${generatedId} (${weightLbs} Lbs)`,
-                                      amount: fleteTotal,
-                                      paymentStatus: 'Pendiente'
-                                    });
-
                                     addedCount++;
                                   }
                                 });
 
                                 if (newShipmentsList.length > 0) {
-                                  // Save to Supabase
+                                  // Save to Supabase (sin generar facturas automáticas individuales)
                                   db.upsertShipments(newShipmentsList);
-                                  for (const inv of newInvoices) {
-                                    db.upsertInvoice(inv);
-                                  }
 
                                   setShipments(prev => [...newShipmentsList, ...prev]);
-                                  setInvoices(prev => [...prev, ...newInvoices]);
-                                  alert(`Se procesaron y cargaron exitosamente ${addedCount} envíos y se crearon sus facturas correspondientes bajo el casillero ${bulkLocker}.`);
+                                  alert(`Se procesaron y cargaron exitosamente ${addedCount} envíos bajo el casillero ${bulkLocker}.`);
                                   setBulkFileText('');
                                   setAdminSubTab('registro-paquetes');
                                 } else {
@@ -8467,19 +8422,11 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                         const currentDate = new Date().toISOString().split('T')[0];
                         const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
 
-                        // Calculate live flete based on warehouse, Shein classification, and non-pre-alerted +Q30 surcharge
+                        // Prepare package history details
                         const matchingUser = users.find(u => u.lockerId === warehouseLocker);
                         const clientName = matchingUser ? matchingUser.name : 'Cliente';
                         const isShein = isSheinPackage || warehouseNotes.toLowerCase().includes('shein');
-                        const baseFlete = isShein
-                          ? ratesSettings.sheinRate
-                          : ((warehouseBodega === 'Laredo' || warehouseBodega === 'USA')
-                            ? weightValue * ratesSettings.laredoRate
-                            : weightValue * ratesSettings.mexicoRate);
-                        const extraNoPreAlert = isNotPreAlertedPackage ? 30 : 0;
-                        const fleteTotal = baseFlete + extraNoPreAlert;
 
-                        // Prepare package history details
                         let historyDetails = isShein
                           ? `Ingreso físico de Bolsa Shein a bodega de ${warehouseBodega}.`
                           : `Ingreso físico a bodega de ${warehouseBodega}. Peso registrado: ${weightValue} Lbs.`;
@@ -8538,36 +8485,11 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
 
                         setShipments(prev => [newShip, ...prev]);
 
-                        // Generate invoice ONLY if the billing toggle is enabled (Facturar de Inmediato)
                         let alertMessage = `¡Paquete ingresado formalmente en Bodega de ${warehouseBodega}! ID asignado: ${generatedId}.`;
                         if (isNotPreAlertedPackage) {
                           alertMessage += ` Se aplicó cargo por Paquete No Pre-Alertado (+Q 30.00).`;
                         }
-                        
-                        if (warehouseBillingToggle && !linkedPreAlert) {
-                          const newFacId = `FAC-${1000 + invoices.length + 1}`;
-                          const baseConcept = isShein
-                            ? `Flete Especial Bolsa Shein ${generatedId}`
-                            : `Cargo Flete Almacén ${warehouseBodega} ${generatedId} (${weightValue} Lbs)`;
-                          const newInvoice = {
-                            id: newFacId,
-                            lockerId: warehouseLocker,
-                            date: currentDate,
-                            concept: isNotPreAlertedPackage
-                              ? `${baseConcept} [Paquete No Pre Alertado Cobro Extra Q30]`
-                              : baseConcept,
-                            amount: fleteTotal,
-                            paymentStatus: 'Pendiente',
-                            nit: matchingUser?.nit || 'C/F',
-                            address: matchingUser?.address || 'Ciudad de Guatemala'
-                          };
-
-                          db.upsertInvoice(newInvoice);
-                          setInvoices(prev => [newInvoice, ...prev]);
-                          alertMessage += ` Se ha emitido la factura ${newFacId} por Q ${fleteTotal.toFixed(2)}.`;
-                        } else {
-                          alertMessage += ` Almacenado listo para consolidación (sin facturar aún).`;
-                        }
+                        alertMessage += ` Almacenado listo para consolidación (solo se facturará al consolidar o de forma manual).`;
 
                         alert(alertMessage);
                         
@@ -8765,23 +8687,6 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                     </label>
                                   </div>
                                 </div>
-                              </div>
-
-                              {/* Toggle switch for billing */}
-                              <div className="flex items-center justify-between bg-gray-50 border border-gray-200 p-3 rounded-xl select-none">
-                                <div className="space-y-0.5">
-                                  <span className="text-[10px] font-extrabold text-brand-gray-dark uppercase tracking-wider block">🧾 ¿Facturar de Inmediato?</span>
-                                  <span className="text-[8px] text-gray-500 block">Si está desactivado (por defecto), el flete se cobrará acumulado al consolidar y despachar.</span>
-                                </div>
-                                <label className="relative inline-flex items-center cursor-pointer select-none">
-                                  <input
-                                    type="checkbox"
-                                    checked={warehouseBillingToggle}
-                                    onChange={(e) => setWarehouseBillingToggle(e.target.checked)}
-                                    className="sr-only peer"
-                                  />
-                                  <div className="w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3.5 after:transition-all peer-checked:bg-brand-orange"></div>
-                                </label>
                               </div>
 
                               <button
@@ -9270,31 +9175,53 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                         const newInvoicesCreated: any[] = [];
                         let alreadyInvoicedCount = 0;
                         const currentDate = new Date().toISOString().split('T')[0];
+                        const usedInvoiceIds = new Set(invoices.map(i => i.id));
 
                         guideIds.forEach(id => {
                           const guide = consolidatedGuides.find(g => g.id === id);
                           if (!guide) return;
 
-                          let inv = invoices.find(i => i.concept.includes(id));
-                          if (!inv) {
-                            inv = invoices.find(i => i.lockerId === guide.lockerId && i.date === guide.date && i.concept.includes('Flete Consolidado'));
+                          const parts = guide.id.split('-');
+                          const lockerId = guide.lockerId || parts[2] || 'N/A';
+                          const guideShipments = shipments.filter(s => s.history && s.history.some(h => h.details && h.details.includes(guide.id)));
+
+                          let inv = invoices.find(i => String(i.concept || '').includes(guide.id))
+                            || newInvoicesCreated.find(i => String(i.concept || '').includes(guide.id));
+
+                          if (!inv && guideShipments.length > 0) {
+                            inv = invoices.find(i =>
+                              String(i.concept || '').includes('Flete Consolidado') &&
+                              guideShipments.some(s => String(i.concept || '').includes(s.id))
+                            ) || newInvoicesCreated.find(i =>
+                              String(i.concept || '').includes('Flete Consolidado') &&
+                              guideShipments.some(s => String(i.concept || '').includes(s.id))
+                            );
                           }
 
                           if (inv) {
                             alreadyInvoicedCount++;
                           } else {
-                            const parts = guide.id.split('-');
-                            const lockerId = guide.lockerId || parts[2] || 'N/A';
-                            const invoiceId = `FAC-${Math.floor(1000 + Math.random() * 9000)}`;
+                            let invoiceId = `FAC-${Math.floor(1000 + Math.random() * 9000)}`;
+                            while (usedInvoiceIds.has(invoiceId)) {
+                              invoiceId = `FAC-${Math.floor(1000 + Math.random() * 9000)}`;
+                            }
+                            usedInvoiceIds.add(invoiceId);
+
                             const rate = guide.origin === 'Mexico' ? ratesSettings.mexicoRate : ratesSettings.laredoRate;
 
-                            // Find packages for this guide to include trackings and non-pre-alerted surcharges
-                            const guideShipments = shipments.filter(s => s.history && s.history.some(h => h.details && h.details.includes(guide.id)));
                             const nonPreAlertCount = guideShipments.filter(s =>
                               /no pre[\s-]*alertado/i.test(String(s.notes || '')) ||
                               (Array.isArray(s.history) && s.history.some(h => /no pre[\s-]*alertado/i.test(String(h?.details || ''))))
                             ).length;
-                            const amount = (guide.totalWeight * rate) + (nonPreAlertCount * 30);
+
+                            const baseAmount = guideShipments.length > 0
+                              ? guideShipments.reduce((acc, s) => {
+                                  const isSheinPkg = /shein|shien/i.test(String(s.notes || ''));
+                                  return acc + (isSheinPkg ? ratesSettings.sheinRate : (s.weight * rate));
+                                }, 0)
+                              : (guide.totalWeight * rate);
+
+                            const amount = baseAmount + (nonPreAlertCount * 30);
                             const trackingList = guideShipments.map(s => s.id).join(', ');
                             const trackingSuffix = trackingList ? ` [Trackings: ${trackingList}]` : '';
                             const noPreAlertSuffix = nonPreAlertCount > 0 ? ` [Incluye ${nonPreAlertCount} Paq. No Pre-Alertado +Q${nonPreAlertCount * 30}]` : '';
@@ -9332,64 +9259,21 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                       };
 
                       const handleBulkPrintInvoices = async (guideIds: string[]) => {
-                        const newInvoicesCreated: any[] = [];
                         const invoicesToPrint: any[] = [];
-                        const currentDate = new Date().toISOString().split('T')[0];
 
                         guideIds.forEach(id => {
                           const guide = consolidatedGuides.find(g => g.id === id);
                           if (!guide) return;
 
-                          let inv = invoices.find(i => i.concept.includes(id));
-                          if (!inv) {
-                            inv = invoices.find(i => i.lockerId === guide.lockerId && i.date === guide.date && i.concept.includes('Flete Consolidado'));
+                          const inv = invoices.find(i => String(i.concept || '').includes(id));
+                          if (inv) {
+                            invoicesToPrint.push({ invoice: inv, guide });
                           }
-
-                          if (!inv) {
-                            const parts = guide.id.split('-');
-                            const lockerId = parts[2] || '';
-                            const invoiceId = `FAC-${Math.floor(1000 + Math.random() * 9000)}`;
-                            const rate = guide.origin === 'Mexico' ? ratesSettings.mexicoRate : ratesSettings.laredoRate;
-
-                            // Find packages for this guide to include trackings and non-pre-alerted surcharges
-                            const guideShipments = shipments.filter(s => s.history && s.history.some(h => h.details && h.details.includes(guide.id)));
-                            const nonPreAlertCount = guideShipments.filter(s =>
-                              /no pre[\s-]*alertado/i.test(String(s.notes || '')) ||
-                              (Array.isArray(s.history) && s.history.some(h => /no pre[\s-]*alertado/i.test(String(h?.details || ''))))
-                            ).length;
-                            const amount = (guide.totalWeight * rate) + (nonPreAlertCount * 30);
-                            const trackingList = guideShipments.map(s => s.id).join(', ');
-                            const trackingSuffix = trackingList ? ` [Trackings: ${trackingList}]` : '';
-                            const noPreAlertSuffix = nonPreAlertCount > 0 ? ` [Incluye ${nonPreAlertCount} Paq. No Pre-Alertado +Q${nonPreAlertCount * 30}]` : '';
-
-                            inv = {
-                              id: invoiceId,
-                              lockerId: lockerId || 'N/A',
-                              date: currentDate,
-                              concept: `Flete Consolidado - ${guide.itemsCount} Paquetes desde Bodega ${guide.origin} [Guía: ${guide.id}]${trackingSuffix}${noPreAlertSuffix}`,
-                              amount: amount,
-                              paymentStatus: 'Pendiente'
-                            };
-
-                            newInvoicesCreated.push(inv);
-                          }
-
-                          invoicesToPrint.push({ invoice: inv, guide });
                         });
 
                         if (invoicesToPrint.length === 0) {
-                          alert('No se encontraron facturas asociadas a las guías seleccionadas.');
+                          alert('No se encontraron facturas generadas para las guías seleccionadas.\n\nPor favor presiona primero el botón "Generar Facturas" para emitirlas.');
                           return;
-                        }
-
-                        if (newInvoicesCreated.length > 0) {
-                          try {
-                            await Promise.all(newInvoicesCreated.map(inv => db.upsertInvoice(inv)));
-                            setInvoices(prev => [...newInvoicesCreated, ...prev]);
-                          } catch (err) {
-                            console.error("Error saving bulk invoices:", err);
-                            alert("Ocurrió un error al guardar las nuevas facturas en la base de datos.");
-                          }
                         }
 
                         const printWindow = window.open('', '_blank');
@@ -9824,12 +9708,19 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                       const handleDeleteConsolidados = async (guideIds: string[], label: string) => {
                         if (!guideIds || guideIds.length === 0) return;
                         const confirmed = window.confirm(
-                          `¿Estás seguro de que deseas eliminar ${label}?\n\nSe eliminarán ${guideIds.length} guía(s) consolidada(s) del historial de consolidados. Esta acción no se puede deshacer.`
+                          `¿Estás seguro de que deseas eliminar ${label}?\n\nSe eliminarán ${guideIds.length} guía(s) consolidada(s) del historial de consolidados (y sus facturas pendientes asociadas). Esta acción no se puede deshacer.`
                         );
                         if (!confirmed) return;
 
                         try {
                           await db.deleteConsolidatedGuides(guideIds);
+                          const orphanPendingInvoiceIds = invoices
+                            .filter(i => i.paymentStatus === 'Pendiente' && guideIds.some(gId => String(i.concept || '').includes(gId)))
+                            .map(i => i.id);
+                          if (orphanPendingInvoiceIds.length > 0) {
+                            await db.deleteInvoices(orphanPendingInvoiceIds);
+                            setInvoices(prev => prev.filter(i => !orphanPendingInvoiceIds.includes(i.id)));
+                          }
                           setConsolidatedGuides(prev => prev.filter(g => !guideIds.includes(g.id)));
                           setSelectedConsolidados(prev => prev.filter(id => !guideIds.includes(id)));
                           if (expandedConsolidadoGuide && (guideIds.includes(expandedConsolidadoGuide) || label.includes(expandedConsolidadoGuide))) {
@@ -11840,7 +11731,13 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                   }
 
                                   const currentDate = new Date().toISOString().split('T')[0];
-                                  const invoiceId = `FAC-${1000 + invoices.length + 1}`;
+                                  const existingIds = new Set(invoices.map(i => i.id));
+                                  let nextNum = 1000 + invoices.length + 1;
+                                  let invoiceId = `FAC-${nextNum}`;
+                                  while (existingIds.has(invoiceId)) {
+                                    nextNum++;
+                                    invoiceId = `FAC-${nextNum}`;
+                                  }
                                   const conceptPayload = JSON.stringify({
                                     detail: invoiceConcept.trim(),
                                     manualClientName: invoiceUnregistered ? invoiceManualName.trim() : '',
