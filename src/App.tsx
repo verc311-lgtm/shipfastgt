@@ -518,17 +518,43 @@ export default function App() {
   const [invoiceCurrency, setInvoiceCurrency] = useState<'GTQ' | 'USD'>('GTQ');
   const [activePreAlertInvoice, setActivePreAlertInvoice] = useState<PreAlert | null>(null);
   const [activePreAlertBlobUrl, setActivePreAlertBlobUrl] = useState<string>('');
+  const [isLoadingPreAlertAttachment, setIsLoadingPreAlertAttachment] = useState<boolean>(false);
+  const [adminPreAlertVisibleCount, setAdminPreAlertVisibleCount] = useState<number>(50);
 
   useEffect(() => {
     if (!activePreAlertInvoice) {
       setActivePreAlertBlobUrl('');
+      setIsLoadingPreAlertAttachment(false);
       return;
     }
     const { fileDataUrl } = parsePreAlertAttachment(activePreAlertInvoice);
     if (!fileDataUrl) {
       setActivePreAlertBlobUrl('');
-      return;
+      if ((activePreAlertInvoice as any)._attachmentChecked) {
+        setIsLoadingPreAlertAttachment(false);
+        return;
+      }
+      let cancelled = false;
+      setIsLoadingPreAlertAttachment(true);
+      db.getPreAlertAttachment(activePreAlertInvoice.id).then(att => {
+        if (cancelled) return;
+        setIsLoadingPreAlertAttachment(false);
+        if (att && (att.invoiceFileName || att.waiverSignature)) {
+          const updatedPa: any = {
+            ...activePreAlertInvoice,
+            ...(att.invoiceFileName ? { invoiceFileName: att.invoiceFileName } : {}),
+            ...(att.waiverSignature ? { waiverSignature: att.waiverSignature, waiverDate: att.waiverDate } : {}),
+            _attachmentChecked: true
+          };
+          setPreAlerts(prev => prev.map(item => item.id === updatedPa.id ? updatedPa : item));
+          setActivePreAlertInvoice(updatedPa);
+        } else {
+          setActivePreAlertInvoice(prev => prev ? ({ ...prev, _attachmentChecked: true } as any) : null);
+        }
+      });
+      return () => { cancelled = true; };
     }
+    setIsLoadingPreAlertAttachment(false);
     if (fileDataUrl.startsWith('data:')) {
       try {
         const parts = fileDataUrl.split(',');
@@ -739,121 +765,120 @@ export default function App() {
 
   const [isRefreshingData, setIsRefreshingData] = useState(false);
 
-  // Load / refresh data from Supabase without logging out
+  // Load / refresh data from Supabase without logging out (parallelized for fast loading)
   const refreshSystemData = async () => {
     setIsRefreshingData(true);
     try {
-      // 1. Load profiles
-      const profilesList = await db.getProfiles();
-      if (profilesList.length > 0) {
-        setUsers(profilesList);
-        // Keep currentUser synced with fresh profile data from DB without resetting session
-        setCurrentUser(prev => {
-          if (!prev) return null;
-          const fresh = profilesList.find(
-            u => (u.lockerId || '').trim().toUpperCase() === (prev.lockerId || '').trim().toUpperCase()
-          );
-          if (fresh && JSON.stringify(fresh) !== JSON.stringify(prev)) {
-            localStorage.setItem('shipfast_current_user', JSON.stringify(fresh));
-            return fresh;
+      await Promise.all([
+        // 1. Load pre-alerts immediately in parallel
+        db.getPreAlerts().then(dbPreAlerts => {
+          if (dbPreAlerts.length > 0) {
+            setPreAlerts(dbPreAlerts);
           }
-          return prev;
-        });
-      }
-      
-      // 2. Load shipments
-      const dbShipments = await db.getShipments();
-      if (dbShipments.length > 0) {
-        setShipments(dbShipments);
-      }
-      
-      // 3. Load pre-alerts
-      const dbPreAlerts = await db.getPreAlerts();
-      if (dbPreAlerts.length > 0) {
-        setPreAlerts(dbPreAlerts);
-      }
-      
-      // 4. Load consolidated guides
-      const dbConsolidated = await db.getConsolidatedGuides();
-      if (dbConsolidated.length > 0) {
-        setConsolidatedGuides(dbConsolidated);
-      }
-      
-      // 5. Load invoices (with automatic deduplication)
-      const dbInvoices = await db.getInvoices();
-      if (dbInvoices.length > 0) {
-        const seenIds = new Set<string>();
-        const seenGuideIds = new Set<string>();
-        const duplicateInvoiceIdsToDelete: string[] = [];
-        const consolidatedTrackings = new Set<string>();
-
-        // Collect all package trackings already billed inside Flete Consolidado invoices
-        dbInvoices.forEach((inv: any) => {
-          const conceptStr = String(inv.concept || '');
-          const trkMatch = conceptStr.match(/\[Trackings:\s*([^\]]+)\]/);
-          if (trkMatch && trkMatch[1]) {
-            trkMatch[1].split(',').map((t: string) => t.trim()).filter(Boolean).forEach((t: string) => consolidatedTrackings.add(t));
+        }),
+        // 2. Load profiles
+        db.getProfiles().then(profilesList => {
+          if (profilesList.length > 0) {
+            setUsers(profilesList);
+            setCurrentUser(prev => {
+              if (!prev) return null;
+              const fresh = profilesList.find(
+                u => (u.lockerId || '').trim().toUpperCase() === (prev.lockerId || '').trim().toUpperCase()
+              );
+              if (fresh && JSON.stringify(fresh) !== JSON.stringify(prev)) {
+                localStorage.setItem('shipfast_current_user', JSON.stringify(fresh));
+                return fresh;
+              }
+              return prev;
+            });
           }
-        });
+        }),
+        // 3. Load shipments
+        db.getShipments().then(dbShipments => {
+          if (dbShipments.length > 0) {
+            setShipments(dbShipments);
+          }
+        }),
+        // 4. Load consolidated guides
+        db.getConsolidatedGuides().then(dbConsolidated => {
+          if (dbConsolidated.length > 0) {
+            setConsolidatedGuides(dbConsolidated);
+          }
+        }),
+        // 5. Load invoices (with automatic deduplication)
+        db.getInvoices().then(dbInvoices => {
+          if (dbInvoices.length > 0) {
+            const seenIds = new Set<string>();
+            const seenGuideIds = new Set<string>();
+            const duplicateInvoiceIdsToDelete: string[] = [];
+            const consolidatedTrackings = new Set<string>();
 
-        // Sort so 'Pagado' invoices take priority over 'Pendiente' if a duplicate exists
-        const sortedForDedup = [...dbInvoices].sort((a: any, b: any) => {
-          if (a.paymentStatus === 'Pagado' && b.paymentStatus !== 'Pagado') return -1;
-          if (b.paymentStatus === 'Pagado' && a.paymentStatus !== 'Pagado') return 1;
-          return 0;
-        });
+            dbInvoices.forEach((inv: any) => {
+              const conceptStr = String(inv.concept || '');
+              const trkMatch = conceptStr.match(/\[Trackings:\s*([^\]]+)\]/);
+              if (trkMatch && trkMatch[1]) {
+                trkMatch[1].split(',').map((t: string) => t.trim()).filter(Boolean).forEach((t: string) => consolidatedTrackings.add(t));
+              }
+            });
 
-        const keptIds = new Set<string>();
-        sortedForDedup.forEach((inv: any) => {
-          if (!inv?.id || seenIds.has(inv.id)) return;
-          seenIds.add(inv.id);
+            const sortedForDedup = [...dbInvoices].sort((a: any, b: any) => {
+              if (a.paymentStatus === 'Pagado' && b.paymentStatus !== 'Pagado') return -1;
+              if (b.paymentStatus === 'Pagado' && a.paymentStatus !== 'Pagado') return 1;
+              return 0;
+            });
 
-          const conceptStr = String(inv.concept || '');
-          const guideMatch = conceptStr.match(/SF-CONS-[A-Z0-9-]+/);
-          if (guideMatch) {
-            const gId = guideMatch[0];
-            if (seenGuideIds.has(gId)) {
-              duplicateInvoiceIdsToDelete.push(inv.id);
-              return;
+            const keptIds = new Set<string>();
+            sortedForDedup.forEach((inv: any) => {
+              if (!inv?.id || seenIds.has(inv.id)) return;
+              seenIds.add(inv.id);
+
+              const conceptStr = String(inv.concept || '');
+              const guideMatch = conceptStr.match(/SF-CONS-[A-Z0-9-]+/);
+              if (guideMatch) {
+                const gId = guideMatch[0];
+                if (seenGuideIds.has(gId)) {
+                  duplicateInvoiceIdsToDelete.push(inv.id);
+                  return;
+                }
+                seenGuideIds.add(gId);
+              } else if (!conceptStr.trim().startsWith('{') && inv.paymentStatus !== 'Pagado') {
+                const pkgMatch = conceptStr.match(/SF-\d+-GT/);
+                if (pkgMatch && consolidatedTrackings.has(pkgMatch[0])) {
+                  duplicateInvoiceIdsToDelete.push(inv.id);
+                  return;
+                }
+              }
+
+              keptIds.add(inv.id);
+            });
+
+            if (duplicateInvoiceIdsToDelete.length > 0) {
+              db.deleteInvoices(duplicateInvoiceIdsToDelete);
             }
-            seenGuideIds.add(gId);
-          } else if (!conceptStr.trim().startsWith('{') && inv.paymentStatus !== 'Pagado') {
-            // Check if this is an old auto-generated single-package invoice whose tracking is already inside a consolidated invoice
-            const pkgMatch = conceptStr.match(/SF-\d+-GT/);
-            if (pkgMatch && consolidatedTrackings.has(pkgMatch[0])) {
-              duplicateInvoiceIdsToDelete.push(inv.id);
-              return;
-            }
+
+            const cleanInvoices = dbInvoices.filter((inv: any) => keptIds.has(inv.id));
+            setInvoices(cleanInvoices);
           }
-
-          keptIds.add(inv.id);
-        });
-
-        if (duplicateInvoiceIdsToDelete.length > 0) {
-          db.deleteInvoices(duplicateInvoiceIdsToDelete);
-        }
-
-        const cleanInvoices = dbInvoices.filter((inv: any) => keptIds.has(inv.id));
-        setInvoices(cleanInvoices);
-      }
-      
-      // 6. Load payments log
-      const dbPayments = await db.getPayments();
-      if (dbPayments.length > 0) {
-        setPaymentsLog(dbPayments);
-      }
-      
-      // 7. Load expenses log
-      const dbExpenses = await db.getExpenses();
-      if (dbExpenses.length > 0) {
-        setExpensesLog(dbExpenses);
-      }
-      
-      // 8. Load branches list
-      const dbBranches = await db.getBranches();
-      if (dbBranches.length > 0) {
-        setBranchesList(dbBranches);
-      }
+        }),
+        // 6. Load payments log
+        db.getPayments().then(dbPayments => {
+          if (dbPayments.length > 0) {
+            setPaymentsLog(dbPayments);
+          }
+        }),
+        // 7. Load expenses log
+        db.getExpenses().then(dbExpenses => {
+          if (dbExpenses.length > 0) {
+            setExpensesLog(dbExpenses);
+          }
+        }),
+        // 8. Load branches list
+        db.getBranches().then(dbBranches => {
+          if (dbBranches.length > 0) {
+            setBranchesList(dbBranches);
+          }
+        })
+      ]);
     } finally {
       setIsRefreshingData(false);
     }
@@ -3087,17 +3112,31 @@ Estado en Bodega:
     alert('¡Pre-alerta registrada exitosamente con la firma guardada en el sistema!');
   };
 
-  const handlePrintWaiverPDF = (pa: PreAlert) => {
+  const handlePrintWaiverPDF = async (pa: PreAlert) => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
       alert('Por favor permite las ventanas emergentes (popups) para ver o descargar el documento firmado.');
       return;
     }
 
-    const parsed = parsePreAlertDetails(pa);
-    const clientName = users.find((u: any) => u.lockerId === pa.lockerId)?.name || `Cliente (${pa.lockerId})`;
+    let targetPa = pa;
+    if (!targetPa.waiverSignature && !(targetPa as any)._attachmentChecked) {
+      const att = await db.getPreAlertAttachment(targetPa.id);
+      if (att) {
+        targetPa = {
+          ...targetPa,
+          ...(att.invoiceFileName ? { invoiceFileName: att.invoiceFileName } : {}),
+          ...(att.waiverSignature ? { waiverSignature: att.waiverSignature, waiverDate: att.waiverDate } : {}),
+          _attachmentChecked: true
+        } as any;
+        setPreAlerts(prev => prev.map(item => item.id === targetPa.id ? targetPa : item));
+      }
+    }
+
+    const parsed = parsePreAlertDetails(targetPa);
+    const clientName = users.find((u: any) => u.lockerId === targetPa.lockerId)?.name || `Cliente (${targetPa.lockerId})`;
     const signerDisplay = parsed.signedBy || clientName;
-    const formattedDate = pa.waiverDate ? new Date(pa.waiverDate).toLocaleString('es-GT') : pa.dateCreated;
+    const formattedDate = targetPa.waiverDate ? new Date(targetPa.waiverDate).toLocaleString('es-GT') : targetPa.dateCreated;
 
     const htmlContent = `
       <!DOCTYPE html>
@@ -3164,9 +3203,9 @@ Estado en Bodega:
         <p style="font-size: 13px; font-weight: bold; margin-top: 20px;">He leído, comprendido y aceptado todas las condiciones detalladas en este documento, firmando en señal de conformidad:</p>
 
         <div class="signature-box">
-          ${pa.waiverSignature ? `<img src="${pa.waiverSignature}" class="signature-img" alt="Firma del Cliente" />` : `<div style="height: 60px; display: flex; align-items: center; justify-content: center; font-family: Georgia, serif; font-size: 22px; font-style: italic; font-weight: bold; border-bottom: 2px solid #111827; margin-bottom: 8px;">${signerDisplay}</div>`}
+          ${targetPa.waiverSignature ? `<img src="${targetPa.waiverSignature}" class="signature-img" alt="Firma del Cliente" />` : `<div style="height: 60px; display: flex; align-items: center; justify-content: center; font-family: Georgia, serif; font-size: 22px; font-style: italic; font-weight: bold; border-bottom: 2px solid #111827; margin-bottom: 8px;">${signerDisplay}</div>`}
           <div style="font-size: 13px; font-weight: 900;">FIRMA / NOMBRE DE ACEPTACIÓN DEL CLIENTE</div>
-          <div style="font-size: 12px; color: #4b5563;">${signerDisplay} • Casillero: ${pa.lockerId}</div>
+          <div style="font-size: 12px; color: #4b5563;">${signerDisplay} • Casillero: ${targetPa.lockerId}</div>
         </div>
         
         <div class="no-print" style="margin-top: 35px; text-align: center;">
@@ -6543,7 +6582,7 @@ Para proporcionarle información específica, puede solicitar:
                                     <strong>Contenido:</strong> {parsed.customNote}
                                   </div>
                                 )}
-                                {(attachedFile || pa.waiverSignature) && (
+                                {(attachedFile || pa.waiverSignature || parsed.signedBy) && (
                                   <div className="flex flex-wrap gap-1.5 mt-1.5">
                                     {attachedFile && (
                                       <button
@@ -6554,7 +6593,7 @@ Para proporcionarle información específica, puede solicitar:
                                         📄 Ver Factura ({attachedFile})
                                       </button>
                                     )}
-                                    {pa.waiverSignature && (
+                                    {(pa.waiverSignature || parsed.signedBy) && (
                                       <button
                                         type="button"
                                         onClick={() => handlePrintWaiverPDF(pa)}
@@ -7793,7 +7832,53 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                     )}
 
                     {/* ==================== 4. PRE-ALERTAS DE CLIENTES (`pre-alertas`) ==================== */}
-                    {adminSubTab === 'pre-alertas' && (
+                    {adminSubTab === 'pre-alertas' && (() => {
+                      const userByLockerMap = new Map<string, UserProfile>();
+                      users.forEach(u => {
+                        const key = (u.lockerId || '').trim().toUpperCase();
+                        if (key) userByLockerMap.set(key, u);
+                      });
+
+                      const shipmentByTrackingMap = new Map<string, Shipment>();
+                      const trackingRegex = /(?:tracking\s+original|original\s+tracking|tracking|original)[\s:]+([a-zA-Z0-9_-]+)/i;
+                      shipments.forEach(s => {
+                        const sId = (s.id || '').trim().toUpperCase();
+                        if (sId) shipmentByTrackingMap.set(sId, s);
+                        if (s.notes) {
+                          const match = String(s.notes).match(trackingRegex);
+                          if (match && match[1] && match[1].trim().length > 4) {
+                            shipmentByTrackingMap.set(match[1].trim().toUpperCase(), s);
+                          }
+                        }
+                      });
+
+                      const searchQ = adminPreAlertSearchText.toLowerCase().trim();
+                      const filteredAdminPreAlerts = [...preAlerts].filter(pa => {
+                        const desc = pa.description ? pa.description.toLowerCase() : '';
+                        const isMexico = desc.includes('origen: mexico');
+                        const isUSA = desc.includes('origen: usa') || desc.includes('origen: laredo') || desc.includes('origen: texas');
+                        if (adminPreAlertBodegaFilter === 'USA' && !isUSA) return false;
+                        if (adminPreAlertBodegaFilter === 'Mexico' && !isMexico) return false;
+                        if (adminPreAlertStatusFilter !== 'todos' && pa.status !== adminPreAlertStatusFilter) return false;
+                        if (adminPreAlertStartDate && pa.dateCreated < adminPreAlertStartDate) return false;
+                        if (adminPreAlertEndDate && pa.dateCreated > adminPreAlertEndDate) return false;
+                        if (searchQ !== '') {
+                          const lockerUpper = (pa.lockerId || '').trim().toUpperCase();
+                          const user = userByLockerMap.get(lockerUpper);
+                          const clientName = user ? user.name.toLowerCase() : '';
+                          const matchesId = (pa.id || '').toLowerCase().includes(searchQ);
+                          const matchesLocker = (pa.lockerId || '').toLowerCase().includes(searchQ);
+                          const matchesSender = (pa.sender || '').toLowerCase().includes(searchQ);
+                          const matchesClient = clientName.includes(searchQ);
+                          const matchesDesc = desc.includes(searchQ);
+                          if (!matchesId && !matchesLocker && !matchesSender && !matchesClient && !matchesDesc) return false;
+                        }
+                        return true;
+                      }).reverse();
+
+                      const visibleAdminPreAlerts = filteredAdminPreAlerts.slice(0, adminPreAlertVisibleCount);
+
+                      return (
                       <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-2xs space-y-4">
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                           <div>
@@ -7812,37 +7897,11 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                             <button
                                 type="button"
                                 onClick={() => {
-                                  const filtered = preAlerts.filter(pa => {
-                                    const desc = pa.description ? pa.description.toLowerCase() : '';
-                                    const isMexico = desc.includes('origen: mexico');
-                                    const isUSA = desc.includes('origen: usa') || desc.includes('origen: laredo') || desc.includes('origen: texas');
-                                    
-                                    if (adminPreAlertBodegaFilter === 'USA' && !isUSA) return false;
-                                    if (adminPreAlertBodegaFilter === 'Mexico' && !isMexico) return false;
-                                    if (adminPreAlertStatusFilter !== 'todos' && pa.status !== adminPreAlertStatusFilter) return false;
-                                    
-                                    if (adminPreAlertStartDate && pa.dateCreated < adminPreAlertStartDate) return false;
-                                    if (adminPreAlertEndDate && pa.dateCreated > adminPreAlertEndDate) return false;
-                                    
-                                    if (adminPreAlertSearchText.trim() !== '') {
-                                      const searchQ = adminPreAlertSearchText.toLowerCase().trim();
-                                      const user = users.find(u => u.lockerId === pa.lockerId);
-                                      const clientName = user ? user.name.toLowerCase() : '';
-                                      const matchesId = (pa.id || '').toLowerCase().includes(searchQ);
-                                      const matchesLocker = (pa.lockerId || '').toLowerCase().includes(searchQ);
-                                      const matchesSender = (pa.sender || '').toLowerCase().includes(searchQ);
-                                      const matchesClient = clientName.includes(searchQ);
-                                      const matchesDesc = desc.includes(searchQ);
-                                      if (!matchesId && !matchesLocker && !matchesSender && !matchesClient && !matchesDesc) return false;
-                                    }
-                                    return true;
-                                  });
-
                                   const rows: string[][] = [];
                                   rows.push(['Fecha', 'Nombre Cliente', 'Casillero', 'Número de Guía', 'Origen', 'Valor Decl. ($)', 'Seguro', 'Remitente / Detalle', 'Peso Est. (Lbs)', 'Estado']);
                                   
-                                  filtered.forEach(pa => {
-                                    const user = users.find(u => u.lockerId === pa.lockerId);
+                                  filteredAdminPreAlerts.forEach(pa => {
+                                    const user = userByLockerMap.get((pa.lockerId || '').trim().toUpperCase());
                                     const clientName = user ? user.name : 'Cliente No Identificado';
                                     const parsed = parsePreAlertDetails(pa);
                                     rows.push([
@@ -7909,7 +7968,10 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                             <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1">Filtrar por Bodega</span>
                             <select
                               value={adminPreAlertBodegaFilter}
-                              onChange={(e) => setAdminPreAlertBodegaFilter(e.target.value)}
+                              onChange={(e) => {
+                                setAdminPreAlertBodegaFilter(e.target.value);
+                                setAdminPreAlertVisibleCount(50);
+                              }}
                               className="px-2.5 py-1 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark bg-white focus:ring-1 focus:ring-brand-orange"
                             >
                               <option value="todos">Todos los Orígenes</option>
@@ -7922,7 +7984,10 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                             <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1">Filtrar por Estado</span>
                             <select
                               value={adminPreAlertStatusFilter}
-                              onChange={(e) => setAdminPreAlertStatusFilter(e.target.value)}
+                              onChange={(e) => {
+                                setAdminPreAlertStatusFilter(e.target.value);
+                                setAdminPreAlertVisibleCount(50);
+                              }}
                               className="px-2.5 py-1 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark bg-white focus:ring-1 focus:ring-brand-orange"
                             >
                               <option value="todos">Todos los Estados</option>
@@ -7936,7 +8001,10 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                             <input 
                               type="date" 
                               value={adminPreAlertStartDate}
-                              onChange={(e) => setAdminPreAlertStartDate(e.target.value)}
+                              onChange={(e) => {
+                                setAdminPreAlertStartDate(e.target.value);
+                                setAdminPreAlertVisibleCount(50);
+                              }}
                               className="px-2.5 py-1 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark bg-white focus:ring-1 focus:ring-brand-orange focus:outline-none"
                             />
                           </div>
@@ -7945,7 +8013,10 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                             <input 
                               type="date" 
                               value={adminPreAlertEndDate}
-                              onChange={(e) => setAdminPreAlertEndDate(e.target.value)}
+                              onChange={(e) => {
+                                setAdminPreAlertEndDate(e.target.value);
+                                setAdminPreAlertVisibleCount(50);
+                              }}
                               className="px-2.5 py-1 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark bg-white focus:ring-1 focus:ring-brand-orange focus:outline-none"
                             />
                           </div>
@@ -7955,14 +8026,20 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                               <input
                                 type="text"
                                 value={adminPreAlertSearchText}
-                                onChange={(e) => setAdminPreAlertSearchText(e.target.value)}
+                                onChange={(e) => {
+                                  setAdminPreAlertSearchText(e.target.value);
+                                  setAdminPreAlertVisibleCount(50);
+                                }}
                                 placeholder="Nombre, casillero o guía..."
                                 className="px-2.5 py-1 text-3xs border border-gray-300 rounded font-semibold text-brand-gray-dark bg-white focus:ring-1 focus:ring-brand-orange focus:outline-none w-48 pr-6"
                               />
                               {adminPreAlertSearchText && (
                                 <button
                                   type="button"
-                                  onClick={() => setAdminPreAlertSearchText('')}
+                                  onClick={() => {
+                                    setAdminPreAlertSearchText('');
+                                    setAdminPreAlertVisibleCount(50);
+                                  }}
                                   className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 font-bold"
                                 >
                                   ×
@@ -7972,30 +8049,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                           </div>
 
                           <div className="ml-auto text-3xs text-gray-400 font-extrabold uppercase tracking-wider">
-                            Total Encontradas: {
-                              preAlerts.filter(pa => {
-                                const desc = pa.description ? pa.description.toLowerCase() : '';
-                                const isMexico = desc.includes('origen: mexico');
-                                const isUSA = desc.includes('origen: usa') || desc.includes('origen: laredo') || desc.includes('origen: texas');
-                                if (adminPreAlertBodegaFilter === 'USA' && !isUSA) return false;
-                                if (adminPreAlertBodegaFilter === 'Mexico' && !isMexico) return false;
-                                if (adminPreAlertStatusFilter !== 'todos' && pa.status !== adminPreAlertStatusFilter) return false;
-                                if (adminPreAlertStartDate && pa.dateCreated < adminPreAlertStartDate) return false;
-                                if (adminPreAlertEndDate && pa.dateCreated > adminPreAlertEndDate) return false;
-                                if (adminPreAlertSearchText.trim() !== '') {
-                                  const searchQ = adminPreAlertSearchText.toLowerCase().trim();
-                                  const user = users.find(u => u.lockerId === pa.lockerId);
-                                  const clientName = user ? user.name.toLowerCase() : '';
-                                  const matchesId = (pa.id || '').toLowerCase().includes(searchQ);
-                                  const matchesLocker = (pa.lockerId || '').toLowerCase().includes(searchQ);
-                                  const matchesSender = (pa.sender || '').toLowerCase().includes(searchQ);
-                                  const matchesClient = clientName.includes(searchQ);
-                                  const matchesDesc = desc.includes(searchQ);
-                                  if (!matchesId && !matchesLocker && !matchesSender && !matchesClient && !matchesDesc) return false;
-                                }
-                                return true;
-                              }).length
-                            }
+                            Total Encontradas: {filteredAdminPreAlerts.length}
                           </div>
                         </div>
 
@@ -8013,39 +8067,14 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100 text-3xs font-semibold text-brand-gray-dark">
-                              {[...preAlerts].filter(pa => {
-                                const desc = pa.description ? pa.description.toLowerCase() : '';
-                                const isMexico = desc.includes('origen: mexico');
-                                const isUSA = desc.includes('origen: usa') || desc.includes('origen: laredo') || desc.includes('origen: texas');
-                                if (adminPreAlertBodegaFilter === 'USA' && !isUSA) return false;
-                                if (adminPreAlertBodegaFilter === 'Mexico' && !isMexico) return false;
-                                if (adminPreAlertStatusFilter !== 'todos' && pa.status !== adminPreAlertStatusFilter) return false;
-                                if (adminPreAlertStartDate && pa.dateCreated < adminPreAlertStartDate) return false;
-                                if (adminPreAlertEndDate && pa.dateCreated > adminPreAlertEndDate) return false;
-                                if (adminPreAlertSearchText.trim() !== '') {
-                                  const searchQ = adminPreAlertSearchText.toLowerCase().trim();
-                                  const user = users.find(u => u.lockerId === pa.lockerId);
-                                  const clientName = user ? user.name.toLowerCase() : '';
-                                  const matchesId = (pa.id || '').toLowerCase().includes(searchQ);
-                                  const matchesLocker = (pa.lockerId || '').toLowerCase().includes(searchQ);
-                                  const matchesSender = (pa.sender || '').toLowerCase().includes(searchQ);
-                                  const matchesClient = clientName.includes(searchQ);
-                                  const matchesDesc = desc.includes(searchQ);
-                                  if (!matchesId && !matchesLocker && !matchesSender && !matchesClient && !matchesDesc) return false;
-                                }
-                                return true;
-                              }).reverse().map(pa => {
+                              {visibleAdminPreAlerts.map(pa => {
                                 const { fileName: invoiceFile } = parsePreAlertAttachment(pa);
                                 const parsed = parsePreAlertDetails(pa);
-                                const matchingUser = users.find(u => u.lockerId === pa.lockerId);
+                                const matchingUser = userByLockerMap.get((pa.lockerId || '').trim().toUpperCase());
                                 const clientName = matchingUser ? matchingUser.name : 'Cliente No Identificado';
 
                                 const paIdUpper = (pa.id || '').trim().toUpperCase();
-                                const linkedShip = shipments.find(s =>
-                                  (s.id || '').trim().toUpperCase() === paIdUpper ||
-                                  (getOriginalTrackingHelper(s) || '').trim().toUpperCase() === paIdUpper ||
-                                  (s.notes || '').toUpperCase().includes(paIdUpper)
-                                );
+                                const linkedShip = paIdUpper ? shipmentByTrackingMap.get(paIdUpper) : undefined;
                                 const isInWarehouse = linkedShip && linkedShip.status === 'En Sucursal';
                                 const isProcessed = pa.status === 'Recibido' || isInWarehouse;
                                 const isProcessing = processingPreAlertId === pa.id;
@@ -8255,50 +8284,41 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                             </div>
                                           </div>
                                         )
-                                      ) : (() => {
-                                        const paIdUpper = (pa.id || '').trim().toUpperCase();
-                                        const linkedShip = shipments.find(s =>
-                                          (s.id || '').trim().toUpperCase() === paIdUpper ||
-                                          (getOriginalTrackingHelper(s) || '').trim().toUpperCase() === paIdUpper ||
-                                          (s.notes || '').toUpperCase().includes(paIdUpper)
-                                        );
-                                        const isInWarehouse = linkedShip && linkedShip.status === 'En Sucursal';
-                                        return (
-                                          <div className="flex flex-col items-center gap-1">
-                                            <span className="inline-flex items-center gap-1 text-emerald-800 text-[10px] font-extrabold uppercase bg-emerald-100/70 border border-emerald-300 px-2 py-0.5 rounded shadow-3xs">
-                                              <Check className="h-3 w-3 text-emerald-600" />
-                                              {isInWarehouse
-                                                ? `En Almacén (${linkedShip.id})`
-                                                : linkedShip && linkedShip.status !== 'Creado'
-                                                  ? `${linkedShip.status} (${linkedShip.id})`
-                                                  : 'En Almacén'}
-                                            </span>
-                                            {linkedShip && linkedShip.status === 'En Sucursal' ? (
-                                              <button
-                                                type="button"
-                                                onClick={() => handleRemoveSingleShipmentFromWarehouse(linkedShip)}
-                                                className="text-gray-400 hover:text-amber-600 text-[8px] font-bold underline transition cursor-pointer"
-                                                title="Desalmacenar y regresar a Pendiente"
-                                              >
-                                                ↩ Desalmacenar
-                                              </button>
-                                            ) : (
-                                              <button
-                                                type="button"
-                                                onClick={async () => {
-                                                  const revertedPa = { ...pa, status: 'Pendiente' as const };
-                                                  setPreAlerts(prev => prev.map(item => item.id === pa.id ? revertedPa : item));
-                                                  await db.upsertPreAlert(revertedPa);
-                                                }}
-                                                className="text-gray-400 hover:text-amber-600 text-[8px] font-bold underline transition cursor-pointer"
-                                                title="Revertir a Pendiente"
-                                              >
-                                                ↩ Desmarcar
-                                              </button>
-                                            )}
-                                          </div>
-                                        );
-                                      })()}
+                                      ) : (
+                                        <div className="flex flex-col items-center gap-1">
+                                          <span className="inline-flex items-center gap-1 text-emerald-800 text-[10px] font-extrabold uppercase bg-emerald-100/70 border border-emerald-300 px-2 py-0.5 rounded shadow-3xs">
+                                            <Check className="h-3 w-3 text-emerald-600" />
+                                            {isInWarehouse
+                                              ? `En Almacén (${linkedShip.id})`
+                                              : linkedShip && linkedShip.status !== 'Creado'
+                                                ? `${linkedShip.status} (${linkedShip.id})`
+                                                : 'En Almacén'}
+                                          </span>
+                                          {linkedShip && linkedShip.status === 'En Sucursal' ? (
+                                            <button
+                                              type="button"
+                                              onClick={() => handleRemoveSingleShipmentFromWarehouse(linkedShip)}
+                                              className="text-gray-400 hover:text-amber-600 text-[8px] font-bold underline transition cursor-pointer"
+                                              title="Desalmacenar y regresar a Pendiente"
+                                            >
+                                              ↩ Desalmacenar
+                                            </button>
+                                          ) : (
+                                            <button
+                                              type="button"
+                                              onClick={async () => {
+                                                const revertedPa = { ...pa, status: 'Pendiente' as const };
+                                                setPreAlerts(prev => prev.map(item => item.id === pa.id ? revertedPa : item));
+                                                await db.upsertPreAlert(revertedPa);
+                                              }}
+                                              className="text-gray-400 hover:text-amber-600 text-[8px] font-bold underline transition cursor-pointer"
+                                              title="Revertir a Pendiente"
+                                            >
+                                              ↩ Desmarcar
+                                            </button>
+                                          )}
+                                        </div>
+                                      )}
                                       <div className="flex gap-1 justify-center mt-1 border-t border-gray-100 pt-1 w-full">
                                         <button
                                           type="button"
@@ -8321,18 +8341,43 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                 );
                               })}
 
-                              {preAlerts.length === 0 && (
+                              {filteredAdminPreAlerts.length === 0 && (
                                 <tr>
                                   <td colSpan={7} className="text-center py-10 text-gray-400 font-medium">
-                                    No hay pre-alertas declaradas en el sistema.
+                                    No hay pre-alertas declaradas con los filtros seleccionados.
                                   </td>
                                 </tr>
                               )}
                             </tbody>
                           </table>
                         </div>
+
+                        {filteredAdminPreAlerts.length > adminPreAlertVisibleCount && (
+                          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-gray-150 bg-gray-50/70 px-4 py-3 rounded-xl">
+                            <span className="text-3xs font-bold text-gray-500">
+                              Mostrando <strong className="text-brand-gray-dark">{visibleAdminPreAlerts.length}</strong> de <strong className="text-brand-gray-dark">{filteredAdminPreAlerts.length}</strong> pre-alertas
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setAdminPreAlertVisibleCount(prev => prev + 50)}
+                                className="px-4 py-1.5 bg-brand-orange hover:bg-brand-orange-hover text-white text-3xs font-extrabold uppercase tracking-wider rounded-lg transition cursor-pointer shadow-2xs"
+                              >
+                                + Mostrar 50 más
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setAdminPreAlertVisibleCount(filteredAdminPreAlerts.length)}
+                                className="px-4 py-1.5 bg-slate-800 hover:bg-slate-900 text-white text-3xs font-extrabold uppercase tracking-wider rounded-lg transition cursor-pointer shadow-2xs"
+                              >
+                                Ver todas ({filteredAdminPreAlerts.length})
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    )}
+                      );
+                    })()}
 
                     {/* ==================== 5. WAREHOUSE RECEPCIÓN Y BASCULA (`warehouse` + Modal en `pre-alertas`) ==================== */}
                     {(adminSubTab === 'warehouse' || isWarehouseCheckInModalOpen) && (() => {
@@ -16485,7 +16530,12 @@ El Equipo de ShipFast GT`;
 
                   {/* Modal Body / Actual PDF or Image Viewer */}
                   <div className="p-4 sm:p-6 bg-slate-100 flex-1 overflow-y-auto flex flex-col items-center justify-center min-h-[450px]">
-                    {displayUrl ? (
+                    {isLoadingPreAlertAttachment ? (
+                      <div className="flex flex-col items-center justify-center gap-3 py-16 text-slate-600">
+                        <RefreshCw className="h-8 w-8 text-brand-orange animate-spin" />
+                        <span className="text-xs font-extrabold uppercase tracking-wider">Cargando factura adjunta...</span>
+                      </div>
+                    ) : displayUrl ? (
                       isPdf ? (
                         <iframe
                           src={displayUrl}

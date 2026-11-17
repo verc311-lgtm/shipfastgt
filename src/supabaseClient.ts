@@ -125,30 +125,70 @@ export const db = {
     }
   },
 
-  // Pre-Alerts
+  // Pre-Alerts (Lightweight list query without heavy base64 PDF/signature blobs for fast loading)
   async getPreAlerts(): Promise<any[]> {
     try {
-      const { data, error } = await supabase.from('pre_alerts').select('*');
+      const { data, error } = await supabase
+        .from('pre_alerts')
+        .select('id,locker_id,sender,description,weight_est,status,date_created,declared_value');
       if (error) throw error;
       const camelList = toCamel(data) || [];
       return camelList.map((pa: any) => {
-        if (typeof pa.insurance === 'string' && pa.insurance.includes(':::WAIVER:::')) {
-          const [cleanIns, rest] = pa.insurance.split(':::WAIVER:::');
-          const sepIdx = rest.indexOf(':::');
-          const waiverDate = sepIdx !== -1 ? rest.slice(0, sepIdx) : '';
-          const waiverSignature = sepIdx !== -1 ? rest.slice(sepIdx + 3) : rest;
-          return {
-            ...pa,
-            insurance: cleanIns || 'Sin seguro',
-            waiverDate,
-            waiverSignature
-          };
+        const desc = String(pa.description || '');
+        let insurance = pa.insurance || 'Sin seguro';
+        let invoiceFileName = pa.invoiceFileName || '';
+
+        if (desc) {
+          const parts = desc.split(' | ');
+          for (const part of parts) {
+            const trimmed = part.trim();
+            const lower = trimmed.toLowerCase();
+            if (lower.startsWith('seguro:')) {
+              insurance = trimmed.slice(7).trim().split(':::WAIVER:::')[0] || 'Sin seguro';
+            } else if (lower.startsWith('factura:') && !invoiceFileName) {
+              invoiceFileName = trimmed.slice(8).trim().split(':::')[0] || '';
+            }
+          }
         }
-        return pa;
+
+        return {
+          ...pa,
+          insurance,
+          invoiceFileName
+        };
       });
     } catch (err) {
       console.error("Supabase: getPreAlerts error, using fallback", err);
       return [];
+    }
+  },
+  async getPreAlertAttachment(id: string): Promise<{ invoiceFileName: string; insurance: string; waiverDate: string; waiverSignature: string } | null> {
+    try {
+      const { data, error } = await supabase
+        .from('pre_alerts')
+        .select('invoice_file_name,insurance')
+        .eq('id', id)
+        .maybeSingle();
+      if (error || !data) return null;
+      let insurance = data.insurance || 'Sin seguro';
+      let waiverDate = '';
+      let waiverSignature = '';
+      if (typeof insurance === 'string' && insurance.includes(':::WAIVER:::')) {
+        const [cleanIns, rest] = insurance.split(':::WAIVER:::');
+        const sepIdx = rest.indexOf(':::');
+        waiverDate = sepIdx !== -1 ? rest.slice(0, sepIdx) : '';
+        waiverSignature = sepIdx !== -1 ? rest.slice(sepIdx + 3) : rest;
+        insurance = cleanIns || 'Sin seguro';
+      }
+      return {
+        invoiceFileName: data.invoice_file_name || '',
+        insurance,
+        waiverDate,
+        waiverSignature
+      };
+    } catch (err) {
+      console.error("Supabase: getPreAlertAttachment error", err);
+      return null;
     }
   },
   async upsertPreAlert(preAlert: any): Promise<boolean> {
@@ -161,6 +201,13 @@ export const db = {
       if (waiverSig) {
         const cleanIns = (copy.insurance || 'Sin seguro').split(':::WAIVER:::')[0];
         copy.insurance = `${cleanIns}:::WAIVER:::${waiverDt}:::${waiverSig}`;
+      } else {
+        // Avoid overwriting existing stored signature blob when updating status/metadata
+        delete copy.insurance;
+      }
+      if (!copy.invoiceFileName || (!String(copy.invoiceFileName).includes(':::') && !String(copy.invoiceFileName).startsWith('data:'))) {
+        // Avoid overwriting existing stored base64 PDF/image when updating status/metadata
+        delete copy.invoiceFileName;
       }
       const dbObj = toSnake(copy);
       const { error } = await supabase.from('pre_alerts').upsert(dbObj);
@@ -173,7 +220,20 @@ export const db = {
   },
   async replacePreAlert(oldId: string, preAlert: any): Promise<boolean> {
     try {
-      const ok = await this.upsertPreAlert(preAlert);
+      const enriched = { ...preAlert };
+      if (oldId && (!enriched.waiverSignature || !String(enriched.invoiceFileName || '').includes(':::'))) {
+        const existingAtt = await this.getPreAlertAttachment(oldId);
+        if (existingAtt) {
+          if (!enriched.waiverSignature && existingAtt.waiverSignature) {
+            enriched.waiverSignature = existingAtt.waiverSignature;
+            enriched.waiverDate = existingAtt.waiverDate;
+          }
+          if (!String(enriched.invoiceFileName || '').includes(':::') && existingAtt.invoiceFileName) {
+            enriched.invoiceFileName = existingAtt.invoiceFileName;
+          }
+        }
+      }
+      const ok = await this.upsertPreAlert(enriched);
       if (ok && oldId && oldId !== preAlert.id) {
         await supabase.from('pre_alerts').delete().eq('id', oldId);
       }
