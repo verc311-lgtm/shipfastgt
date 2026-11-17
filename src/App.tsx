@@ -6618,13 +6618,13 @@ Para proporcionarle información específica, puede solicitar:
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                       <thead>
-                        <tr className="bg-gray-100 border-b border-gray-200 text-4xs font-extrabold text-gray-500 uppercase tracking-wider">
-                          <th className="py-3 px-4">1. Fecha</th>
-                          <th className="py-3 px-4">2. Cliente y Casillero</th>
-                          <th className="py-3 px-4">3. Número de Guía</th>
-                          <th className="py-3 px-4">4. Descripción Organizada</th>
-                          <th className="py-3 px-3 text-center">Peso Est.</th>
-                          <th className="py-3 px-3">Estado</th>
+                        <tr className="bg-gray-100 border-b border-gray-200 text-[10px] font-extrabold text-gray-500 uppercase tracking-wider">
+                          <th className="py-2.5 px-2 w-[82px]">1. Fecha</th>
+                          <th className="py-2.5 px-2.5 w-[150px]">2. Cliente / Casillero</th>
+                          <th className="py-2.5 px-2.5 w-[170px]">3. Número de Guía</th>
+                          <th className="py-2.5 px-2.5">4. Descripción Organizada</th>
+                          <th className="py-2.5 px-2 text-center w-[70px]">Peso Est.</th>
+                          <th className="py-2.5 px-2 text-center w-[95px]">Estado</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100 text-3xs font-semibold text-brand-gray-dark">
@@ -6633,26 +6633,28 @@ Para proporcionarle información específica, puede solicitar:
                           const parsed = parsePreAlertDetails(pa);
                           return (
                             <tr key={pa.id} className={`transition-colors ${pa.status === 'Recibido' ? 'bg-emerald-50/40 hover:bg-emerald-100/50 border-l-4 border-emerald-400' : 'hover:bg-gray-50/70'}`}>
-                              <td className="py-3 px-4 font-mono font-bold text-slate-700 whitespace-nowrap">
-                                📅 {pa.dateCreated}
+                              <td className="py-2.5 px-2 font-mono font-bold text-slate-700 whitespace-nowrap align-middle">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-[10px] tracking-tight">
+                                  {pa.dateCreated}
+                                </span>
                               </td>
-                              <td className="py-3 px-4">
-                                <div className="font-extrabold text-brand-gray-dark">{currentUser.name}</div>
-                                <span className="inline-block mt-0.5 px-2 py-0.5 rounded bg-orange-50 border border-orange-200 text-brand-orange font-mono font-black text-[10px]">
+                              <td className="py-2.5 px-2.5 max-w-[150px] align-middle">
+                                <div className="font-extrabold text-brand-gray-dark text-[11px] leading-tight line-clamp-2">{currentUser.name}</div>
+                                <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded bg-orange-50 border border-orange-200 text-brand-orange font-mono font-black text-[9px]">
                                   Casillero: {pa.lockerId}
                                 </span>
                               </td>
-                              <td className="py-3 px-4 font-mono">
-                                <div className="font-black text-indigo-700 text-xs uppercase">{pa.id}</div>
+                              <td className="py-2.5 px-2.5 max-w-[170px] font-mono align-middle">
+                                <div className="font-black text-indigo-700 text-[11px] uppercase break-all leading-tight">{pa.id}</div>
                                 <button
                                   type="button"
                                   onClick={() => handleEditPreAlert(pa)}
-                                  className="mt-1 inline-flex items-center gap-1 text-[9px] font-extrabold uppercase px-2 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 cursor-pointer"
+                                  className="mt-1 inline-flex items-center gap-1 text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 cursor-pointer"
                                 >
                                   ✏️ Editar Guía
                                 </button>
                               </td>
-                              <td className="py-3 px-4">
+                              <td className="py-2.5 px-2.5 align-middle">
                                 <div className="flex flex-wrap gap-1.5">
                                   <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200 text-[10px] font-bold">
                                     {parsed.isMexico ? '🇲🇽 Bodega México' : '🇺🇸 Bodega USA'}
@@ -8145,14 +8147,14 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                         <div className="overflow-x-auto">
                           <table className="w-full text-left border-collapse">
                             <thead>
-                              <tr className="bg-gray-100 border-b border-gray-200 text-4xs font-extrabold text-gray-500 uppercase tracking-wider">
-                                <th className="py-2.5 px-3">1. Fecha</th>
-                                <th className="py-2.5 px-3">2. Cliente y Casillero</th>
-                                <th className="py-2.5 px-4">3. Número de Guía</th>
-                                <th className="py-2.5 px-3">4. Descripción Organizada</th>
-                                <th className="py-2.5 px-3 text-center">Peso Est. (Lbs)</th>
-                                <th className="py-2.5 px-3">Estado</th>
-                                <th className="py-2.5 px-4 text-center">Acción</th>
+                              <tr className="bg-gray-100 border-b border-gray-200 text-[10px] font-extrabold text-gray-500 uppercase tracking-wider">
+                                <th className="py-2 px-2 w-[78px]">1. Fecha</th>
+                                <th className="py-2 px-2 w-[140px]">2. Cliente / Casillero</th>
+                                <th className="py-2 px-2 w-[165px]">3. Número de Guía</th>
+                                <th className="py-2 px-2">4. Descripción Organizada</th>
+                                <th className="py-2 px-1.5 text-center w-[64px]">Peso</th>
+                                <th className="py-2 px-1.5 text-center w-[95px]">Estado</th>
+                                <th className="py-2 px-2 text-center w-[105px]">Acción</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100 text-3xs font-semibold text-brand-gray-dark">
@@ -8176,58 +8178,58 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                         ? 'bg-emerald-50 hover:bg-emerald-100/50 border-b border-emerald-300 ring-2 ring-emerald-400/50'
                                         : 'hover:bg-gray-50/70'
                                   }`}>
-                                    {/* 1. FECHA PRIMERO */}
-                                    <td className={`py-3 px-3 whitespace-nowrap transition-colors ${
+                                    {/* 1. FECHA COMPACTA */}
+                                    <td className={`py-2.5 px-1.5 whitespace-nowrap align-middle transition-colors ${
                                       isProcessed
                                         ? 'border-l-4 border-emerald-600 bg-emerald-100/60'
                                         : isProcessing
                                           ? 'border-l-4 border-emerald-400 bg-emerald-50'
                                           : ''
                                     }`}>
-                                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md font-mono font-bold text-3xs border transition-colors ${
+                                      <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded font-mono font-bold text-[10px] tracking-tight border transition-colors ${
                                         isProcessed
                                           ? 'bg-emerald-200/90 border-emerald-400 text-emerald-950 font-black'
                                           : isProcessing
                                             ? 'bg-emerald-100 border-emerald-300 text-emerald-800 font-bold'
                                             : 'bg-slate-100 border-slate-200 text-slate-700'
                                       }`}>
-                                        {isProcessed ? '✓ ' : isProcessing ? '⚡ ' : ''}📅 {pa.dateCreated}
+                                        {isProcessed ? '✓' : isProcessing ? '⚡' : ''}{pa.dateCreated}
                                       </span>
                                     </td>
 
                                     {/* 2. NOMBRE Y CASILLERO */}
-                                    <td className="py-3 px-3">
+                                    <td className="py-2.5 px-2 max-w-[140px] align-middle">
                                       <div className="flex flex-col gap-0.5">
-                                        <span className="font-extrabold text-brand-gray-dark text-2xs leading-tight">
+                                        <span className="font-extrabold text-brand-gray-dark text-[11px] leading-tight line-clamp-2" title={clientName}>
                                           👤 {clientName}
                                         </span>
-                                        <span className="inline-flex items-center self-start px-2 py-0.5 rounded bg-orange-50 border border-brand-orange/25 font-mono font-black text-brand-orange text-[10px]">
+                                        <span className="inline-flex items-center self-start px-1.5 py-0.5 rounded bg-orange-50 border border-brand-orange/25 font-mono font-black text-brand-orange text-[9px]">
                                           Casillero: {pa.lockerId}
                                         </span>
                                       </div>
                                     </td>
 
                                     {/* 3. NÚMERO DE GUÍA (CON OPCIÓN DE EDITAR) */}
-                                    <td className="py-3 px-4 font-mono font-bold text-brand-orange uppercase">
+                                    <td className="py-2.5 px-2 max-w-[165px] font-mono font-bold text-brand-orange uppercase align-middle">
                                       <div className="flex flex-col gap-1">
-                                        <div className="flex items-center gap-1">
-                                          <span className="text-2xs tracking-wide">{pa.id}</span>
+                                        <div className="flex items-start gap-1">
+                                          <span className="text-[11px] tracking-tight break-all leading-tight">{pa.id}</span>
                                           <button
                                             type="button"
                                             onClick={() => {
                                               navigator.clipboard.writeText(pa.id);
                                               alert(`Tracking "${pa.id}" copiado al portapapeles.`);
                                             }}
-                                            className="p-1 text-gray-400 hover:text-brand-orange hover:bg-orange-50 rounded transition cursor-pointer"
+                                            className="p-0.5 text-gray-400 hover:text-brand-orange hover:bg-orange-50 rounded transition cursor-pointer shrink-0"
                                             title="Copiar Número de Guía"
                                           >
-                                            <Copy className="h-3.5 w-3.5" />
+                                            <Copy className="h-3 w-3" />
                                           </button>
                                         </div>
                                         <button
                                           type="button"
                                           onClick={() => handleEditPreAlert(pa)}
-                                          className="self-start inline-flex items-center gap-1 text-[9px] font-extrabold text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 px-2 py-0.5 rounded transition cursor-pointer"
+                                          className="self-start inline-flex items-center gap-1 text-[9px] font-extrabold text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 px-1.5 py-0.5 rounded transition cursor-pointer"
                                           title="Editar Número de Guía y Datos"
                                         >
                                           ✏️ Editar Guía
@@ -8236,16 +8238,16 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                     </td>
 
                                     {/* 4. DESCRIPCIÓN ORGANIZADA */}
-                                    <td className="py-3 px-3 min-w-[270px]">
-                                      <div className={`${isProcessed ? 'bg-white/95 border-emerald-300/80 shadow-2xs' : 'bg-slate-50/90 border-slate-200/80'} border rounded-lg p-2.5 space-y-1.5 text-left`}>
-                                        <div className="flex flex-wrap items-center gap-1.5">
-                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-white border border-slate-200 text-slate-700 text-[10px] font-extrabold">
+                                    <td className="py-2.5 px-2 align-middle">
+                                      <div className={`${isProcessed ? 'bg-white/95 border-emerald-300/80 shadow-2xs' : 'bg-slate-50/90 border-slate-200/80'} border rounded-lg p-2 space-y-1 text-left`}>
+                                        <div className="flex flex-wrap items-center gap-1">
+                                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-white border border-slate-200 text-slate-700 text-[9.5px] font-extrabold">
                                             {parsed.origin === 'Mexico' ? '🇲🇽 Bodega México' : '🇺🇸 Bodega USA'}
                                           </span>
-                                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-extrabold font-mono">
+                                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-800 text-[9.5px] font-extrabold font-mono">
                                             💵 Valor: ${parsed.declaredValue.toFixed(2)}
                                           </span>
-                                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-extrabold border ${
+                                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9.5px] font-extrabold border ${
                                             parsed.hasInsurance
                                               ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
                                               : 'bg-amber-50 border-amber-200 text-amber-800'
@@ -8253,33 +8255,33 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                             {parsed.hasInsurance ? '🛡️ Con Seguro (5%)' : '⚠️ Sin Seguro'}
                                           </span>
                                           {pa.sender && (
-                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-600 text-[10px] font-bold">
+                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-slate-600 text-[9.5px] font-bold">
                                               🏪 {pa.sender}
                                             </span>
                                           )}
                                           {parsed.signedBy && (
-                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px] font-extrabold">
+                                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-800 text-[9.5px] font-extrabold">
                                               ✍️ Firmado: {parsed.signedBy}
                                             </span>
                                           )}
                                         </div>
 
                                         {parsed.customNote && (
-                                          <div className="text-[11px] text-slate-700 bg-white px-2.5 py-1 rounded border border-slate-200/70 font-medium">
+                                          <div className="text-[10.5px] text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200/70 font-medium">
                                             <strong className="text-slate-900 uppercase text-[9px] tracking-wider mr-1">Contenido:</strong>
                                             {parsed.customNote}
                                           </div>
                                         )}
 
                                         {(invoiceFile || pa.waiverSignature || parsed.signedBy) && (
-                                          <div className="flex flex-wrap gap-1.5 pt-1 border-t border-slate-200/60">
+                                          <div className="flex flex-wrap gap-1 pt-1 border-t border-slate-200/60">
                                             {invoiceFile && (
                                               <button
                                                 type="button"
                                                 onClick={() => {
                                                   setActivePreAlertInvoice(pa);
                                                 }}
-                                                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 hover:text-blue-800 text-[10px] font-black tracking-wider transition-all duration-150 cursor-pointer shadow-3xs"
+                                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 hover:text-blue-800 text-[9.5px] font-black tracking-wider transition-all duration-150 cursor-pointer shadow-3xs"
                                                 title={`Ver archivo: ${invoiceFile}`}
                                               >
                                                 📄 Ver Factura ({invoiceFile})
@@ -8289,7 +8291,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                               <button
                                                 type="button"
                                                 onClick={() => handlePrintWaiverPDF(pa)}
-                                                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded bg-orange-50 border border-orange-200 text-brand-orange hover:bg-orange-100 hover:text-orange-700 text-[10px] font-black tracking-wider transition-all duration-150 cursor-pointer shadow-3xs"
+                                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-orange-50 border border-orange-200 text-brand-orange hover:bg-orange-100 hover:text-orange-700 text-[9.5px] font-black tracking-wider transition-all duration-150 cursor-pointer shadow-3xs"
                                                 title="Imprimir Constancia y Firma de Pre-Alerta"
                                               >
                                                 🖨️ Ver Firma / Constancia
@@ -8300,7 +8302,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                       </div>
                                     </td>
 
-                                    <td className="py-3 px-3 text-center font-mono font-bold">
+                                    <td className="py-2.5 px-1.5 text-center font-mono font-bold whitespace-nowrap align-middle text-[11px]">
                                       {pa.weightEst} Lbs
                                       {isProcessed && (
                                         <span className="block text-[8px] text-emerald-700 font-extrabold uppercase tracking-widest">
@@ -8308,8 +8310,8 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                         </span>
                                       )}
                                     </td>
-                                    <td className="py-3 px-3">
-                                      <span className={`px-2.5 py-1 rounded text-4xs font-extrabold uppercase border inline-flex items-center gap-1.5 shadow-3xs ${
+                                    <td className="py-2.5 px-1.5 text-center whitespace-nowrap align-middle">
+                                      <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold uppercase border inline-flex items-center gap-1 shadow-3xs ${
                                         isProcessed 
                                           ? 'bg-emerald-100 border-emerald-400 text-emerald-900 font-black' 
                                           : isProcessing
@@ -8318,7 +8320,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                       }`}>
                                         {isProcessed ? (
                                           <>
-                                            <Check className="h-3 w-3 text-emerald-700 stroke-[3]" />
+                                            <Check className="h-2.5 w-2.5 text-emerald-700 stroke-[3]" />
                                             <span>EN ALMACÉN</span>
                                           </>
                                         ) : isProcessing ? (
@@ -8328,14 +8330,14 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                         )}
                                       </span>
                                     </td>
-                                  <td className="py-3 px-4 text-center">
-                                    <div className="flex flex-col gap-1.5 items-center justify-center">
+                                  <td className="py-2.5 px-2 text-center whitespace-nowrap align-middle">
+                                    <div className="flex flex-col gap-1 items-center justify-center">
                                       {!isProcessed ? (
                                         processingPreAlertId !== pa.id ? (
                                           <button
                                             type="button"
                                             onClick={() => setProcessingPreAlertId(pa.id)}
-                                            className="bg-brand-orange hover:bg-brand-orange-hover text-white px-3 py-1 rounded text-4xs font-black uppercase transition cursor-pointer shadow-3xs flex items-center gap-1 active:scale-95"
+                                            className="bg-brand-orange hover:bg-brand-orange-hover text-white px-2.5 py-1 rounded text-[9px] font-black uppercase transition cursor-pointer shadow-3xs flex items-center gap-1 active:scale-95"
                                             title="Procesar y confirmar recepción en bodega"
                                           >
                                             ⚡ Procesar
@@ -8349,7 +8351,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                               <button
                                                 type="button"
                                                 onClick={() => handleOpenCheckInModal(pa, 'USA')}
-                                                className="bg-brand-orange hover:bg-brand-orange-hover text-white px-2 py-0.5 rounded text-4xs font-black uppercase transition cursor-pointer shadow-3xs flex items-center gap-0.5 active:scale-95"
+                                                className="bg-brand-orange hover:bg-brand-orange-hover text-white px-1.5 py-0.5 rounded text-[9px] font-black uppercase transition cursor-pointer shadow-3xs flex items-center gap-0.5 active:scale-95"
                                                 title="Confirmar recepción en Bodega USA (modificar libras)"
                                               >
                                                 USA 🇺🇸
@@ -8357,7 +8359,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                               <button
                                                 type="button"
                                                 onClick={() => handleOpenCheckInModal(pa, 'Mexico')}
-                                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-0.5 rounded text-4xs font-black uppercase transition cursor-pointer shadow-3xs flex items-center gap-0.5 active:scale-95"
+                                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-1.5 py-0.5 rounded text-[9px] font-black uppercase transition cursor-pointer shadow-3xs flex items-center gap-0.5 active:scale-95"
                                                 title="Confirmar recepción en Bodega México (modificar libras)"
                                               >
                                                 México 🇲🇽
@@ -8374,13 +8376,13 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                           </div>
                                         )
                                       ) : (
-                                        <div className="flex flex-col items-center gap-1">
-                                          <span className="inline-flex items-center gap-1 text-emerald-800 text-[10px] font-extrabold uppercase bg-emerald-100/70 border border-emerald-300 px-2 py-0.5 rounded shadow-3xs">
-                                            <Check className="h-3 w-3 text-emerald-600" />
+                                        <div className="flex flex-col items-center gap-0.5">
+                                          <span className="inline-flex items-center gap-0.5 text-emerald-800 text-[9px] font-extrabold uppercase bg-emerald-100/70 border border-emerald-300 px-1.5 py-0.5 rounded shadow-3xs">
+                                            <Check className="h-2.5 w-2.5 text-emerald-600" />
                                             {isInWarehouse
-                                              ? `En Almacén (${linkedShip.id})`
+                                              ? `Almacén (${linkedShip.id})`
                                               : linkedShip && linkedShip.status !== 'Creado'
-                                                ? `${linkedShip.status} (${linkedShip.id})`
+                                                ? `${linkedShip.status}`
                                                 : 'En Almacén'}
                                           </span>
                                           {linkedShip && linkedShip.status === 'En Sucursal' ? (
@@ -8408,7 +8410,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                           )}
                                         </div>
                                       )}
-                                      <div className="flex gap-1 justify-center mt-1 border-t border-gray-100 pt-1 w-full">
+                                      <div className="flex gap-1 justify-center mt-0.5 border-t border-gray-100 pt-1 w-full">
                                         <button
                                           type="button"
                                           onClick={() => handleEditPreAlert(pa)}
