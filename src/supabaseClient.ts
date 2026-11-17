@@ -126,40 +126,91 @@ export const db = {
   },
 
   // Pre-Alerts (Lightweight list query without heavy base64 PDF/signature blobs for fast loading)
-  async getPreAlerts(): Promise<any[]> {
+  _mapLightPreAlerts(data: any[]): any[] {
+    const camelList = toCamel(data) || [];
+    return camelList.map((pa: any) => {
+      const desc = String(pa.description || '');
+      let insurance = pa.insurance || 'Sin seguro';
+      let invoiceFileName = pa.invoiceFileName || '';
+
+      if (desc) {
+        const parts = desc.split(' | ');
+        for (const part of parts) {
+          const trimmed = part.trim();
+          const lower = trimmed.toLowerCase();
+          if (lower.startsWith('seguro:')) {
+            insurance = trimmed.slice(7).trim().split(':::WAIVER:::')[0] || 'Sin seguro';
+          } else if (lower.startsWith('factura:') && !invoiceFileName) {
+            invoiceFileName = trimmed.slice(8).trim().split(':::')[0] || '';
+          }
+        }
+      }
+
+      return {
+        ...pa,
+        insurance,
+        invoiceFileName
+      };
+    });
+  },
+  async getPreAlertsByLocker(lockerId: string): Promise<any[]> {
+    const clean = (lockerId || '').trim().toUpperCase().replace(/^(SFG|SFA)[\s-]+(\d+)$/, '$1$2');
+    if (!clean) return [];
     try {
       const { data, error } = await supabase
         .from('pre_alerts')
-        .select('id,locker_id,sender,description,weight_est,status,date_created,declared_value');
+        .select('id,locker_id,sender,description,weight_est,status,date_created,declared_value')
+        .ilike('locker_id', clean);
       if (error) throw error;
-      const camelList = toCamel(data) || [];
-      return camelList.map((pa: any) => {
-        const desc = String(pa.description || '');
-        let insurance = pa.insurance || 'Sin seguro';
-        let invoiceFileName = pa.invoiceFileName || '';
+      return this._mapLightPreAlerts(data || []);
+    } catch (err) {
+      console.error("Supabase: getPreAlertsByLocker error", err);
+      return [];
+    }
+  },
+  async getPreAlerts(onProgress?: (rows: any[]) => void): Promise<any[]> {
+    const PAGE_SIZE = 250;
+    const allRows: any[] = [];
+    let offset = 0;
 
-        if (desc) {
-          const parts = desc.split(' | ');
-          for (const part of parts) {
-            const trimmed = part.trim();
-            const lower = trimmed.toLowerCase();
-            if (lower.startsWith('seguro:')) {
-              insurance = trimmed.slice(7).trim().split(':::WAIVER:::')[0] || 'Sin seguro';
-            } else if (lower.startsWith('factura:') && !invoiceFileName) {
-              invoiceFileName = trimmed.slice(8).trim().split(':::')[0] || '';
-            }
+    try {
+      while (true) {
+        let pageData: any[] | null = null;
+        let lastErr: any = null;
+
+        for (let attempt = 0; attempt < 2; attempt++) {
+          const { data, error } = await supabase
+            .from('pre_alerts')
+            .select('id,locker_id,sender,description,weight_est,status,date_created,declared_value')
+            .range(offset, offset + PAGE_SIZE - 1);
+          if (!error && data) {
+            pageData = data;
+            lastErr = null;
+            break;
           }
+          lastErr = error;
         }
 
-        return {
-          ...pa,
-          insurance,
-          invoiceFileName
-        };
-      });
+        if (lastErr || !pageData) {
+          if (allRows.length > 0) break;
+          throw lastErr;
+        }
+
+        const mapped = this._mapLightPreAlerts(pageData);
+        allRows.push(...mapped);
+        if (onProgress && allRows.length > 0) {
+          onProgress([...allRows]);
+        }
+
+        if (pageData.length < PAGE_SIZE) {
+          break;
+        }
+        offset += PAGE_SIZE;
+      }
+      return allRows;
     } catch (err) {
       console.error("Supabase: getPreAlerts error, using fallback", err);
-      return [];
+      return allRows;
     }
   },
   async getPreAlertAttachment(id: string): Promise<{ invoiceFileName: string; insurance: string; waiverDate: string; waiverSignature: string } | null> {

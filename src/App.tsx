@@ -765,15 +765,54 @@ export default function App() {
 
   const [isRefreshingData, setIsRefreshingData] = useState(false);
 
+  // Helper to normalize locker identifier (e.g. "SFG 25" or "SFG-25" -> "SFG25")
+  const normalizeLockerIdInput = (val: string) => {
+    return (val || '').trim().toUpperCase().replace(/^(SFG|SFA)[\s-]+(\d+)$/, '$1$2');
+  };
+
+  const isSameLockerId = (a?: string, b?: string) => {
+    if (!a || !b) return false;
+    return normalizeLockerIdInput(a) === normalizeLockerIdInput(b);
+  };
+
+  const mergePreAlertsIntoState = (incoming: PreAlert[]) => {
+    if (!incoming || incoming.length === 0) return;
+    setPreAlerts(prev => {
+      if (prev.length === 0) return incoming;
+      const map = new Map<string, PreAlert>();
+      prev.forEach(item => {
+        if (item?.id) map.set(item.id, item);
+      });
+      incoming.forEach(item => {
+        if (item?.id) {
+          const existing = map.get(item.id);
+          map.set(item.id, existing ? { ...existing, ...item } : item);
+        }
+      });
+      return Array.from(map.values());
+    });
+  };
+
   // Load / refresh data from Supabase without logging out (parallelized for fast loading)
   const refreshSystemData = async () => {
     setIsRefreshingData(true);
     try {
+      // If a client is logged in, fetch their specific pre-alerts first (~100ms)
+      if (currentUser?.role === 'client' && currentUser.lockerId) {
+        db.getPreAlertsByLocker(currentUser.lockerId).then(clientPas => {
+          if (clientPas.length > 0) {
+            mergePreAlertsIntoState(clientPas);
+          }
+        });
+      }
+
       await Promise.all([
-        // 1. Load pre-alerts immediately in parallel
-        db.getPreAlerts().then(dbPreAlerts => {
+        // 1. Load pre-alerts progressively in fast 250-row pages
+        db.getPreAlerts(batch => {
+          mergePreAlertsIntoState(batch);
+        }).then(dbPreAlerts => {
           if (dbPreAlerts.length > 0) {
-            setPreAlerts(dbPreAlerts);
+            mergePreAlertsIntoState(dbPreAlerts);
           }
         }),
         // 2. Load profiles
@@ -889,6 +928,17 @@ export default function App() {
     refreshSystemData();
   }, []);
 
+  // Ensure client's own pre-alerts are always fetched directly when logging in or opening client tabs
+  useEffect(() => {
+    if (currentUser?.role === 'client' && currentUser.lockerId) {
+      db.getPreAlertsByLocker(currentUser.lockerId).then(clientPas => {
+        if (clientPas.length > 0) {
+          mergePreAlertsIntoState(clientPas);
+        }
+      });
+    }
+  }, [currentUser?.lockerId, currentUser?.role, activeTab]);
+
   // Persist session & active navigation tabs in localStorage so page refresh never logs out
   useEffect(() => {
     if (currentUser) {
@@ -914,7 +964,7 @@ export default function App() {
   useEffect(() => {
     if (currentUser) {
       const adminTabs = ['admin-dashboard', 'driver-terminal', 'ai-chat'];
-      const clientTabs = ['my-locker', 'pickup-request', 'quote', 'ai-support'];
+      const clientTabs = ['my-locker', 'client-prealerts', 'client-addresses', 'pickup-request', 'quote', 'ai-support'];
       if (currentUser.role === 'admin') {
         if (!adminTabs.includes(activeTab)) {
           setActiveTab('admin-dashboard');
@@ -924,7 +974,7 @@ export default function App() {
           setActiveTab('my-locker');
         }
         // Pre-select first package for the client tracking preview
-        const clientPackages = shipments.filter(s => s.lockerId === currentUser.lockerId);
+        const clientPackages = shipments.filter(s => isSameLockerId(s.lockerId, currentUser.lockerId));
         if (clientPackages.length > 0) {
           setSearchedShipment(clientPackages[0]);
           setClientSearchId(clientPackages[0].id);
@@ -935,11 +985,6 @@ export default function App() {
       }
     }
   }, [currentUser?.lockerId, currentUser?.role, shipments.length]);
-
-  // Helper to normalize locker identifier (e.g. "SFG 25" or "SFG-25" -> "SFG25")
-  const normalizeLockerIdInput = (val: string) => {
-    return val.trim().toUpperCase().replace(/^(SFG|SFA)[\s-]+(\d+)$/, '$1$2');
-  };
 
   // Handle Login
   const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -6102,8 +6147,8 @@ Para proporcionarle información específica, puede solicitar:
                       {
                         groupTitle: '📦 MI CASILLERO Y COMPRAS',
                         items: [
-                          { id: 'my-locker', label: 'Mis Envíos y Rastreo', icon: Package, badge: shipments.filter(s => s.lockerId === currentUser.lockerId).length },
-                          { id: 'client-prealerts', label: 'Mis Pre-Alertas', icon: Bell, badge: preAlerts.filter(pa => pa.lockerId === currentUser.lockerId).length },
+                          { id: 'my-locker', label: 'Mis Envíos y Rastreo', icon: Package, badge: shipments.filter(s => isSameLockerId(s.lockerId, currentUser.lockerId)).length },
+                          { id: 'client-prealerts', label: 'Mis Pre-Alertas', icon: Bell, badge: preAlerts.filter(pa => isSameLockerId(pa.lockerId, currentUser.lockerId)).length },
                           { id: 'client-addresses', label: 'Direcciones Bodegas (USA/MX)', icon: MapPin },
                         ]
                       },
@@ -6287,7 +6332,7 @@ Para proporcionarle información específica, puede solicitar:
                       onClick={() => setActiveTab('client-prealerts' as any)}
                       className="px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-3xs font-extrabold uppercase tracking-wider cursor-pointer transition"
                     >
-                      🔔 Ver Mis Pre-Alertas ({preAlerts.filter(pa => pa.lockerId === currentUser.lockerId).length})
+                      🔔 Ver Mis Pre-Alertas ({preAlerts.filter(pa => isSameLockerId(pa.lockerId, currentUser.lockerId)).length})
                     </button>
                     <button
                       type="button"
@@ -6332,10 +6377,10 @@ Para proporcionarle información específica, puede solicitar:
                       {/* Quick Shipment Selector inside Profile Card */}
                       <div className="pt-3 border-t border-gray-100 space-y-2">
                         <span className="text-4xs font-extrabold text-gray-500 uppercase tracking-wider block">
-                          📦 Paquetes en tu Casillero ({shipments.filter(s => s.lockerId === currentUser.lockerId).length})
+                          📦 Paquetes en tu Casillero ({shipments.filter(s => isSameLockerId(s.lockerId, currentUser.lockerId)).length})
                         </span>
                         <div className="space-y-1.5 max-h-[260px] overflow-y-auto pr-1">
-                          {shipments.filter(s => s.lockerId === currentUser.lockerId).map(s => {
+                          {shipments.filter(s => isSameLockerId(s.lockerId, currentUser.lockerId)).map(s => {
                             const isSelected = searchedShipment?.id === s.id;
                             return (
                               <button
@@ -6365,8 +6410,52 @@ Para proporcionarle información específica, puede solicitar:
                               </button>
                             );
                           })}
-                          {shipments.filter(s => s.lockerId === currentUser.lockerId).length === 0 && (
-                            <p className="text-4xs text-gray-400 italic py-3 text-center">No posees paquetes activos en este momento.</p>
+                          {shipments.filter(s => isSameLockerId(s.lockerId, currentUser.lockerId)).length === 0 && (
+                            <p className="text-4xs text-gray-400 italic py-3 text-center">No posees paquetes en tránsito/bodega en este momento.</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Quick Pre-Alerts Selector inside Profile Card */}
+                      <div className="pt-3 border-t border-gray-100 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-4xs font-extrabold text-indigo-700 uppercase tracking-wider block">
+                            🕒 Paquetes Pre-Alertados ({preAlerts.filter(pa => isSameLockerId(pa.lockerId, currentUser.lockerId)).length})
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setActiveTab('client-prealerts' as any)}
+                            className="text-[9px] font-extrabold text-indigo-600 hover:underline uppercase cursor-pointer"
+                          >
+                            Ver todos →
+                          </button>
+                        </div>
+                        <div className="space-y-1.5 max-h-[220px] overflow-y-auto pr-1">
+                          {[...preAlerts].filter(pa => isSameLockerId(pa.lockerId, currentUser.lockerId)).reverse().map(pa => {
+                            const parsed = parsePreAlertDetails(pa);
+                            return (
+                              <button
+                                key={pa.id}
+                                type="button"
+                                onClick={() => setActiveTab('client-prealerts' as any)}
+                                className="w-full p-2.5 rounded-lg border border-indigo-100 bg-indigo-50/40 hover:bg-indigo-50 text-left transition cursor-pointer flex items-center justify-between"
+                              >
+                                <div className="min-w-0 pr-2">
+                                  <div className="font-mono font-black text-xs text-indigo-700 uppercase truncate">{pa.id}</div>
+                                  <div className="text-[10px] text-gray-500 truncate">
+                                    {parsed.isMexico ? '🇲🇽 México' : '🇺🇸 USA'} • {pa.dateCreated} • ${parsed.declaredValue.toFixed(2)}
+                                  </div>
+                                </div>
+                                <span className={`px-2 py-0.5 rounded text-[9px] font-extrabold uppercase shrink-0 ${
+                                  pa.status === 'Recibido' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                                }`}>
+                                  {pa.status}
+                                </span>
+                              </button>
+                            );
+                          })}
+                          {preAlerts.filter(pa => isSameLockerId(pa.lockerId, currentUser.lockerId)).length === 0 && (
+                            <p className="text-4xs text-gray-400 italic py-2 text-center">Sin pre-alertas declaradas.</p>
                           )}
                         </div>
                       </div>
@@ -6539,7 +6628,7 @@ Para proporcionarle información específica, puede solicitar:
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100 text-3xs font-semibold text-brand-gray-dark">
-                        {[...preAlerts].filter(pa => pa.lockerId === currentUser.lockerId).reverse().map(pa => {
+                        {[...preAlerts].filter(pa => isSameLockerId(pa.lockerId, currentUser.lockerId)).reverse().map(pa => {
                           const { fileName: attachedFile } = parsePreAlertAttachment(pa);
                           const parsed = parsePreAlertDetails(pa);
                           return (
@@ -6616,10 +6705,10 @@ Para proporcionarle información específica, puede solicitar:
                             </tr>
                           );
                         })}
-                        {preAlerts.filter(pa => pa.lockerId === currentUser.lockerId).length === 0 && (
+                        {preAlerts.filter(pa => isSameLockerId(pa.lockerId, currentUser.lockerId)).length === 0 && (
                           <tr>
                             <td colSpan={6} className="text-center py-12 text-gray-400 font-medium">
-                              No tienes pre-alertas registradas en este momento.
+                              {isRefreshingData ? 'Cargando tus pre-alertas...' : 'No tienes pre-alertas registradas en este momento.'}
                             </td>
                           </tr>
                         )}
