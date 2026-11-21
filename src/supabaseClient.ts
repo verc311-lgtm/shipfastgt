@@ -112,6 +112,17 @@ export const db = {
       return false;
     }
   },
+  async deleteShipments(trackingIds: string[]): Promise<boolean> {
+    if (!trackingIds.length) return true;
+    try {
+      const { error } = await supabase.from('shipments').delete().in('id', trackingIds);
+      if (error) throw error;
+      return true;
+    } catch (err) {
+      console.error("Supabase: deleteShipments error", err);
+      return false;
+    }
+  },
   async replaceShipment(oldTrackingId: string, shipment: any): Promise<boolean> {
     try {
       const ok = await this.upsertShipment(shipment);

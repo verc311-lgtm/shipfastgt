@@ -430,11 +430,15 @@ export default function App() {
 
   const getOriginalTrackingHelper = (ship: any): string => {
     if (!ship) return '';
+    const rawId = String(ship.id || '').trim();
+    if (rawId && !/^SF-\d+-GT$/i.test(rawId)) {
+      return rawId;
+    }
     if (ship.notes) {
       const trackingRegex = /(?:tracking\s+original|original\s+tracking|tracking|original)[\s:]+([a-zA-Z0-9_-]+)/i;
       const match = String(ship.notes).match(trackingRegex);
       if (match && match[1]) {
-        const val = match[1].trim();
+        const val = match[1].trim().replace(/\.+$/, '');
         if (val.length > 4) return val;
       }
     }
@@ -746,6 +750,7 @@ export default function App() {
   const [updateDetailsVal, setUpdateDetailsVal] = useState('');
 
   // New Shipment Creation fields (Admin)
+  const [adminTrackingInput, setAdminTrackingInput] = useState('');
   const [adminSender, setAdminSender] = useState('');
   const [adminReceiver, setAdminReceiver] = useState('');
   const [adminLockerLink, setAdminLockerLink] = useState('');
@@ -832,10 +837,107 @@ export default function App() {
             });
           }
         }),
-        // 3. Load shipments
-        db.getShipments().then(dbShipments => {
+        // 3. Load shipments (with automatic deduplication and migration of internal SF-XXXX-GT IDs to real tracking numbers)
+        db.getShipments().then(async (dbShipments) => {
           if (dbShipments.length > 0) {
-            setShipments(dbShipments);
+            const trackingRegex = /(?:tracking\s+original|original\s+tracking)[\s:]+([a-zA-Z0-9_-]+)/i;
+            const extractCanonicalTracking = (s: Shipment): string => {
+              const rawId = String(s.id || '').trim().toUpperCase();
+              if (s.notes) {
+                const match = String(s.notes).match(trackingRegex);
+                if (match && match[1]) {
+                  const extracted = match[1].trim().replace(/\.+$/, '').toUpperCase();
+                  if (extracted.length > 4 && (/^SF-\d+-GT$/i.test(rawId) || rawId === extracted)) {
+                    return extracted;
+                  }
+                }
+              }
+              return rawId;
+            };
+
+            const getStatusRank = (st: string) => {
+              if (st === 'Entregado') return 5;
+              if (st === 'En Ruta') return 4;
+              if (st === 'En Tránsito' || st === 'Retrasado') return 3;
+              if (st === 'En Sucursal') return 2;
+              return 1; // 'Creado'
+            };
+
+            const groupedByTracking = new Map<string, Shipment[]>();
+            dbShipments.forEach((s: Shipment) => {
+              const canonical = extractCanonicalTracking(s);
+              if (!canonical) return;
+              const list = groupedByTracking.get(canonical) || [];
+              list.push(s);
+              groupedByTracking.set(canonical, list);
+            });
+
+            const cleanShipments: Shipment[] = [];
+            const shipmentsToUpsert: Shipment[] = [];
+            const oldShipmentIdsToDelete: string[] = [];
+
+            groupedByTracking.forEach((group, canonicalId) => {
+              const sorted = [...group].sort((a, b) => {
+                const rankDiff = getStatusRank(b.status) - getStatusRank(a.status);
+                if (rankDiff !== 0) return rankDiff;
+                const aExact = String(a.id || '').trim().toUpperCase() === canonicalId ? 1 : 0;
+                const bExact = String(b.id || '').trim().toUpperCase() === canonicalId ? 1 : 0;
+                if (bExact !== aExact) return bExact - aExact;
+                return String(b.lastUpdated || '').localeCompare(String(a.lastUpdated || ''));
+              });
+
+              const winner = sorted[0];
+
+              // Merge unique history entries from all duplicates so consolidation/delivery history is preserved
+              const seenHistoryKeys = new Set<string>();
+              const mergedHistory: TrackingHistory[] = [];
+              sorted.forEach(item => {
+                (Array.isArray(item.history) ? item.history : []).forEach(h => {
+                  const hKey = `${h.date}|${h.time}|${h.status}|${h.details}`;
+                  if (!seenHistoryKeys.has(hKey)) {
+                    seenHistoryKeys.add(hKey);
+                    mergedHistory.push(h);
+                  }
+                });
+              });
+
+              // Preserve richer pre-alert notes if winner only has generic bulk note
+              let bestNotes = winner.notes || '';
+              if (!bestNotes.includes('Origen:') && !bestNotes.includes('Valor:')) {
+                const richDup = sorted.find(item => String(item.notes || '').includes('Origen:') || String(item.notes || '').includes('Valor:'));
+                if (richDup?.notes) {
+                  bestNotes = richDup.notes;
+                }
+              }
+
+              const finalShip: Shipment = {
+                ...winner,
+                id: canonicalId,
+                notes: bestNotes,
+                history: mergedHistory.length > 0 ? mergedHistory : (winner.history || [])
+              };
+
+              cleanShipments.push(finalShip);
+
+              const needsMigration = String(winner.id || '').trim() !== canonicalId || group.length > 1;
+              if (needsMigration) {
+                shipmentsToUpsert.push(finalShip);
+              }
+              group.forEach(item => {
+                if (item.id && item.id !== canonicalId) {
+                  oldShipmentIdsToDelete.push(item.id);
+                }
+              });
+            });
+
+            setShipments(cleanShipments);
+
+            if (shipmentsToUpsert.length > 0) {
+              await db.upsertShipments(shipmentsToUpsert);
+            }
+            if (oldShipmentIdsToDelete.length > 0) {
+              await db.deleteShipments(oldShipmentIdsToDelete);
+            }
           }
         }),
         // 4. Load consolidated guides
@@ -927,6 +1029,32 @@ export default function App() {
   useEffect(() => {
     refreshSystemData();
   }, []);
+
+  // Automatically mark any 'Pendiente' Pre-Alert as 'Recibido' if its tracking already exists as an active/delivered shipment
+  useEffect(() => {
+    if (shipments.length === 0 || preAlerts.length === 0) return;
+    const activeShipmentTrackings = new Set<string>();
+    shipments.forEach(s => {
+      if (s.status !== 'Creado') {
+        const sId = String(s.id || '').trim().toUpperCase();
+        if (sId) activeShipmentTrackings.add(sId);
+        const orig = String(getOriginalTrackingHelper(s) || '').trim().toUpperCase();
+        if (orig) activeShipmentTrackings.add(orig);
+      }
+    });
+
+    const toMarkReceived = preAlerts.filter(pa =>
+      pa.status === 'Pendiente' && activeShipmentTrackings.has(String(pa.id || '').trim().toUpperCase())
+    );
+
+    if (toMarkReceived.length > 0) {
+      const receivedIds = new Set(toMarkReceived.map(pa => pa.id));
+      setPreAlerts(prev => prev.map(pa => receivedIds.has(pa.id) ? { ...pa, status: 'Recibido' } : pa));
+      toMarkReceived.forEach(pa => {
+        db.upsertPreAlert({ ...pa, status: 'Recibido' });
+      });
+    }
+  }, [shipments.length, preAlerts.length]);
 
   // Ensure client's own pre-alerts are always fetched directly when logging in or opening client tabs
   useEffect(() => {
@@ -3320,7 +3448,7 @@ Estado en Bodega:
     // Save to Supabase
     db.upsertPreAlert(newPreAlert);
 
-    setPreAlerts(prev => [newPreAlert, ...prev]);
+    setPreAlerts(prev => [newPreAlert, ...prev.filter(p => (p.id || '').trim().toUpperCase() !== newPreAlert.id)]);
 
     // Reset Form fields
     setClientPreAlertTracking('');
@@ -3400,7 +3528,7 @@ Estado en Bodega:
     // Save to Supabase
     db.upsertPreAlert(newPreAlert);
 
-    setPreAlerts(prev => [newPreAlert, ...prev]);
+    setPreAlerts(prev => [newPreAlert, ...prev.filter(p => (p.id || '').trim().toUpperCase() !== newPreAlert.id)]);
 
     // Reset Form fields
     setClientPreAlertTracking('');
@@ -3604,7 +3732,8 @@ Estado en Bodega:
     const row = bulkRows.find(r => r.id === rowId);
     if (!row) return;
 
-    if (!row.trackingNumber.trim()) {
+    const trackingId = row.trackingNumber.trim().toUpperCase();
+    if (!trackingId) {
       alert('Por favor ingrese el Tracking Number.');
       return;
     }
@@ -3621,24 +3750,30 @@ Estado en Bodega:
       return;
     }
 
-    // Generate package ID and date
-    const newId = generatePackageId();
     const currentDate = new Date().toISOString().split('T')[0];
     const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
-
-    // Use weight directly in Lbs
     const weightLbs = row.weight;
+    const isShein = !!row.isShein || trackingId.toLowerCase().includes('shein');
 
-    const isShein = !!row.isShein || row.trackingNumber.toLowerCase().includes('shein');
+    // Check if there is an existing shipment or pre-alert with this tracking number
+    const existingShip = shipments.find(s =>
+      (s.id || '').trim().toUpperCase() === trackingId ||
+      (getOriginalTrackingHelper(s) || '').trim().toUpperCase() === trackingId
+    );
+    const matchingPa = preAlerts.find(pa => (pa.id || '').trim().toUpperCase() === trackingId);
+
+    const baseDesc = matchingPa?.description
+      ? `${matchingPa.description} | Tracking original: ${trackingId}`
+      : (isShein ? `Ingreso rápido Shein. Tracking original: ${trackingId}` : `Ingreso secuencial rápido. Tracking original: ${trackingId}`);
 
     const newShip: Shipment = {
-      id: newId,
+      id: trackingId,
       lockerId: matchedClient.lockerId,
-      sender: `Distribuidor ${row.bodega}`,
+      sender: matchingPa?.sender || `Distribuidor ${row.bodega}`,
       receiver: matchedClient.name,
       origin: row.bodega,
       destination: matchedClient.address || "Ciudad de Guatemala, GT",
-      status: 'En Sucursal', // checked-in at branch
+      status: 'En Sucursal',
       serviceType: 'Express',
       weight: weightLbs,
       dimensions: "N/A (Carga Consolidada)",
@@ -3650,19 +3785,34 @@ Estado en Bodega:
           status: 'En Sucursal',
           location: row.bodega,
           details: `Paquete recibido físicamente en bodega de ${row.bodega}. Peso registrado: ${row.weight} Lbs.`
-        }
+        },
+        ...(existingShip?.history || [])
       ],
-      notes: isShein ? `Ingreso rápido Shein. Tracking original: ${row.trackingNumber}.` : `Ingreso secuencial rápido. Tracking original: ${row.trackingNumber}.`
+      notes: baseDesc
     };
 
-    // Save to Supabase (sin generar factura automática; solo se factura al consolidar o manualmente)
-    db.upsertShipment(newShip);
+    if (existingShip && existingShip.id !== trackingId) {
+      db.replaceShipment(existingShip.id, newShip);
+    } else {
+      db.upsertShipment(newShip);
+    }
 
-    setShipments(prev => [newShip, ...prev]);
+    if (matchingPa && matchingPa.status !== 'Recibido') {
+      const updatedPa: PreAlert = { ...matchingPa, status: 'Recibido', weightEst: weightLbs || matchingPa.weightEst };
+      db.upsertPreAlert(updatedPa);
+      setPreAlerts(prev => prev.map(p => p.id === matchingPa.id ? updatedPa : p));
+    }
 
-    // Mark row as saved
-    setBulkRows(prev => prev.map(r => r.id === rowId ? { ...r, saved: true } : r));
-    alert(`Paquete con Tracking ${row.trackingNumber} guardado correctamente en almacén (Guía: ${newId}). Listo para consolidar.`);
+    setShipments(prev => {
+      const filtered = prev.filter(s =>
+        (s.id || '').trim().toUpperCase() !== trackingId &&
+        (getOriginalTrackingHelper(s) || '').trim().toUpperCase() !== trackingId
+      );
+      return [newShip, ...filtered];
+    });
+
+    setBulkRows(prev => prev.map(r => r.id === rowId ? { ...r, trackingNumber: trackingId, saved: true } : r));
+    alert(`Paquete registrado correctamente en almacén con su Tracking: ${trackingId}. Listo para consolidar.`);
   };
 
   const saveAllBulkRows = () => {
@@ -3672,12 +3822,20 @@ Estado en Bodega:
       return;
     }
 
-    // Validate all unsaved rows first
+    // Validate all unsaved rows first & check for duplicate trackings in the batch
+    const seenInBatch = new Set<string>();
     for (const row of unsavedRows) {
-      if (!row.trackingNumber.trim()) {
+      const trk = row.trackingNumber.trim().toUpperCase();
+      if (!trk) {
         alert(`Fila con índice #${bulkRows.indexOf(row) + 1} no tiene Tracking Number.`);
         return;
       }
+      if (seenInBatch.has(trk)) {
+        alert(`El Tracking "${trk}" está duplicado en la fila #${bulkRows.indexOf(row) + 1}. Por favor elimine la fila duplicada.`);
+        return;
+      }
+      seenInBatch.add(trk);
+
       const matchedClient = users.find(u => u.role === 'client' && u.lockerId.toUpperCase() === row.lockerId.toUpperCase().trim());
       if (!matchedClient) {
         alert(`Fila con índice #${bulkRows.indexOf(row) + 1} tiene un Casillero inválido (${row.lockerId}).`);
@@ -3685,25 +3843,42 @@ Estado en Bodega:
       }
     }
 
-    // Save each row
     const currentDate = new Date().toISOString().split('T')[0];
     const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
 
     const newShipmentsList: Shipment[] = [];
+    const oldIdsToDelete: string[] = [];
+    const updatedPreAlertsMap = new Map<string, PreAlert>();
 
     const updatedRows = bulkRows.map((row) => {
       if (row.saved) return row;
 
+      const trackingId = row.trackingNumber.trim().toUpperCase();
       const matchedClient = users.find(u => u.role === 'client' && u.lockerId.toUpperCase() === row.lockerId.toUpperCase().trim())!;
-      const newId = generatePackageId();
       const weightLbs = row.weight;
-      
-      const isShein = !!row.isShein || row.trackingNumber.toLowerCase().includes('shein');
+      const isShein = !!row.isShein || trackingId.toLowerCase().includes('shein');
+
+      const existingShip = shipments.find(s =>
+        (s.id || '').trim().toUpperCase() === trackingId ||
+        (getOriginalTrackingHelper(s) || '').trim().toUpperCase() === trackingId
+      );
+      if (existingShip && existingShip.id !== trackingId) {
+        oldIdsToDelete.push(existingShip.id);
+      }
+
+      const matchingPa = preAlerts.find(pa => (pa.id || '').trim().toUpperCase() === trackingId);
+      if (matchingPa && matchingPa.status !== 'Recibido') {
+        updatedPreAlertsMap.set(matchingPa.id, { ...matchingPa, status: 'Recibido', weightEst: weightLbs || matchingPa.weightEst });
+      }
+
+      const baseDesc = matchingPa?.description
+        ? `${matchingPa.description} | Tracking original: ${trackingId}`
+        : (isShein ? `Ingreso rápido Shein por lote. Tracking original: ${trackingId}` : `Ingreso rápido por lote. Tracking original: ${trackingId}`);
 
       const newShip: Shipment = {
-        id: newId,
+        id: trackingId,
         lockerId: matchedClient.lockerId,
-        sender: `Distribuidor ${row.bodega}`,
+        sender: matchingPa?.sender || `Distribuidor ${row.bodega}`,
         receiver: matchedClient.name,
         origin: row.bodega,
         destination: matchedClient.address || "Ciudad de Guatemala, GT",
@@ -3719,25 +3894,39 @@ Estado en Bodega:
             status: 'En Sucursal',
             location: row.bodega,
             details: `Paquete recibido físicamente en bodega de ${row.bodega}. Peso registrado: ${row.weight} Lbs.`
-          }
+          },
+          ...(existingShip?.history || [])
         ],
-        notes: isShein ? `Ingreso rápido Shein por lote. Tracking original: ${row.trackingNumber}.` : `Ingreso rápido por lote. Tracking original: ${row.trackingNumber}.`
+        notes: baseDesc
       };
 
       newShipmentsList.push(newShip);
 
-      return { ...row, saved: true };
+      return { ...row, trackingNumber: trackingId, saved: true };
     });
 
-    // Save to Supabase (sin generar facturas automáticas individuales)
     if (newShipmentsList.length > 0) {
       db.upsertShipments(newShipmentsList);
     }
+    if (oldIdsToDelete.length > 0) {
+      db.deleteShipments(oldIdsToDelete);
+    }
+    if (updatedPreAlertsMap.size > 0) {
+      updatedPreAlertsMap.forEach(pa => db.upsertPreAlert(pa));
+      setPreAlerts(prev => prev.map(pa => updatedPreAlertsMap.get(pa.id) || pa));
+    }
 
-    setShipments(prev => [...newShipmentsList, ...prev]);
+    const batchTrackings = new Set(newShipmentsList.map(s => s.id.toUpperCase()));
+    setShipments(prev => {
+      const filtered = prev.filter(s =>
+        !batchTrackings.has((s.id || '').trim().toUpperCase()) &&
+        !batchTrackings.has((getOriginalTrackingHelper(s) || '').trim().toUpperCase())
+      );
+      return [...newShipmentsList, ...filtered];
+    });
     setBulkRows(updatedRows);
 
-    alert(`¡Ingreso por lote completado! Se guardaron exitosamente ${newShipmentsList.length} paquetes en almacén listos para consolidar.`);
+    alert(`¡Ingreso por lote completado! Se guardaron exitosamente ${newShipmentsList.length} paquetes con su número de tracking en almacén listos para consolidar.`);
   };
 
   const handleSimulatePrint = () => {
@@ -3785,17 +3974,30 @@ Estado en Bodega:
   // Admin Create Shipment
   const handleAdminCreateShipment = (e: React.FormEvent) => {
     e.preventDefault();
+    const trackingId = adminTrackingInput.trim().toUpperCase();
+    if (!trackingId) {
+      alert('Por favor ingrese el número de tracking / guía del envío.');
+      return;
+    }
     if (!adminSender || !adminReceiver || !adminOrigin || !adminDestination) {
       alert('Complete todos los campos del envío corporativo.');
       return;
     }
 
-    const newId = generatePackageId();
+    const existingShip = shipments.find(s =>
+      (s.id || '').trim().toUpperCase() === trackingId ||
+      (getOriginalTrackingHelper(s) || '').trim().toUpperCase() === trackingId
+    );
+    if (existingShip) {
+      alert(`Ya existe un envío registrado con el tracking "${trackingId}". Se evitaron duplicados.`);
+      return;
+    }
+
     const currentDate = new Date().toISOString().split('T')[0];
     const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
 
     const newShip: Shipment = {
-      id: newId,
+      id: trackingId,
       lockerId: adminLockerLink,
       sender: adminSender,
       receiver: adminReceiver,
@@ -3822,10 +4024,11 @@ Estado en Bodega:
     db.upsertShipment(newShip);
 
     setShipments([newShip, ...shipments]);
-    alert(`Envío corporativo ${newId} creado correctamente.`);
+    alert(`Envío ${trackingId} creado correctamente.`);
     setNewShipmentModal(false);
 
     // Reset
+    setAdminTrackingInput('');
     setAdminSender('');
     setAdminReceiver('');
     setAdminLockerLink('');
@@ -4232,7 +4435,7 @@ Para proporcionarle información específica, puede solicitar:
     const clientName = matchingUser ? matchingUser.name : 'Cliente Registrado';
     const destination = matchingUser ? matchingUser.address : 'Guatemala';
 
-    const generatedId = `SF-${Math.floor(1000 + Math.random() * 9000)}-GT`;
+    const trackingId = (pa.id || '').trim().toUpperCase();
     const currentDate = new Date().toISOString().split('T')[0];
     const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
 
@@ -4241,8 +4444,13 @@ Para proporcionarle información específica, puede solicitar:
       ? ratesSettings.sheinRate
       : (checkInModalBodega === 'USA' ? verifiedWeight * ratesSettings.laredoRate : verifiedWeight * ratesSettings.mexicoRate);
 
+    const existingShip = shipments.find(s =>
+      (s.id || '').trim().toUpperCase() === trackingId ||
+      (getOriginalTrackingHelper(s) || '').trim().toUpperCase() === trackingId
+    );
+
     const newShip: Shipment = {
-      id: generatedId,
+      id: trackingId,
       lockerId: pa.lockerId,
       sender: pa.sender || 'Tienda Courier Intern.',
       receiver: clientName,
@@ -4262,9 +4470,10 @@ Para proporcionarle información específica, puede solicitar:
           details: isShein
             ? `Carga pre-alertada (Bolsa Shein) recibida en bodega de ${checkInModalBodega} e ingresada a almacén.`
             : `Carga pre-alertada recibida e ingresada a almacén de ${checkInModalBodega}. Peso verificado en báscula: ${verifiedWeight} Lbs.`
-        }
+        },
+        ...(existingShip?.history || [])
       ],
-      notes: pa.description ? `${pa.description} | Tracking original: ${pa.id}` : `Tracking original: ${pa.id}`
+      notes: pa.description ? `${pa.description} | Tracking original: ${trackingId}` : `Tracking original: ${trackingId}`
     };
 
     const updatedPa: PreAlert = {
@@ -4273,21 +4482,31 @@ Para proporcionarle información específica, puede solicitar:
       weightEst: verifiedWeight
     };
 
-    // Guardar en Supabase (Pre-alerta recibida y Paquete en Almacén, SIN GENERAR FACTURA)
+    // Guardar en Supabase (Pre-alerta recibida y Paquete en Almacén con su Tracking real, evitando duplicados)
     await db.upsertPreAlert(updatedPa);
-    await db.upsertShipment(newShip);
+    if (existingShip && existingShip.id !== trackingId) {
+      await db.replaceShipment(existingShip.id, newShip);
+    } else {
+      await db.upsertShipment(newShip);
+    }
 
     setPreAlerts(prev => prev.map(item => item.id === pa.id ? updatedPa : item));
-    setShipments(prev => [newShip, ...prev]);
+    setShipments(prev => {
+      const filtered = prev.filter(s =>
+        (s.id || '').trim().toUpperCase() !== trackingId &&
+        (getOriginalTrackingHelper(s) || '').trim().toUpperCase() !== trackingId
+      );
+      return [newShip, ...filtered];
+    });
 
     // Enviar notificación al cliente por correo (sin cobro ni factura)
-    sendPreAlertReceivedEmailHelper(pa, generatedId, flete, 0, flete, true);
+    sendPreAlertReceivedEmailHelper(pa, trackingId, flete, 0, flete, true);
 
     setIsCheckInModalOpen(false);
     setCheckInModalPreAlert(null);
     setProcessingPreAlertId(null);
 
-    alert(`¡Paquete con tracking ${pa.id} ingresado exitosamente a Bodega ${checkInModalBodega}! Peso verificado: ${verifiedWeight} Lbs. Almacenado en Warehouse con ID: ${generatedId} (sin facturar).`);
+    alert(`¡Paquete con tracking ${trackingId} ingresado exitosamente a Bodega ${checkInModalBodega}! Peso verificado: ${verifiedWeight} Lbs. Registrado directamente con su tracking (sin guía interna ni duplicados).`);
   };
 
   // Standard ISO/IEC 15417 Code-128B SVG Barcode Generator for 4"x6" thermal labels
@@ -8540,6 +8759,11 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
 
                       const handleWarehouseCheckIn = (e: React.FormEvent) => {
                         e.preventDefault();
+                        const trackingId = (warehouseSearchQuery.trim() || linkedPreAlert?.id || '').trim().toUpperCase();
+                        if (!trackingId) {
+                          alert('Por favor ingrese o escanee el número de tracking / guía del paquete.');
+                          return;
+                        }
                         const weightValue = parseFloat(warehouseWeightInput) || 0;
                         if (weightValue <= 0) {
                           alert('Por favor ingrese el peso del paquete en libras.');
@@ -8550,11 +8774,6 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                           return;
                         }
 
-                        // Use scanned tracking number if present, otherwise generate random ID
-                        const generatedId = warehouseSearchQuery.trim() !== ''
-                          ? warehouseSearchQuery.trim()
-                          : `SF-${Math.floor(1000 + Math.random() * 9000)}-GT`;
-
                         const currentDate = new Date().toISOString().split('T')[0];
                         const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
 
@@ -8563,14 +8782,16 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                         const clientName = matchingUser ? matchingUser.name : 'Cliente';
                         const isShein = isSheinPackage || warehouseNotes.toLowerCase().includes('shein');
 
+                        const matchedPreAlert = linkedPreAlert || preAlerts.find(pa => (pa.id || '').trim().toUpperCase() === trackingId) || null;
+
                         let historyDetails = isShein
                           ? `Ingreso físico de Bolsa Shein a bodega de ${warehouseBodega}.`
                           : `Ingreso físico a bodega de ${warehouseBodega}. Peso registrado: ${weightValue} Lbs.`;
 
                         if (isNotPreAlertedPackage) {
                           historyDetails += ` (Paquete no pre alertado cobro extra Q30)`;
-                        } else if (linkedPreAlert) {
-                          historyDetails += ` (Pre-alerta vinculada: ${linkedPreAlert.id} - Paquete Pre Alertado)`;
+                        } else if (matchedPreAlert) {
+                          historyDetails += ` (Pre-alerta vinculada: ${matchedPreAlert.id} - Paquete Pre Alertado)`;
                         } else {
                           historyDetails += ` (Paquete Pre Alertado)`;
                         }
@@ -8582,13 +8803,18 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                         }
 
                         const persistedNotes = isNotPreAlertedPackage
-                          ? `${warehouseNotes.trim()} | Paquete no pre alertado cobro extra Q30`
-                          : `${warehouseNotes.trim()} | Paquete Pre Alertado`;
+                          ? `${warehouseNotes.trim()} | Paquete no pre alertado cobro extra Q30 | Tracking original: ${trackingId}`
+                          : `${warehouseNotes.trim()} | Paquete Pre Alertado | Tracking original: ${trackingId}`;
+
+                        const existingShip = shipments.find(s =>
+                          (s.id || '').trim().toUpperCase() === trackingId ||
+                          (getOriginalTrackingHelper(s) || '').trim().toUpperCase() === trackingId
+                        );
 
                         const newShip: Shipment = {
-                          id: generatedId,
+                          id: trackingId,
                           lockerId: warehouseLocker,
-                          sender: warehouseSenderInput || 'Tienda Courier Intern.',
+                          sender: warehouseSenderInput || matchedPreAlert?.sender || 'Tienda Courier Intern.',
                           receiver: clientName,
                           origin: warehouseBodega,
                           destination: matchingUser ? matchingUser.address : 'Guatemala Hub Central',
@@ -8604,28 +8830,39 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                               status: 'En Sucursal',
                               location: `Bodega ${warehouseBodega}`,
                               details: historyDetails
-                            }
+                            },
+                            ...(existingShip?.history || [])
                           ],
                           notes: persistedNotes
                         };
 
-                        // Save to Supabase
-                        db.upsertShipment(newShip);
-
-                        // Handle pre-alert update if linked
-                        if (linkedPreAlert) {
-                          const updatedPa = { ...linkedPreAlert, status: 'Recibido' as const };
-                          db.upsertPreAlert(updatedPa);
-                          setPreAlerts(prev => prev.map(item => item.id === linkedPreAlert.id ? updatedPa : item));
+                        // Save to Supabase (replacing any old SF-XXXX-GT duplicate if present)
+                        if (existingShip && existingShip.id !== trackingId) {
+                          db.replaceShipment(existingShip.id, newShip);
+                        } else {
+                          db.upsertShipment(newShip);
                         }
 
-                        setShipments(prev => [newShip, ...prev]);
+                        // Handle pre-alert update if linked or matched by tracking
+                        if (matchedPreAlert) {
+                          const updatedPa = { ...matchedPreAlert, status: 'Recibido' as const, weightEst: weightValue };
+                          db.upsertPreAlert(updatedPa);
+                          setPreAlerts(prev => prev.map(item => item.id === matchedPreAlert.id ? updatedPa : item));
+                        }
 
-                        let alertMessage = `¡Paquete ingresado formalmente en Bodega de ${warehouseBodega}! ID asignado: ${generatedId}.`;
+                        setShipments(prev => {
+                          const filtered = prev.filter(s =>
+                            (s.id || '').trim().toUpperCase() !== trackingId &&
+                            (getOriginalTrackingHelper(s) || '').trim().toUpperCase() !== trackingId
+                          );
+                          return [newShip, ...filtered];
+                        });
+
+                        let alertMessage = `¡Paquete ingresado formalmente en Bodega de ${warehouseBodega} con Tracking: ${trackingId}!`;
                         if (isNotPreAlertedPackage) {
                           alertMessage += ` Se aplicó cargo por Paquete No Pre-Alertado (+Q 30.00).`;
                         }
-                        alertMessage += ` Almacenado listo para consolidación (solo se facturará al consolidar o de forma manual).`;
+                        alertMessage += ` Almacenado listo para consolidación (sin guía interna ni duplicados).`;
 
                         alert(alertMessage);
                         
@@ -14625,6 +14862,17 @@ El Equipo de ShipFast GT`;
                         {/* MODE 1: INDIVIDUAL ENTRY PANEL */}
                         {newShipmentModalMode === 'individual' && (
                           <form onSubmit={handleAdminCreateShipment} className="p-6 space-y-4">
+                            <div>
+                              <label className="text-4xs font-bold text-brand-orange uppercase block mb-1">Número de Tracking / Guía *</label>
+                              <input
+                                type="text"
+                                required
+                                value={adminTrackingInput}
+                                onChange={(e) => setAdminTrackingInput(e.target.value.toUpperCase())}
+                                className="w-full px-2.5 py-1.5 text-3xs border border-gray-300 rounded focus:ring-1 focus:ring-brand-orange font-mono font-bold text-brand-gray-dark uppercase"
+                                placeholder="Ej: 1Z999AA10123456784"
+                              />
+                            </div>
                             <div className="grid grid-cols-2 gap-4">
                               <div>
                                 <label className="text-4xs font-bold text-gray-500 uppercase block mb-1">Nombre Remitente *</label>
@@ -17294,7 +17542,7 @@ El Equipo de ShipFast GT`;
                       (u.lockerId || '').toLowerCase().includes(q)
                     );
 
-                    const matchingShipments = shipments.filter(s => 
+                    const rawMatchingShipments = shipments.filter(s => 
                       (s.id || '').toLowerCase().includes(q) || 
                       (s.lockerId || '').toLowerCase().includes(q) || 
                       (s.sender || '').toLowerCase().includes(q) || 
@@ -17304,12 +17552,33 @@ El Equipo de ShipFast GT`;
                       (s.notes || '').toLowerCase().includes(q)
                     );
 
-                    const matchingPreAlerts = preAlerts.filter(pa => 
-                      (pa.id || '').toLowerCase().includes(q) || 
-                      (pa.lockerId || '').toLowerCase().includes(q) || 
-                      (pa.sender || '').toLowerCase().includes(q) || 
-                      (pa.description || '').toLowerCase().includes(q)
-                    );
+                    // Deduplicate matchingShipments by canonical tracking number
+                    const seenSearchShipmentIds = new Set<string>();
+                    const matchingShipments = rawMatchingShipments.filter(s => {
+                      const canonical = String(getOriginalTrackingHelper(s) || s.id || '').trim().toUpperCase();
+                      const key = canonical || String(s.id || '').trim().toUpperCase();
+                      if (!key || seenSearchShipmentIds.has(key)) return false;
+                      seenSearchShipmentIds.add(key);
+                      return true;
+                    });
+
+                    const seenSearchPreAlertIds = new Set<string>();
+                    const matchingPreAlerts = preAlerts.filter(pa => {
+                      const paIdUpper = String(pa.id || '').trim().toUpperCase();
+                      if (!paIdUpper || seenSearchPreAlertIds.has(paIdUpper)) return false;
+                      // In "Todos los resultados", avoid showing a duplicate Pre-Alert card if the package is already shown in Guías / Envíos
+                      if (globalSearchFilter === 'todos' && seenSearchShipmentIds.has(paIdUpper)) {
+                        return false;
+                      }
+                      const matches = (pa.id || '').toLowerCase().includes(q) || 
+                        (pa.lockerId || '').toLowerCase().includes(q) || 
+                        (pa.sender || '').toLowerCase().includes(q) || 
+                        (pa.description || '').toLowerCase().includes(q);
+                      if (matches) {
+                        seenSearchPreAlertIds.add(paIdUpper);
+                      }
+                      return matches;
+                    });
 
                     const matchingInvoices = invoices.filter(i => 
                       (i.id || '').toLowerCase().includes(q) || 
