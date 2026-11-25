@@ -463,7 +463,7 @@ export default function App() {
     return ship.id || '';
   };
 
-  // Helper: Check if the last 7 digits/characters of an entered tracking match any existing Pre-Alert or registered Shipment
+  // Helper: Check if the last 10 digits/characters of an entered tracking match any existing Pre-Alert or registered Shipment
   const findDuplicateByLast7 = (
     rawTracking: string,
     options?: { excludePreAlertId?: string; excludeShipmentId?: string }
@@ -478,12 +478,12 @@ export default function App() {
     if (clean.length < 4) {
       return { isDuplicate: false, last7: clean, message: '' };
     }
-    const last7 = clean.length >= 7 ? clean.slice(-7) : clean;
+    const last10 = clean.length >= 10 ? clean.slice(-10) : clean;
     const matchTarget = (candidate: string) => {
       const c = (candidate || '').trim().toUpperCase();
       if (!c) return false;
       if (c === clean) return true;
-      if (clean.length >= 7 && c.length >= 7 && c.slice(-7) === last7) return true;
+      if (clean.length >= 10 && c.length >= 10 && c.slice(-10) === last10) return true;
       return false;
     };
 
@@ -501,7 +501,7 @@ export default function App() {
     });
 
     if (!matchedShipment && !matchedPreAlert) {
-      return { isDuplicate: false, last7, message: '' };
+      return { isDuplicate: false, last7: last10, message: '' };
     }
 
     const details: string[] = [];
@@ -514,10 +514,10 @@ export default function App() {
 
     return {
       isDuplicate: true,
-      last7,
+      last7: last10,
       matchedShipment,
       matchedPreAlert,
-      message: `⚠️ Paquete duplicado: revisar tracking.\n\nLos últimos 7 dígitos (${last7}) coinciden con:\n• ${details.join('\n• ')}`
+      message: `⚠️ Paquete duplicado: revisar tracking.\n\nLos últimos 10 dígitos (${last10}) coinciden con:\n• ${details.join('\n• ')}`
     };
   };
 
@@ -3898,18 +3898,18 @@ Estado en Bodega:
       return;
     }
 
-    // Validate all unsaved rows first & check for duplicate trackings (including last 7 digits)
+    // Validate all unsaved rows first & check for duplicate trackings (including last 10 digits)
     const seenInBatch = new Set<string>();
-    const seenLast7InBatch = new Set<string>();
+    const seenLast10InBatch = new Set<string>();
     for (const row of unsavedRows) {
       const trk = row.trackingNumber.trim().toUpperCase();
       if (!trk) {
         alert(`Fila con índice #${bulkRows.indexOf(row) + 1} no tiene Tracking Number.`);
         return;
       }
-      const rowLast7 = trk.length >= 7 ? trk.slice(-7) : trk;
-      if (seenInBatch.has(trk) || (trk.length >= 7 && seenLast7InBatch.has(rowLast7))) {
-        alert(`⚠️ Paquete duplicado: revisar tracking.\n\nEl Tracking "${trk}" (últimos 7 dígitos: ${rowLast7}) está duplicado en la fila #${bulkRows.indexOf(row) + 1}.`);
+      const rowLast10 = trk.length >= 10 ? trk.slice(-10) : trk;
+      if (seenInBatch.has(trk) || (trk.length >= 10 && seenLast10InBatch.has(rowLast10))) {
+        alert(`⚠️ Paquete duplicado: revisar tracking.\n\nEl Tracking "${trk}" (últimos 10 dígitos: ${rowLast10}) está duplicado en la fila #${bulkRows.indexOf(row) + 1}.`);
         return;
       }
       const dupCheck = findDuplicateByLast7(trk);
@@ -3918,7 +3918,7 @@ Estado en Bodega:
         return;
       }
       seenInBatch.add(trk);
-      if (trk.length >= 7) seenLast7InBatch.add(rowLast7);
+      if (trk.length >= 10) seenLast10InBatch.add(rowLast10);
 
       const matchedClient = users.find(u => u.role === 'client' && u.lockerId.toUpperCase() === row.lockerId.toUpperCase().trim());
       if (!matchedClient) {
@@ -8812,13 +8812,13 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                         }
 
                         const cleanQ = query.trim().toLowerCase();
-                        const last7 = cleanQ.length >= 7 ? cleanQ.slice(-7) : '';
-                        // Search in preAlerts (exact, substring, or matching last 7 digits)
+                        const last10 = cleanQ.length >= 10 ? cleanQ.slice(-10) : '';
+                        // Search in preAlerts (exact, substring, or matching last 10 digits)
                         const match = preAlerts.find(pa => {
                           const paIdLower = (pa.id || '').trim().toLowerCase();
                           if (!paIdLower) return false;
                           if (paIdLower === cleanQ) return true;
-                          if (last7 && paIdLower.length >= 7 && paIdLower.slice(-7) === last7) return true;
+                          if (last10 && paIdLower.length >= 10 && paIdLower.slice(-10) === last10) return true;
                           if (cleanQ.length > 5 && paIdLower.includes(cleanQ)) return true;
                           return false;
                         });
@@ -9020,7 +9020,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                         ⚠️ Paquete Duplicado — Revisar Tracking
                                       </span>
                                       <p className="text-red-700 font-semibold leading-relaxed">
-                                        Los últimos 7 dígitos (<strong className="font-mono underline">{warehouseDuplicateInfo.last7}</strong>) coinciden con un registro existente:
+                                        Los últimos 10 dígitos (<strong className="font-mono underline">{warehouseDuplicateInfo.last7}</strong>) coinciden con un registro existente:
                                       </p>
                                       {warehouseDuplicateInfo.matchedShipment && (
                                         <div className="text-red-800 bg-white/80 px-2 py-1 rounded border border-red-200 font-mono">
@@ -14985,7 +14985,7 @@ El Equipo de ShipFast GT`;
                                 if (!dup.isDuplicate) return null;
                                 return (
                                   <div className="mt-1.5 p-2 rounded-md bg-red-100 border border-red-400 text-red-900 text-4xs font-bold leading-tight">
-                                    ⚠️ Paquete duplicado: revisar tracking (últimos 7 dígitos: <span className="font-mono underline">{dup.last7}</span>
+                                    ⚠️ Paquete duplicado: revisar tracking (últimos 10 dígitos: <span className="font-mono underline">{dup.last7}</span>
                                     {dup.matchedShipment ? ` • Paquete: ${dup.matchedShipment.id}` : ''}
                                     {dup.matchedPreAlert ? ` • Pre-alerta: ${dup.matchedPreAlert.id}` : ''})
                                   </div>
@@ -16162,7 +16162,7 @@ El Equipo de ShipFast GT`;
                         if (!dup.isDuplicate) return null;
                         return (
                           <div className="mt-1.5 p-2 rounded-lg bg-red-100 border border-red-400 text-red-900 text-[10px] font-bold leading-tight">
-                            ⚠️ Paquete duplicado: revisar tracking (últimos 7 dígitos: <span className="font-mono underline">{dup.last7}</span>)
+                            ⚠️ Paquete duplicado: revisar tracking (últimos 10 dígitos: <span className="font-mono underline">{dup.last7}</span>)
                           </div>
                         );
                       })()}
@@ -16522,7 +16522,7 @@ El Equipo de ShipFast GT`;
                         if (!dup.isDuplicate) return null;
                         return (
                           <div className="mt-1.5 p-2 rounded-lg bg-red-100 border border-red-400 text-red-900 text-[10px] font-bold leading-tight">
-                            ⚠️ Paquete duplicado: revisar tracking (últimos 7 dígitos: <span className="font-mono underline">{dup.last7}</span>
+                            ⚠️ Paquete duplicado: revisar tracking (últimos 10 dígitos: <span className="font-mono underline">{dup.last7}</span>
                             {dup.matchedShipment ? ` • Paquete: ${dup.matchedShipment.id}` : ''}
                             {dup.matchedPreAlert ? ` • Pre-alerta: ${dup.matchedPreAlert.id}` : ''})
                           </div>
