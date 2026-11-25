@@ -260,18 +260,39 @@ export const db = {
       const waiverDt = copy.waiverDate || new Date().toISOString();
       delete copy.waiverSignature;
       delete copy.waiverDate;
+      delete copy._attachmentChecked;
+
+      let insuranceVal: string | undefined = undefined;
       if (waiverSig) {
         const cleanIns = (copy.insurance || 'Sin seguro').split(':::WAIVER:::')[0];
-        copy.insurance = `${cleanIns}:::WAIVER:::${waiverDt}:::${waiverSig}`;
-      } else {
-        // Avoid overwriting existing stored signature blob when updating status/metadata
-        delete copy.insurance;
+        insuranceVal = `${cleanIns}:::WAIVER:::${waiverDt}:::${waiverSig}`;
+      } else if (typeof copy.insurance === 'string' && copy.insurance.includes(':::WAIVER:::')) {
+        insuranceVal = copy.insurance;
       }
-      if (!copy.invoiceFileName || (!String(copy.invoiceFileName).includes(':::') && !String(copy.invoiceFileName).startsWith('data:'))) {
-        // Avoid overwriting existing stored base64 PDF/image when updating status/metadata
-        delete copy.invoiceFileName;
+
+      let invoiceFileVal: string | undefined = undefined;
+      if (copy.invoiceFileName && (String(copy.invoiceFileName).includes(':::') || String(copy.invoiceFileName).startsWith('data:'))) {
+        invoiceFileVal = copy.invoiceFileName;
       }
-      const dbObj = toSnake(copy);
+
+      const dbObj: Record<string, any> = {
+        id: String(copy.id || '').trim(),
+        locker_id: copy.lockerId ?? copy.locker_id ?? '',
+        sender: copy.sender ?? 'Compra Online',
+        description: copy.description ?? '',
+        weight_est: typeof copy.weightEst === 'number' ? copy.weightEst : (parseFloat(copy.weightEst) || 1),
+        status: copy.status || 'Pendiente',
+        date_created: copy.dateCreated || copy.date_created || new Date().toISOString().split('T')[0],
+        declared_value: typeof copy.declaredValue === 'number' ? copy.declaredValue : (parseFloat(copy.declaredValue) || 0)
+      };
+
+      if (insuranceVal !== undefined) {
+        dbObj.insurance = insuranceVal;
+      }
+      if (invoiceFileVal !== undefined) {
+        dbObj.invoice_file_name = invoiceFileVal;
+      }
+
       const { error } = await supabase.from('pre_alerts').upsert(dbObj);
       if (error) throw error;
       return true;

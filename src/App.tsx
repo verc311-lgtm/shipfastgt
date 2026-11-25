@@ -3177,7 +3177,7 @@ Estado en Bodega:
     const parsed = parsePreAlertDetails(pa);
     setEditingPreAlert(pa);
     setEditPreAlertTracking(pa.id);
-    setEditPreAlertLockerId(pa.lockerId || '');
+    setEditPreAlertLockerId((pa.lockerId || '').trim().toUpperCase());
     setEditPreAlertSender(pa.sender || 'Compra Online');
     setEditPreAlertCustomNote(parsed.customNote || '');
     setEditPreAlertWeight(String(pa.weightEst));
@@ -4499,10 +4499,13 @@ Para proporcionarle información específica, puede solicitar:
     setShipments(prev => prev.map(s => s.id === updatedShipment.id ? updatedShipment : s));
   };
 
-  const handleOpenCheckInModal = (pa: PreAlert, bodega: 'USA' | 'Mexico') => {
+  const handleOpenCheckInModal = (pa: PreAlert, bodega?: 'USA' | 'Mexico') => {
+    const parsed = parsePreAlertDetails(pa);
+    const resolvedBodega: 'USA' | 'Mexico' = bodega || (parsed.isMexico ? 'Mexico' : 'USA');
     setCheckInModalPreAlert(pa);
-    setCheckInModalBodega(bodega);
+    setCheckInModalBodega(resolvedBodega);
     setCheckInModalWeight(pa.weightEst || 1.0);
+    setProcessingPreAlertId(null);
     setIsCheckInModalOpen(true);
   };
 
@@ -4516,7 +4519,8 @@ Para proporcionarle información específica, puede solicitar:
     const clientName = matchingUser ? matchingUser.name : 'Cliente Registrado';
     const destination = matchingUser ? matchingUser.address : 'Guatemala';
 
-    const trackingId = (pa.id || '').trim().toUpperCase();
+    const rawPaId = String(pa.id || '').trim();
+    const trackingId = rawPaId.toUpperCase();
     const currentDate = new Date().toISOString().split('T')[0];
     const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
 
@@ -4532,7 +4536,7 @@ Para proporcionarle información específica, puede solicitar:
 
     const newShip: Shipment = {
       id: trackingId,
-      lockerId: pa.lockerId,
+      lockerId: normLocker || pa.lockerId,
       sender: pa.sender || 'Tienda Courier Intern.',
       receiver: clientName,
       origin: checkInModalBodega,
@@ -4563,15 +4567,10 @@ Para proporcionarle información específica, puede solicitar:
       weightEst: verifiedWeight
     };
 
-    // Guardar en Supabase (Pre-alerta recibida y Paquete en Almacén con su Tracking real, evitando duplicados)
-    await db.upsertPreAlert(updatedPa);
-    if (existingShip && existingShip.id !== trackingId) {
-      await db.replaceShipment(existingShip.id, newShip);
-    } else {
-      await db.upsertShipment(newShip);
-    }
-
-    setPreAlerts(prev => prev.map(item => item.id === pa.id ? updatedPa : item));
+    // Actualizar estado local inmediatamente para respuesta instantánea en la tabla de Pre-Alertas
+    setPreAlerts(prev => prev.map(item =>
+      (item.id === pa.id || String(item.id || '').trim().toUpperCase() === trackingId) ? updatedPa : item
+    ));
     setShipments(prev => {
       const filtered = prev.filter(s =>
         (s.id || '').trim().toUpperCase() !== trackingId &&
@@ -4580,14 +4579,22 @@ Para proporcionarle información específica, puede solicitar:
       return [newShip, ...filtered];
     });
 
-    // Enviar notificación al cliente por correo (sin cobro ni factura)
-    sendPreAlertReceivedEmailHelper(pa, trackingId, flete, 0, flete, true);
-
     setIsCheckInModalOpen(false);
     setCheckInModalPreAlert(null);
     setProcessingPreAlertId(null);
 
-    alert(`¡Paquete con tracking ${trackingId} ingresado exitosamente a Bodega ${checkInModalBodega}! Peso verificado: ${verifiedWeight} Lbs. Registrado directamente con su tracking (sin guía interna ni duplicados).`);
+    // Guardar en Supabase (Pre-alerta recibida y Paquete en Almacén con su Tracking real, evitando duplicados)
+    await db.upsertPreAlert(updatedPa);
+    if (existingShip && existingShip.id !== trackingId) {
+      await db.replaceShipment(existingShip.id, newShip);
+    } else {
+      await db.upsertShipment(newShip);
+    }
+
+    // Enviar notificación al cliente por correo (sin cobro ni factura)
+    sendPreAlertReceivedEmailHelper(pa, trackingId, flete, 0, flete, true);
+
+    alert(`¡Paquete con tracking ${trackingId} procesado e ingresado exitosamente a Bodega ${checkInModalBodega}! Peso verificado: ${verifiedWeight} Lbs.`);
   };
 
   // Standard ISO/IEC 15417 Code-128B SVG Barcode Generator for 4"x6" thermal labels
@@ -8633,48 +8640,16 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                                   <td className="py-2.5 px-2 text-center whitespace-nowrap align-middle">
                                     <div className="flex flex-col gap-1 items-center justify-center">
                                       {!isProcessed ? (
-                                        processingPreAlertId !== pa.id ? (
+                                        <div className="flex flex-col items-center gap-1">
                                           <button
                                             type="button"
-                                            onClick={() => setProcessingPreAlertId(pa.id)}
+                                            onClick={() => handleOpenCheckInModal(pa, parsed.isMexico ? 'Mexico' : 'USA')}
                                             className="bg-brand-orange hover:bg-brand-orange-hover text-white px-2.5 py-1 rounded text-[9px] font-black uppercase transition cursor-pointer shadow-3xs flex items-center gap-1 active:scale-95"
                                             title="Procesar y confirmar recepción en bodega"
                                           >
                                             ⚡ Procesar
                                           </button>
-                                        ) : (
-                                          <div className="flex flex-col items-center gap-1 animate-fadeIn">
-                                            <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">
-                                              Seleccionar Bodega:
-                                            </span>
-                                            <div className="flex gap-1 justify-center items-center">
-                                              <button
-                                                type="button"
-                                                onClick={() => handleOpenCheckInModal(pa, 'USA')}
-                                                className="bg-brand-orange hover:bg-brand-orange-hover text-white px-1.5 py-0.5 rounded text-[9px] font-black uppercase transition cursor-pointer shadow-3xs flex items-center gap-0.5 active:scale-95"
-                                                title="Confirmar recepción en Bodega USA (modificar libras)"
-                                              >
-                                                USA 🇺🇸
-                                              </button>
-                                              <button
-                                                type="button"
-                                                onClick={() => handleOpenCheckInModal(pa, 'Mexico')}
-                                                className="bg-indigo-600 hover:bg-indigo-700 text-white px-1.5 py-0.5 rounded text-[9px] font-black uppercase transition cursor-pointer shadow-3xs flex items-center gap-0.5 active:scale-95"
-                                                title="Confirmar recepción en Bodega México (modificar libras)"
-                                              >
-                                                México 🇲🇽
-                                              </button>
-                                              <button
-                                                type="button"
-                                                onClick={() => setProcessingPreAlertId(null)}
-                                                className="text-gray-400 hover:text-gray-600 p-0.5 text-xs font-bold leading-none cursor-pointer"
-                                                title="Cancelar"
-                                              >
-                                                ✕
-                                              </button>
-                                            </div>
-                                          </div>
-                                        )
+                                        </div>
                                       ) : (
                                         <div className="flex flex-col items-center gap-0.5">
                                           <span className="inline-flex items-center gap-0.5 text-emerald-800 text-[9px] font-extrabold uppercase bg-emerald-100/70 border border-emerald-300 px-1.5 py-0.5 rounded shadow-3xs">
@@ -8851,10 +8826,26 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                           return;
                         }
 
-                        // Check if last 7 digits match any existing pre-alert or registered package
+                        // Check if last 10 digits match any existing pre-alert or registered package
                         const dupCheck = findDuplicateByLast7(trackingId);
                         if (dupCheck.isDuplicate) {
-                          alert(dupCheck.message);
+                          const hasExistingActiveShipment = !!dupCheck.matchedShipment && dupCheck.matchedShipment.status !== 'Creado';
+                          const hasAlreadyReceivedPreAlert = !!dupCheck.matchedPreAlert && dupCheck.matchedPreAlert.status === 'Recibido';
+                          if (hasExistingActiveShipment || hasAlreadyReceivedPreAlert) {
+                            alert(dupCheck.message);
+                            return;
+                          }
+                          // If it only matches a 'Pendiente' pre-alert, notify and allow confirming reception into warehouse
+                          if (dupCheck.matchedPreAlert && dupCheck.matchedPreAlert.status === 'Pendiente') {
+                            const confirmReceive = window.confirm(
+                              `${dupCheck.message}\n\n¿Desea procesar y recibir esta pre-alerta pendiente en Bodega ${warehouseBodega}?`
+                            );
+                            if (!confirmReceive) return;
+                          }
+                        }
+
+                        if (!warehouseLocker.trim()) {
+                          alert('Por favor seleccione o ingrese el Casillero Destino del cliente.');
                           return;
                         }
 
@@ -8868,11 +8859,11 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                         const currentTime = new Date().toTimeString().split(' ')[0].substring(0, 5);
 
                         // Prepare package history details
-                        const matchingUser = users.find(u => u.lockerId === warehouseLocker);
+                        const matchingUser = users.find(u => (u.lockerId || '').trim().toUpperCase() === warehouseLocker.trim().toUpperCase());
                         const clientName = matchingUser ? matchingUser.name : 'Cliente';
                         const isShein = isSheinPackage || warehouseNotes.toLowerCase().includes('shein');
 
-                        const matchedPreAlert = linkedPreAlert || preAlerts.find(pa => (pa.id || '').trim().toUpperCase() === trackingId) || null;
+                        const matchedPreAlert = linkedPreAlert || dupCheck.matchedPreAlert || preAlerts.find(pa => (pa.id || '').trim().toUpperCase() === trackingId) || null;
 
                         let historyDetails = isShein
                           ? `Ingreso físico de Bolsa Shein a bodega de ${warehouseBodega}.`
@@ -9351,7 +9342,7 @@ Pedro Asturias,Antigua Guatemala,Express,1.5,Documentación legal urgente`;
                         <>
                           {isWarehouseCheckInModalOpen && (
                             <div
-                              className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-fadeIn"
+                              className="fixed inset-0 z-[220] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-fadeIn"
                               onClick={(e) => {
                                 if (e.target === e.currentTarget) setIsWarehouseCheckInModalOpen(false);
                               }}
@@ -18264,7 +18255,7 @@ El Equipo de ShipFast GT`;
         const clientName = matchingUser ? matchingUser.name : 'Cliente Registrado';
 
         return (
-          <div className="fixed inset-0 bg-brand-gray-dark/80 backdrop-blur-xs flex justify-center items-center z-50 p-4 animate-fadeIn">
+          <div className="fixed inset-0 bg-brand-gray-dark/80 backdrop-blur-xs flex justify-center items-center z-[220] p-4 animate-fadeIn">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col border border-gray-200">
               {/* Header */}
               <div className={`p-5 text-white flex justify-between items-center ${isUSA ? 'bg-gradient-to-r from-brand-orange to-amber-600' : 'bg-gradient-to-r from-indigo-600 to-indigo-800'}`}>
@@ -18275,9 +18266,9 @@ El Equipo de ShipFast GT`;
                   <div>
                     <h3 className="text-sm font-extrabold uppercase tracking-wider font-display flex items-center gap-1.5">
                       <span>{isUSA ? '🇺🇸' : '🇲🇽'}</span>
-                      <span>Ingreso a Bodega {isUSA ? 'USA' : 'México'}</span>
+                      <span>Procesar Pre-Alerta • Bodega {isUSA ? 'USA' : 'México'}</span>
                     </h3>
-                    <p className="text-[10px] text-white/85 font-medium">Verificar peso en báscula e ingresar a Warehouse</p>
+                    <p className="text-[10px] text-white/85 font-medium">Seleccionar bodega, verificar peso en báscula e ingresar a almacén</p>
                   </div>
                 </div>
                 <button
@@ -18294,6 +18285,37 @@ El Equipo de ShipFast GT`;
 
               {/* Content */}
               <div className="p-5 space-y-4 bg-gray-50/50">
+                {/* Bodega Selector Toggle */}
+                <div className="bg-white p-2.5 rounded-xl border border-gray-200 flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-black text-gray-500 uppercase tracking-wider pl-1">
+                    Bodega de Recepción:
+                  </span>
+                  <div className="flex gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setCheckInModalBodega('USA')}
+                      className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition cursor-pointer flex items-center gap-1 ${
+                        isUSA
+                          ? 'bg-brand-orange text-white shadow-xs'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      🇺🇸 USA
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCheckInModalBodega('Mexico')}
+                      className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase transition cursor-pointer flex items-center gap-1 ${
+                        !isUSA
+                          ? 'bg-indigo-600 text-white shadow-xs'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      🇲🇽 México
+                    </button>
+                  </div>
+                </div>
+
                 {/* Package Information Card */}
                 <div className="bg-white p-3.5 rounded-xl border border-gray-200 space-y-2 text-3xs">
                   <div className="flex justify-between items-center border-b border-gray-100 pb-2">
@@ -18349,7 +18371,7 @@ El Equipo de ShipFast GT`;
                             handleConfirmCheckIn();
                           }
                         }}
-                        className="w-32 text-center text-3xl font-black font-mono border-2 border-brand-orange rounded-xl py-1.5 focus:ring-2 focus:ring-brand-orange focus:outline-none bg-orange-50/20 text-brand-gray-dark"
+                        className="w-32 text-center text-3xl font-black font-mono border-2 border-brand-orange rounded-xl py-1.5 focus:ring-2 focus:ring-brand-orange focus:outline-none bg-orange-50/20 text-brand-gray-dark [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         autoFocus
                       />
                       <span className="absolute right-2.5 top-3.5 text-[9px] font-black text-brand-orange">LBS</span>
